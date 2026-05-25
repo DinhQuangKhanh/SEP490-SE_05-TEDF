@@ -1,0 +1,6 @@
+﻿using TEDF.Domain.Common.Interfaces;
+
+namespace TEDF.Domain.Aggregates.GroupAggregate.Events
+{
+    public sealed record GroupDisbandedEvent(Guid GroupId) : DomainEventBase;
+}
