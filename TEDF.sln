@@ -1,0 +1,54 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36429.23
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEDF.Infrastructure", "TEDF.Infrastructure\TEDF.Infrastructure.csproj", "{571A982D-ED05-40A5-AF5B-A11E457901E3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEDF.Application", "TEDF.Application\TEDF.Application.csproj", "{1AF0F26E-5463-40EF-BF8E-F76ACD75FFF6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEDF.API", "TEDF.API\TEDF.API.csproj", "{5928473C-4A96-45B4-A08E-2D9253A803E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEDF.Persistence", "TEDF.Persistence\TEDF.Persistence.csproj", "{1367E84A-C23E-4BB6-8999-1F8BBACDC15D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEDF.Domain", "TEDF.Domain\TEDF.Domain.csproj", "{A4EDBC95-9D93-00A5-EC31-CD7C662CF75D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		generate_codebase.js = generate_codebase.js
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{571A982D-ED05-40A5-AF5B-A11E457901E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{571A982D-ED05-40A5-AF5B-A11E457901E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{571A982D-ED05-40A5-AF5B-A11E457901E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{571A982D-ED05-40A5-AF5B-A11E457901E3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AF0F26E-5463-40EF-BF8E-F76ACD75FFF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AF0F26E-5463-40EF-BF8E-F76ACD75FFF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AF0F26E-5463-40EF-BF8E-F76ACD75FFF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AF0F26E-5463-40EF-BF8E-F76ACD75FFF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5928473C-4A96-45B4-A08E-2D9253A803E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5928473C-4A96-45B4-A08E-2D9253A803E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5928473C-4A96-45B4-A08E-2D9253A803E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5928473C-4A96-45B4-A08E-2D9253A803E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1367E84A-C23E-4BB6-8999-1F8BBACDC15D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1367E84A-C23E-4BB6-8999-1F8BBACDC15D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1367E84A-C23E-4BB6-8999-1F8BBACDC15D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1367E84A-C23E-4BB6-8999-1F8BBACDC15D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4EDBC95-9D93-00A5-EC31-CD7C662CF75D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4EDBC95-9D93-00A5-EC31-CD7C662CF75D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4EDBC95-9D93-00A5-EC31-CD7C662CF75D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4EDBC95-9D93-00A5-EC31-CD7C662CF75D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9B7E5A44-0499-493E-82C4-B5BB35B42ED5}
+	EndGlobalSection
+EndGlobal
