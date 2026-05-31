@@ -1,0 +1,12 @@
+node_modules/
+**/node_modules/
+
+dist/
+build/
+
+.vs/
+bin/
+obj/
+
+.env
+.env.local
