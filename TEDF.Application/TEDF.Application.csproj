@@ -1,0 +1,75 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.23" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TEDF.Domain\TEDF.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Authentications\Commands\" />
+    <Folder Include="Features\Authentications\DTOs\" />
+    <Folder Include="Features\Authentications\EventHandlers\" />
+    <Folder Include="Features\Authentications\Queries\" />
+    <Folder Include="Features\Chats\Commands\" />
+    <Folder Include="Features\Chats\DTOs\" />
+    <Folder Include="Features\Chats\EventHandlers\" />
+    <Folder Include="Features\Chats\Queries\" />
+    <Folder Include="Features\Departments\Commands\" />
+    <Folder Include="Features\Departments\DTOs\" />
+    <Folder Include="Features\Departments\EventHandlers\" />
+    <Folder Include="Features\Departments\Queries\" />
+    <Folder Include="Features\Evaluations\Commands\" />
+    <Folder Include="Features\Evaluations\DTOs\" />
+    <Folder Include="Features\Evaluations\EventHandlers\" />
+    <Folder Include="Features\Evaluations\Queries\" />
+    <Folder Include="Features\Meetings\Commands\" />
+    <Folder Include="Features\Meetings\DTOs\" />
+    <Folder Include="Features\Meetings\EventHandlers\" />
+    <Folder Include="Features\Meetings\Queries\" />
+    <Folder Include="Features\Notifications\Commands\" />
+    <Folder Include="Features\Notifications\DTOs\" />
+    <Folder Include="Features\Notifications\EventHandlers\" />
+    <Folder Include="Features\Notifications\Queries\" />
+    <Folder Include="Features\Reports\Commands\" />
+    <Folder Include="Features\Reports\DTOs\" />
+    <Folder Include="Features\Reports\EventHandlers\" />
+    <Folder Include="Features\Reports\Queries\" />
+    <Folder Include="Features\Semesters\Commands\" />
+    <Folder Include="Features\Semesters\DTOs\" />
+    <Folder Include="Features\Semesters\EventHandlers\" />
+    <Folder Include="Features\Semesters\Queries\" />
+    <Folder Include="Features\StudentGroups\Commands\" />
+    <Folder Include="Features\StudentGroups\EventHandlers\" />
+    <Folder Include="Features\Projects\Commands\" />
+    <Folder Include="Features\Projects\DTOs\" />
+    <Folder Include="Features\Projects\EventHandlers\" />
+    <Folder Include="Features\Projects\Queries\" />
+    <Folder Include="Features\Supports\Commands\" />
+    <Folder Include="Features\Supports\DTOs\" />
+    <Folder Include="Features\Supports\EventHandlers\" />
+    <Folder Include="Features\Supports\Queries\" />
+    <Folder Include="Features\TopicPools\Commands\" />
+    <Folder Include="Features\TopicPools\DTOs\" />
+    <Folder Include="Features\TopicPools\EventHandlers\" />
+    <Folder Include="Features\TopicPools\Queries\" />
+    <Folder Include="Features\Users\Commands\" />
+    <Folder Include="Features\Users\DTOs\" />
+    <Folder Include="Features\Users\EventHandlers\" />
+    <Folder Include="Features\Users\Queries\" />
+  </ItemGroup>
+
+</Project>
