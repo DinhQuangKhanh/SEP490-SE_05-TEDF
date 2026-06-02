@@ -110,12 +110,12 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: mời sinh viên vào nhóm
 
-    private static async Task<IResult> InviteMemberToGroup(InviteMemberRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> InviteMemberToGroup(Guid groupId, InviteMemberRequest request, ISender sender, CancellationToken ct)
     {
         var invitationId = await sender.Send(
-            new InviteMemberCommand(request.GroupId, request.StudentCode, request.Message), ct);
+            new InviteMemberCommand(groupId, request.StudentCode, request.Message), ct);
 
-        return Created($"/api/student-groups/{request.GroupId}/invitations/{invitationId}",
+        return Created($"/api/student-groups/{groupId}/invitations/{invitationId}",
             new { id = invitationId });
     }
 
@@ -123,9 +123,9 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: chấp nhận lời mời vào nhóm
 
-    private static async Task<IResult> AcceptInvitation(AcceptInvitationRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> AcceptInvitation(Guid groupId, int invitationId, ISender sender, CancellationToken ct)
     {
-        await sender.Send(new RespondInvitationCommand(request.GroupId, request.InvitationId, Accept: true), ct);
+        await sender.Send(new RespondInvitationCommand(groupId, invitationId, Accept: true), ct);
         return NoContent("Chấp nhận lời mời thành công.");
     }
 
@@ -133,9 +133,9 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: từ chối lời mời vào nhóm
 
-    private static async Task<IResult> RejectInvitation(RejectInvitationRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> RejectInvitation(Guid groupId, int invitationId, ISender sender, CancellationToken ct)
     {
-        await sender.Send(new RespondInvitationCommand(request.GroupId, request.InvitationId, Accept: false), ct);
+        await sender.Send(new RespondInvitationCommand(groupId, invitationId, Accept: false), ct);
         return NoContent("Từ chối lời mời thành công.");
     }
 
@@ -143,10 +143,10 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: gửi yêu cầu tham gia nhóm
 
-    private static async Task<IResult> RequestJoinGroup(JoinGroupRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> RequestJoinGroup(Guid groupId, JoinGroupRequest request, ISender sender, CancellationToken ct)
     {
-        var requestId = await sender.Send(new RequestJoinCommand(request.GroupId, request.Message), ct);
-        return Created($"/api/student-groups/{request.GroupId}/join-requests/{requestId}",
+        var requestId = await sender.Send(new RequestJoinCommand(groupId, request.Message), ct);
+        return Created($"/api/student-groups/{groupId}/join-requests/{requestId}",
             new { id = requestId });
     }
 
@@ -154,9 +154,9 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: chấp nhận yêu cầu tham gia nhóm
 
-    private static async Task<IResult> ApproveJoinRequest(ApproveJoinRequestRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> ApproveJoinRequest(Guid groupId, int requestId, ISender sender, CancellationToken ct)
     {
-        await sender.Send(new RespondJoinRequestCommand(request.GroupId, request.RequestId, Approve: true), ct);
+        await sender.Send(new RespondJoinRequestCommand(groupId, requestId, Approve: true), ct);
         return NoContent("Chấp nhận yêu cầu tham gia thành công.");
     }
 
@@ -164,9 +164,9 @@ public partial class StudentGroupEndpoints : IEndpoint
 
     #region Handler: từ chối yêu cầu tham gia nhóm
 
-    private static async Task<IResult> RejectJoinRequest(RejectJoinRequestRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> RejectJoinRequest(Guid groupId, int requestId, ISender sender, CancellationToken ct)
     {
-        await sender.Send(new RespondJoinRequestCommand(request.GroupId, request.RequestId, Approve: false), ct);
+        await sender.Send(new RespondJoinRequestCommand(groupId, requestId, Approve: false), ct);
         return NoContent("Từ chối yêu cầu tham gia thành công.");
     }
 
