@@ -45,6 +45,7 @@ namespace TEDF.Infrastructure.Middleware
                 ConcurrencyException concurrencyEx => (HttpStatusCode.Conflict, ApiResponse.Fail(concurrencyEx.Message)),
                 UnauthorizedAccessException => (HttpStatusCode.Forbidden, ApiResponse.Fail("Bạn không có quyền truy cập tài nguyên này.")),
                 DomainException domainEx => (HttpStatusCode.BadRequest, ApiResponse.Fail(domainEx.Message)),
+                ArgumentException argumentEx => (HttpStatusCode.InternalServerError, ApiResponse.Fail(argumentEx.Message)),
                 _ => (HttpStatusCode.InternalServerError, ApiResponse.Fail("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau."))
             };
 

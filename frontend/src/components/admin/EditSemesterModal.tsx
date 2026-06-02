@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { apiClient } from '@/lib/apiClient'
+import { semesterService } from '@/lib/semesterService'
 import { SemesterDto } from '@/types/admin.types'
+import { validatePhases, findCurrentSemester } from '@/lib/semesterValidation'
 
 interface EditSemesterModalProps {
     isOpen: boolean
     onClose: () => void
     onUpdated?: () => void
     initialData: SemesterDto | null
+    /** Existing semesters — used to locate the current/active semester for phase validation. */
+    semesters?: SemesterDto[]
 }
 
 interface PhaseInput {
@@ -25,7 +28,7 @@ const PHASES_TEMPLATE = [
     { label: '4. Bảo vệ', name: 'Bảo vệ đồ án', type: 'Defense', color: 'text-purple-600' },
 ]
 
-export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData }: EditSemesterModalProps) {
+export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, semesters }: EditSemesterModalProps) {
     const [name, setName] = useState('')
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
@@ -101,34 +104,26 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData }: E
 
         if (semEnd <= semStart) { showError('Ngày kết thúc phải sau ngày bắt đầu.'); return }
 
-        // Validate phases
+        // Validate phases (shared with the Create modal): Registration/Evaluation fall within the
+        // current semester; Implementation/Defense fall within this semester.
         const validPhases = phases.filter((p) => p.startDate && p.endDate)
-        for (let i = 0; i < validPhases.length; i++) {
-            const pStart = new Date(validPhases[i].startDate)
-            const pEnd = new Date(validPhases[i].endDate)
-            const templateIndex = PHASES_TEMPLATE.findIndex((t) => t.type === validPhases[i].type)
-            const pName = templateIndex >= 0 ? PHASES_TEMPLATE[templateIndex].label : `Giai đoạn ${i + 1}`
-
-            if (pEnd <= pStart) { showError(`${pName}: Ngày kết thúc phải sau ngày bắt đầu.`); return }
-            if (pStart < semStart) { showError(`${pName}: Ngày bắt đầu không được trước ngày bắt đầu kỳ học.`); return }
-            if (pEnd > semEnd) { showError(`${pName}: Ngày kết thúc không được sau ngày kết thúc kỳ học.`); return }
-
-            if (i > 0) {
-                const prevEnd = new Date(validPhases[i - 1].endDate)
-                const prevTemplateIndex = PHASES_TEMPLATE.findIndex((t) => t.type === validPhases[i - 1].type)
-                const prevName = prevTemplateIndex >= 0 ? PHASES_TEMPLATE[prevTemplateIndex].label : `Giai đoạn ${i}`
-                if (pStart < prevEnd) {
-                    showError(`${pName}: Ngày bắt đầu phải sau hoặc bằng ngày kết thúc của ${prevName}.`)
-                    return
-                }
-            }
-        }
+        const labelFor = (p: PhaseInput) => PHASES_TEMPLATE.find((t) => t.type === p.type)?.label ?? p.name
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const current = findCurrentSemester(semesters, today)
+        const phaseError = validatePhases(
+            validPhases.map((p) => ({ type: p.type, startDate: p.startDate, endDate: p.endDate, label: labelFor(p) })),
+            semStart,
+            semEnd,
+            current,
+        )
+        if (phaseError) { showError(phaseError); return }
 
         setIsSubmitting(true)
         setError(null)
 
         try {
-            await apiClient.put(`/api/admin/semesters/${initialData.id}`, {
+            await semesterService.updateSemester(initialData.id, {
                 id: initialData.id,
                 name: name.trim(),
                 startDate: new Date(startDate).toISOString(),

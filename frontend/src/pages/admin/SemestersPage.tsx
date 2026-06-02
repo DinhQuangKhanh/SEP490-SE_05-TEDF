@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { Header } from "@/components/layout";
 import { CreateSemesterModal } from "@/components/admin/CreateSemesterModal";
 import { EditSemesterModal } from "@/components/admin/EditSemesterModal";
-import { apiClient } from "@/lib/apiClient";
+import { semesterService } from "@/lib/semesterService";
 import { SemesterDto, SemesterPhaseDto } from "@/types/admin.types";
 
 // ---- Helpers ----
@@ -49,11 +48,6 @@ function phaseStatus(status: string): "Completed" | "InProgress" | "Pending" {
 }
 
 // ---- Animations ----
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-};
-
 const item = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0 },
@@ -77,8 +71,7 @@ export function SemestersPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const query = statusFilter ? "?status=" + statusFilter : "";
-      const data = await apiClient.get<SemesterDto[]>("/api/admin/semesters" + query);
+      const data = await semesterService.getSemesters(statusFilter || undefined);
       setSemesters(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải danh sách kỳ học.");
@@ -102,7 +95,7 @@ export function SemestersPage() {
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await apiClient.delete("/api/admin/semesters/" + deleteConfirm.id);
+      await semesterService.deleteSemester(deleteConfirm.id);
       setDeleteConfirm(null);
       fetchSemesters();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -341,7 +334,6 @@ export function SemestersPage() {
                         })()}
                         <div className="relative z-10 flex justify-between w-full">
                           {semester.phases.map((phase: SemesterPhaseDto) => {
-                            console.log(semester);
                             return (
                               <TimelineStep
                                 key={phase.id}
@@ -373,6 +365,7 @@ export function SemestersPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreated={fetchSemesters}
+        semesters={semesters}
       />
 
       <EditSemesterModal
@@ -380,6 +373,7 @@ export function SemestersPage() {
         onClose={() => setIsEditModalOpen(false)}
         onUpdated={fetchSemesters}
         initialData={selectedSemester}
+        semesters={semesters}
       />
 
       {/* Delete Confirmation Modal */}
@@ -465,7 +459,6 @@ function TimelineStep({
   label: string;
   info: string;
 }) {
-  console.log(status);
   const isCurrent = status === "InProgress";
   const isPending = status === "Pending";
   const isCompleted = status === "Completed";

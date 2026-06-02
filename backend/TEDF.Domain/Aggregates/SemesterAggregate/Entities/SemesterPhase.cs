@@ -31,7 +31,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate.Entities
         internal static SemesterPhase Create(int semesterId, string name, SemesterPhaseType type,
             DateTime startDate, DateTime endDate, int order)
         {
-            if (endDate <= startDate)
+            if (endDate < startDate)
                 throw new ArgumentException("End date must be after start date.");
 
             // Status is intentionally not set here: it is a database computed column

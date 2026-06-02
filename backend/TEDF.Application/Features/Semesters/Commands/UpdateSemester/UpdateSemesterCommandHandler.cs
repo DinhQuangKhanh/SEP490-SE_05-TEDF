@@ -1,6 +1,7 @@
 using TEDF.Application.Common.Abstractions;
 using MediatR;
 using TEDF.Domain.Aggregates.SemesterAggregate;
+using TEDF.Domain.Aggregates.SemesterAggregate.Entities;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
 
@@ -36,11 +37,21 @@ public class UpdateSemesterCommandHandler : ICommandHandler<UpdateSemesterComman
         semester.UpdateDetails(request.Name, request.Description);
         semester.UpdateDates(request.StartDate, request.EndDate);
 
-        // Update phase dates if provided
+        // Update phase dates if provided. Registration & Evaluation must stay within the currently
+        // active semester (same rule as Create); Implementation & Defense are validated against the
+        // edited semester by the aggregate's UpdatePhaseDates.
         if (request.Phases is { Count: > 0 })
         {
+            var currentSemester = await _semesterRepository.GetActiveAsync(cancellationToken);
+
             foreach (var phase in request.Phases)
             {
+                var domainPhase = semester.Phases.FirstOrDefault(p => p.Id == phase.Id)
+                    ?? throw new EntityNotFoundException(nameof(SemesterPhase), phase.Id);
+
+                CurrentSemesterPhaseGuard.EnsureWithinCurrentSemester(
+                    currentSemester, domainPhase.Type, domainPhase.Name, phase.StartDate, phase.EndDate);
+
                 semester.UpdatePhaseDates(phase.Id, phase.StartDate, phase.EndDate);
             }
         }

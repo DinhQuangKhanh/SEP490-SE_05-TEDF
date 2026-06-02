@@ -42,7 +42,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         public static Semester Create(int id, string name, SemesterCode code, DateTime startDate, DateTime endDate,
             AcademicYear academicYear, string? description = null)
         {
-            if (endDate <= startDate)
+            if (endDate < startDate)
                 throw new ArgumentException("End date must be after start date.");
 
             var semester = new Semester
@@ -66,14 +66,39 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
             var existingPhases = _phases.Select(p => (p.StartDate, p.EndDate));
             CheckRule(new PhasesMustNotOverlapRule(existingPhases, startDate, endDate));
 
-            if (startDate < StartDate || endDate > EndDate)
-                throw new BusinessRuleValidationException("Phase dates must be within semester dates.");
+            EnsurePhaseWithinSemester(type, startDate, endDate);
 
             var order = _phases.Count + 1;
             var phase = SemesterPhase.Create(Id, name, type, startDate, endDate, order);
             _phases.Add(phase);
             UpdatedAt = DateTime.UtcNow;
             return phase;
+        }
+
+        /// <summary>
+        /// Validates a phase's dates relative to THIS semester, by phase type:
+        /// Registration and Evaluation happen during the previous (current) semester, so they must
+        /// finish on or before this semester starts; Implementation and Defense must fall within it.
+        /// The "within the current semester" lower bound for Registration/Evaluation is enforced by
+        /// the application handlers (which can load the active semester).
+        /// </summary>
+        private void EnsurePhaseWithinSemester(SemesterPhaseType type, DateTime startDate, DateTime endDate)
+        {
+            if (endDate < startDate)
+                throw new BusinessRuleValidationException("Ngày kết thúc giai đoạn phải sau ngày bắt đầu.");
+
+            if (type is SemesterPhaseType.Registration or SemesterPhaseType.Evaluation)
+            {
+                if (endDate > StartDate)
+                    throw new BusinessRuleValidationException(
+                        "Giai đoạn Đăng ký và Thẩm định phải kết thúc trước khi kỳ học mới bắt đầu.");
+            }
+            else // Implementation, Defense
+            {
+                if (startDate < StartDate || endDate > EndDate)
+                    throw new BusinessRuleValidationException(
+                        "Giai đoạn Thực hiện và Bảo vệ phải nằm trong thời gian của kỳ học.");
+            }
         }
 
         public void StartPhase(int phaseId)
@@ -105,7 +130,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         {
             var phase = _phases.FirstOrDefault(p => p.Id == phaseId)
                 ?? throw new EntityNotFoundException(nameof(SemesterPhase), phaseId);
-                
+
             RaiseDomainEvent(new PhaseUpcomingEvent(Id, phaseId, phase.Type));
         }
 
@@ -135,6 +160,13 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
             EnsureUpcoming();
             var phase = _phases.FirstOrDefault(p => p.Id == phaseId)
                 ?? throw new EntityNotFoundException(nameof(SemesterPhase), phaseId);
+
+            // Type-aware bounds relative to this semester (same rule as AddPhase). Overlap is not
+            // re-checked per phase here: updates are applied one at a time, so an intermediate state
+            // could transiently overlap a not-yet-updated phase even when the final set is valid —
+            // the client validates non-overlap across the whole submitted set before sending.
+            EnsurePhaseWithinSemester(phase.Type, startDate, endDate);
+
             phase.UpdateDates(startDate, endDate);
             UpdatedAt = DateTime.UtcNow;
         }

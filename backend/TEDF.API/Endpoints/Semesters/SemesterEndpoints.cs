@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.API.Extensions;
+using TEDF.Application.Common;
 using TEDF.Application.Features.Semesters.Commands.CreateSemester;
 using TEDF.Application.Features.Semesters.Commands.DeleteSemester;
 using TEDF.Application.Features.Semesters.Commands.UpdateSemester;
@@ -61,7 +62,9 @@ public class GetActiveSemesterEndpoint : IEndpoint
                 CancellationToken cancellationToken) =>
             {
                 var result = await sender.Send(new GetActiveSemesterQuery(), cancellationToken);
-                return result is null ? Results.NotFound() : Ok(result);
+                return result is null
+                    ? Results.NotFound(ApiResponse.Fail("Hiện không có học kỳ đang diễn ra."))
+                    : Ok(result);
             })
             .RequireAuthorization("RequireAdmin")
             .WithTags("Semesters")
@@ -104,7 +107,8 @@ public class UpdateSemesterEndpoint : IEndpoint
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
-                if (id != command.Id) return Results.BadRequest("Id mismatch");
+                if (id != command.Id)
+                    return Results.BadRequest(ApiResponse.Fail("Id trong đường dẫn không khớp với dữ liệu gửi lên."));
                 await sender.Send(command, cancellationToken);
                 return NoContent("Cập nhật thành công.");
             })

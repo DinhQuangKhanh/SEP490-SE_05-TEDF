@@ -18,9 +18,7 @@ public class CreateSemesterCommandHandler : ICommandHandler<CreateSemesterComman
     private readonly ISemesterRepository _semesterRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public CreateSemesterCommandHandler(
-        ISemesterRepository semesterRepository,
-        IUnitOfWork unitOfWork)
+    public CreateSemesterCommandHandler(ISemesterRepository semesterRepository, IUnitOfWork unitOfWork)
     {
         _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
@@ -50,11 +48,19 @@ public class CreateSemesterCommandHandler : ICommandHandler<CreateSemesterComman
             academicYear,
             request.Description);
 
-        // 3. Add phases
+        // 3. Add phases.
+        // Registration & Evaluation happen during the currently-active semester (topics for the new
+        // semester are registered/vetted while the current one runs), so they must fall within it.
+        // Implementation & Defense are validated against the new semester by the aggregate.
+        var currentSemester = await _semesterRepository.GetActiveAsync(cancellationToken);
+
         foreach (var phaseDto in request.Phases)
         {
             if (!Enum.TryParse<SemesterPhaseType>(phaseDto.Type, true, out var phaseType))
                 throw new BusinessRuleValidationException($"Invalid phase type '{phaseDto.Type}'.");
+
+            CurrentSemesterPhaseGuard.EnsureWithinCurrentSemester(
+                currentSemester, phaseType, phaseDto.Name, phaseDto.StartDate, phaseDto.EndDate);
 
             semester.AddPhase(phaseDto.Name, phaseType, phaseDto.StartDate, phaseDto.EndDate);
         }
