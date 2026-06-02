@@ -24,11 +24,6 @@
     <Folder Include="Features\Authentications\DTOs\" />
     <Folder Include="Features\Authentications\EventHandlers\" />
     <Folder Include="Features\Authentications\Queries\" />
-    <Folder Include="Features\Chats\Commands\" />
-    <Folder Include="Features\Chats\DTOs\" />
-    <Folder Include="Features\Chats\EventHandlers\" />
-    <Folder Include="Features\Chats\Queries\" />
-    <Folder Include="Features\Departments\Commands\" />
     <Folder Include="Features\Departments\DTOs\" />
     <Folder Include="Features\Departments\EventHandlers\" />
     <Folder Include="Features\Departments\Queries\" />
@@ -36,10 +31,6 @@
     <Folder Include="Features\Evaluations\DTOs\" />
     <Folder Include="Features\Evaluations\EventHandlers\" />
     <Folder Include="Features\Evaluations\Queries\" />
-    <Folder Include="Features\Meetings\Commands\" />
-    <Folder Include="Features\Meetings\DTOs\" />
-    <Folder Include="Features\Meetings\EventHandlers\" />
-    <Folder Include="Features\Meetings\Queries\" />
     <Folder Include="Features\Notifications\Commands\" />
     <Folder Include="Features\Notifications\DTOs\" />
     <Folder Include="Features\Notifications\EventHandlers\" />

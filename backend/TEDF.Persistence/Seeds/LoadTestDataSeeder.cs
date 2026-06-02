@@ -160,7 +160,7 @@ public static class LoadTestDataSeeder
         await SeedSpring26RejectedProjectsAsync(context, logger);
         await SeedSpring26TopicRegistrationsAsync(context, logger);
         await SeedSupportTicketsAsync(context, logger);
-        await SetDepartmentHeadAsync(context, logger);
+        await AssignDepartmentHeadAsync(context, logger);
         await SeedSummer26RealRegistrationsAsync(context, logger);
 
         logger?.LogInformation("Load-test data seeding complete.");
@@ -1720,7 +1720,7 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  DEPARTMENT HEAD
     // ════════════════════════════════════════════════
-    private static async Task SetDepartmentHeadAsync(AppDbContext context, ILogger? logger)
+    private static async Task AssignDepartmentHeadAsync(AppDbContext context, ILogger? logger)
     {
         await context.Database.ExecuteSqlRawAsync(
             "UPDATE Departments SET HeadOfDepartmentId = @p0, UpdatedAt = @p1 WHERE Id = 1;",
