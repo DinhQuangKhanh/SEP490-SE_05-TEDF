@@ -6,7 +6,7 @@ using TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
-namespace TEDF.API.Endpoints.StudentGroups;
+namespace TEDF.API.Endpoints.Mentor;
 
 public class GetMentorGroupsEndpoint : IEndpoint
 {
