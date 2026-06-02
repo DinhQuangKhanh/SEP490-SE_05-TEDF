@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TEDF.Persistence.SqlServer;
 
@@ -11,9 +12,11 @@ using TEDF.Persistence.SqlServer;
 namespace TEDF.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260601053619_MakeSemesterPhaseStatusComputed")]
+    partial class MakeSemesterPhaseStatusComputed
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1184,9 +1187,6 @@ namespace TEDF.Persistence.Migrations
                     b.Property<int>("DownloadCount")
                         .HasColumnType("int");
 
-                    b.Property<long?>("FileSizeBytes")
-                        .HasColumnType("bigint");
-
                     b.Property<int>("MajorId")
                         .HasColumnType("int");
 
@@ -1314,96 +1314,6 @@ namespace TEDF.Persistence.Migrations
                             Key = "ModificationDeadlineDays",
                             UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Value = "14"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Category = "Registration",
-                            DataType = 1,
-                            Description = "Maximum active topics a mentor may propose per pool",
-                            Key = "MaxTopicsPerMentor",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "5"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Category = "Registration",
-                            DataType = 2,
-                            Description = "Allow students to propose their own topics (direct registration)",
-                            Key = "AllowDirectRegistration",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Category = "Registration",
-                            DataType = 2,
-                            Description = "Require mentor approval of the outline before implementation",
-                            Key = "RequireOutlineApproval",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Category = "Appearance",
-                            DataType = 0,
-                            Description = "System primary theme color (hex)",
-                            Key = "PrimaryColor",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "#2c6090"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Category = "Appearance",
-                            DataType = 0,
-                            Description = "Header / brand display name",
-                            Key = "HeaderName",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "TEDF"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Category = "Appearance",
-                            DataType = 0,
-                            Description = "System logo URL",
-                            Key = "LogoUrl",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = ""
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Category = "System",
-                            DataType = 2,
-                            Description = "When enabled, only Admins can access the system",
-                            Key = "MaintenanceMode",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "false"
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Category = "Notifications",
-                            DataType = 2,
-                            Description = "Email students when an evaluation result is finalized",
-                            Key = "EmailOnEvaluationResult",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Category = "Notifications",
-                            DataType = 2,
-                            Description = "Notify a mentor when a group registers for their topic",
-                            Key = "NotifyMentorOnRegistration",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
                         });
                 });
 

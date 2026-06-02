@@ -1,0 +1,7 @@
+export { EvaluatorDashboardPage } from './EvaluatorDashboardPage'
+export { EvaluatorProjectsPage } from './EvaluatorProjectsPage'
+export { EvaluatorHistoryPage } from './EvaluatorHistoryPage'
+export { EvaluatorReviewPage } from './EvaluatorReviewPage'
+export { EvaluatorSimilarityPage } from './EvaluatorSimilarityPage'
+export { EvaluatorSchedulePage } from './EvaluatorSchedulePage'
+export { EvaluatorSupportPage } from './EvaluatorSupportPage'
