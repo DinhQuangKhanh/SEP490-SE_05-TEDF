@@ -5,6 +5,7 @@ using TEDF.Domain.Enums.Group;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
 using TEDF.Domain.Enums.Semester;
+using TEDF.Domain.Enums.User;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -344,5 +345,35 @@ public class StudentGroupQueryService : IStudentGroupQueryService
             .OrderBy(s => s.StartDate)
             .Select(s => s.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<List<AvailableStudentDto>> GetInvitableStudentsAsync(
+        Guid groupId,
+        CancellationToken cancellationToken = default)
+    {
+        // Resolve the group's semester.
+        var semesterId = await _context.Groups.AsNoTracking()
+            .Where(g => g.Id == groupId)
+            .Select(g => (int?)g.SemesterId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (semesterId is null) return [];
+
+        // Students already in an active group this semester are excluded.
+        var studentsInGroups =
+            from gm in _context.GroupMembers.AsNoTracking()
+            where gm.Status == GroupMemberStatus.Active
+            join g in _context.Groups on gm.GroupId equals g.Id
+            where g.SemesterId == semesterId && g.Status == GroupStatus.Active
+            select gm.StudentId;
+
+        return await (
+            from u in _context.Users.AsNoTracking()
+            where u.StudentCode != null
+                  && u.Status == UserStatus.Active
+                  && !studentsInGroups.Contains(u.Id)
+                  && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleName == "Student" && r.IsActive)
+            orderby u.StudentCode
+            select new AvailableStudentDto(u.Id, u.StudentCode!, u.FullName)
+        ).ToListAsync(cancellationToken);
     }
 }

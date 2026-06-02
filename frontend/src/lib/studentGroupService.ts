@@ -85,6 +85,12 @@ export interface PendingJoinRequestDto {
   expiresAt: string;
 }
 
+export interface AvailableStudentDto {
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+}
+
 // ── Service ─────────────────────────────────────────────────────
 
 export const studentGroupService = {
@@ -103,6 +109,10 @@ export const studentGroupService = {
   getMyInvitations: () => apiClient.get<InvitationDto[]>("/api/student-groups/my-invitations"),
 
   getJoinRequests: (groupId: string) => apiClient.get<JoinRequestDto[]>(`/api/student-groups/${groupId}/join-requests`),
+
+  /** Students not yet in a group this semester — for the invite picker. */
+  getInvitableStudents: (groupId: string) =>
+    apiClient.get<AvailableStudentDto[]>(`/api/student-groups/${groupId}/invitable-students`),
 
   getMyPendingJoinRequest: (semesterId?: number) =>
     apiClient.get<PendingJoinRequestDto | null>(

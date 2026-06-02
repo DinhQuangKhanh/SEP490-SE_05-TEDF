@@ -10,6 +10,7 @@ import {
   InvitationDto,
   JoinRequestDto,
   PendingJoinRequestDto,
+  AvailableStudentDto,
 } from "@/lib/studentGroupService";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -98,9 +99,51 @@ function MyGroupContent() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Invite picker (students not yet in a group)
+  const [invitableStudents, setInvitableStudents] = useState<AvailableStudentDto[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
   useEffect(() => {
     fetchGroupData();
   }, []);
+
+  // Load the invitable-students list whenever the invite modal opens.
+  useEffect(() => {
+    if (!showInviteModal || !myGroup) return;
+    setLoadingStudents(true);
+    setStudentSearch("");
+    setInviteData({ studentCode: "", message: "" });
+    studentGroupService
+      .getInvitableStudents(myGroup.groupId)
+      .then(setInvitableStudents)
+      .catch(() => setInvitableStudents([]))
+      .finally(() => setLoadingStudents(false));
+  }, [showInviteModal, myGroup]);
+
+  const filteredStudents = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase();
+    const list = q
+      ? invitableStudents.filter(
+          (s) => s.studentCode.toLowerCase().includes(q) || s.fullName.toLowerCase().includes(q),
+        )
+      : invitableStudents;
+    return list.slice(0, 50);
+  }, [invitableStudents, studentSearch]);
+
+  const selectStudent = (s: AvailableStudentDto) => {
+    setInviteData((prev) => ({ ...prev, studentCode: s.studentCode }));
+    setStudentSearch(`${s.studentCode} - ${s.fullName}`);
+    setShowStudentDropdown(false);
+  };
+
+  const closeInviteModal = () => {
+    setShowInviteModal(false);
+    setStudentSearch("");
+    setShowStudentDropdown(false);
+    setInviteData({ studentCode: "", message: "" });
+  };
 
   const fetchGroupData = async () => {
     try {
@@ -151,12 +194,12 @@ function MyGroupContent() {
 
   const handleInviteMember = async () => {
     if (!myGroup || !inviteData.studentCode) return;
+    const invitedCode = inviteData.studentCode;
     try {
       setInviting(true);
-      await studentGroupService.inviteMember(myGroup.groupId, inviteData.studentCode, inviteData.message || undefined);
-      setShowInviteModal(false);
-      setInviteData({ studentCode: "", message: "" });
-      setSuccessMessage(`Đã mời sinh viên ${inviteData.studentCode.toUpperCase()} thành công. Hãy chờ phản hồi từ họ.`);
+      await studentGroupService.inviteMember(myGroup.groupId, invitedCode, inviteData.message || undefined);
+      closeInviteModal();
+      setSuccessMessage(`Đã mời sinh viên ${invitedCode.toUpperCase()} thành công. Hãy chờ phản hồi từ họ.`);
       setShowSuccessModal(true);
       fetchGroupData();
     } catch (err) {
@@ -361,15 +404,46 @@ function MyGroupContent() {
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Mời thành viên mới</h3>
             <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mã sinh viên</label>
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Chọn sinh viên</label>
                 <input
                   type="text"
-                  value={inviteData.studentCode}
-                  onChange={(e) => setInviteData({ ...inviteData, studentCode: e.target.value })}
-                  placeholder="Nhập mã sinh viên..."
+                  value={studentSearch}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setInviteData((prev) => ({ ...prev, studentCode: "" }));
+                    setShowStudentDropdown(true);
+                  }}
+                  onFocus={() => setShowStudentDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowStudentDropdown(false), 150)}
+                  placeholder="Tìm theo mã hoặc tên sinh viên..."
+                  autoComplete="off"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                {showStudentDropdown && (
+                  <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                    {loadingStudents ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">Đang tải danh sách sinh viên...</div>
+                    ) : filteredStudents.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">Không tìm thấy sinh viên phù hợp.</div>
+                    ) : (
+                      filteredStudents.map((s) => (
+                        <button
+                          key={s.studentId}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectStudent(s)}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-primary/10 transition ${
+                            inviteData.studentCode === s.studentCode ? "bg-primary/10" : ""
+                          }`}
+                        >
+                          <span className="font-semibold text-gray-800">{s.studentCode}</span>
+                          <span className="text-gray-500"> - {s.fullName}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Lời nhắn (tùy chọn)</label>
@@ -385,7 +459,7 @@ function MyGroupContent() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowInviteModal(false)}
+                onClick={closeInviteModal}
                 className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition"
               >
                 Hủy

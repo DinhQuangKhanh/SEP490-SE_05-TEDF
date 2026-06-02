@@ -59,4 +59,12 @@ public interface IStudentGroupQueryService
         Guid studentId,
         int? semesterId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets students who can be invited to the given group: active students who are not already an
+    /// active member of any active group in that group's semester. Ordered by student code.
+    /// </summary>
+    Task<List<AvailableStudentDto>> GetInvitableStudentsAsync(
+        Guid groupId,
+        CancellationToken cancellationToken = default);
 }
