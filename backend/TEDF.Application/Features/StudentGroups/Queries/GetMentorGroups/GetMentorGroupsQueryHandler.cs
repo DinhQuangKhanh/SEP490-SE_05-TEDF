@@ -9,17 +9,13 @@ public class GetMentorGroupsQueryHandler : IQueryHandler<GetMentorGroupsQuery, L
     private readonly IStudentGroupQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
-    public GetMentorGroupsQueryHandler(
-        IStudentGroupQueryService queryService,
-        ICurrentUserService currentUser)
+    public GetMentorGroupsQueryHandler(IStudentGroupQueryService queryService, ICurrentUserService currentUser)
     {
         _queryService = queryService;
         _currentUser = currentUser;
     }
 
-    public async Task<List<MentorGroupDto>> Handle(
-        GetMentorGroupsQuery request,
-        CancellationToken cancellationToken)
+    public async Task<List<MentorGroupDto>> Handle(GetMentorGroupsQuery request, CancellationToken cancellationToken)
     {
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");

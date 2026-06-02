@@ -1,6 +1,5 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using TEDF.API.Extensions;
 using TEDF.Application.Features.StudentGroups.DTOs;
 using TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
 using TEDF.Infrastructure.Authorization.Policies;
@@ -21,7 +20,7 @@ public class GetMentorGroupsEndpoint : IEndpoint
                 return Ok(result);
             })
             .RequireAuthorization(PolicyNames.RequireMentor)
-            .WithTags("StudentGroups")
+            .WithTags("MentoringStudentGroups")
             .WithName("GetMentorGroups")
             .Produces<List<MentorGroupDto>>()
             .Produces(401);

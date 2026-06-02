@@ -2,7 +2,7 @@ using MediatR;
 using TEDF.Application.Features.Users.Commands.LockUser;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
-namespace TEDF.API.Endpoints.Admins;
+namespace TEDF.API.Endpoints.Admins.Users;
 
 public class LockUserEndpoint : IEndpoint
 {
