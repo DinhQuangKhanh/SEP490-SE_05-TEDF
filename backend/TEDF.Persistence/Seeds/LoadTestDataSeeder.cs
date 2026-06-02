@@ -598,25 +598,17 @@ public static class LoadTestDataSeeder
                 if (isFall)
                 {
                     semesterId = Fall2025Id;
-                    groupStatus = 1; // Completed
+                    groupStatus = 2; // Disbaned
                     code = $"FA25-G-{i:D3}";
                     name = $"SE_{i:D2}";
                 }
-                else if (isSpring)
+                else
                 {
                     var springIdx = i - Fall25GroupCount;
                     semesterId = Spring2026Id;
-                    groupStatus = 0; // Active
+                    groupStatus = 2; // Disbaned
                     code = $"SP26-G-{springIdx:D3}";
                     name = $"SE_{springIdx:D2}";
-                }
-                else
-                {
-                    var summerIndex = i - Fall25GroupCount - Spring26GroupCount;
-                    semesterId = Summer2026Id;
-                    groupStatus = 0; // Active
-                    code = $"SU26-G-{summerIndex:D3}";
-                    name = $"SE_{summerIndex:D2}";
                 }
 
                 var leaderId = StudentId(StudentStartIndex(i));

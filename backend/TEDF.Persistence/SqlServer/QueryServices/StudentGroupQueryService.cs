@@ -347,9 +347,7 @@ public class StudentGroupQueryService : IStudentGroupQueryService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<List<AvailableStudentDto>> GetInvitableStudentsAsync(
-        Guid groupId,
-        CancellationToken cancellationToken = default)
+    public async Task<List<AvailableStudentDto>> GetInvitableStudentsAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
         // Resolve the group's semester.
         var semesterId = await _context.Groups.AsNoTracking()

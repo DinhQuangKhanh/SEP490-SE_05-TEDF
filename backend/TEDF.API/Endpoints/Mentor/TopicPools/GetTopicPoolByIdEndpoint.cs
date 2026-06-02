@@ -1,5 +1,4 @@
 using MediatR;
-using TEDF.API.Extensions;
 using TEDF.Application.Features.TopicPools.DTOs;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using static TEDF.API.Extensions.ApiResponseExtensions;
