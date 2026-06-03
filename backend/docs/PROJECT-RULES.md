@@ -1,6 +1,6 @@
 # TEDF Backend — Project Rules
 
-Coding conventions for the TEDF API (`backend/`). Read this before adding or changing code. For *how the system is wired*, see [`ARCHITECTURE.md`](ARCHITECTURE.md); for error codes and a quick map, see [`../CLAUDE.md`](../CLAUDE.md).
+Coding conventions for the TEDF API (`backend/`). Read this before adding or changing code. For _how the system is wired_, see [`ARCHITECTURE.md`](ARCHITECTURE.md); for error codes and a quick map, see [`../CLAUDE.md`](../CLAUDE.md).
 
 These rules describe conventions the codebase already follows — match them rather than introducing a parallel style.
 
@@ -28,7 +28,7 @@ These rules describe conventions the codebase already follows — match them rat
   - State changes → `ICommand` / `ICommand<TResponse>` (handler: `ICommandHandler<,>`).
   - Reads → `IQuery<TResponse>` (handler: `IQueryHandler<,>`).
 - Handlers use **constructor injection** of the interfaces they need; keep one handler per request, no cross-handler calls (send another MediatR request instead).
-- Validation lives in a sibling **`AbstractValidator<TCommand>`** (FluentValidation); it is auto-registered and runs in `ValidationBehavior` **before** the handler. Don't re-validate input shape inside the handler — handlers enforce *business* preconditions, validators enforce *input* shape.
+- Validation lives in a sibling **`AbstractValidator<TCommand>`** (FluentValidation); it is auto-registered and runs in `ValidationBehavior` **before** the handler. Don't re-validate input shape inside the handler — handlers enforce _business_ preconditions, validators enforce _input_ shape.
 - **Reads may bypass aggregates** via read-optimized **query services** (`I*QueryService`) or repository paged queries; writes must go through aggregates (§5).
 
 ## 4. Caching (opt-in)
@@ -71,10 +71,46 @@ These rules describe conventions the codebase already follows — match them rat
 
 ## 9. API Endpoints
 
-- One endpoint per class implementing **`IEndpoint.MapEndpoint`**; it is **auto-discovered by reflection** (`MapEndpoints()`), so there is no central route table — just add the class under `Endpoints/<Context>/`.
-- Keep endpoints **thin**: resolve services from DI, send a MediatR command/query (or a trivial repository read), and return through the `ApiResponse` helpers (`ApiResponseExtensions.Ok/Fail`). No business logic.
-- Always annotate: `.RequireAuthorization(...)`, `.WithTags("<Context>")`, `.WithName(...)`, and `.Produces(...)` for documented status codes. Route prefix is `/api/<context>/...`.
-- Don't catch exceptions in endpoints for control flow — let `ExceptionHandlingMiddleware` map them (§10).
+Each feature's endpoints live in `Endpoints/<Context>/`, organized as **one partial `IEndpoint` class split across files** (the StudentGroups / Supports / DepartmentHeads layout). The type is still **auto-discovered by reflection** (`MapEndpoints()`) and registered once — there is no central route table.
+
+**File template** (per feature):
+
+| File                            | Contents                                                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Context>Endpoints.cs`         | Entry point **only**: `public partial class <Context>Endpoints : IEndpoint` with `MapEndpoint(...)` — creates the route group and delegates. |
+| `<Context>QueryEndpoints.cs`    | `MapQueryEndpoints(RouteGroupBuilder group)` + the private static **query** handler methods.                                                 |
+| `<Context>CommandEndpoint.cs`   | `MapCommandEndpoints(RouteGroupBuilder group)` + the private static **command** handler methods.                                             |
+| `Requests/<Context>Requests.cs` | All request-body DTO `record`s, in the `…<Context>.Requests` namespace.                                                                      |
+
+The entry point is just the route group + delegation:
+
+```csharp
+public partial class <Context>Endpoints : IEndpoint
+{
+    public void MapEndpoint(IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("api/<context>").RequireAuthorization();
+        MapQueryEndpoints(group);   // omit either call if the feature has no queries / no commands
+        MapCommandEndpoints(group);
+    }
+}
+```
+
+Inside the query/command partial files:
+
+- Wrap each route and each handler in `#region` / `#endregion`; put a comment with the **HTTP verb + path** above every `group.Map…` call.
+- Map routes to **named `private static async Task<IResult>` handler methods** (method-group references), **not inline lambdas**. Handlers thread `CancellationToken ct` and return via the `ApiResponse` helpers (`using static ApiResponseExtensions` → `Ok` / `Created` / `NoContent`).
+- Keep endpoints **thin**: read the caller from `ICurrentUserService`/`HttpContext`/policies as needed, send one MediatR command/query, return. No business logic.
+- Annotate each route: per-endpoint `.RequireAuthorization(PolicyNames.…)` where it overrides the group default, `.WithTags("<Context>")`, `.WithName(...)`, and `.Produces(...)` for documented status codes.
+- Don't catch exceptions for control flow — let `ExceptionHandlingMiddleware` map them (§10).
+- Request DTOs live **only** in `Requests/<Context>Requests.cs`, never inline in the endpoint files.
+
+> **Migrating legacy features:** some features still use the older one-class-per-endpoint style (`class XxxEndpoint : IEndpoint` with an inline lambda). When you add to or touch such a feature, refactor it to this template.
+
+**Whenever you add, remove, or change an endpoint, also update the docs in the same change:**
+
+- [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) — add/adjust the route row (method, path, auth, description).
+- [`PROJECT-STATUS.md`](PROJECT-STATUS.md) — reflect the feature/endpoint status if it changed (✅ / 🚧 / 📋 / ❌).
 
 ## 10. Errors & Responses
 
@@ -111,5 +147,6 @@ Before marking a change complete:
 2. New write paths go through an aggregate + `IUnitOfWork`; reads through a repository/query service — **no `DbContext` in API/Application**.
 3. Commands have a validator; cacheable queries set a sensible `CacheKey` (null on search); mutating commands invalidate the right prefixes.
 4. Schema changes ship with an EF migration.
-5. New endpoints implement `IEndpoint`, are authorized, tagged, and return the `ApiResponse` envelope.
+5. Endpoints follow the partial-class file template (§9): mapped in the query/command partial, named `private static` handlers, request DTOs in `Requests/<Context>Requests.cs`, authorized, tagged, and returning the `ApiResponse` envelope.
 6. Exceptions are typed so the middleware maps them correctly; no raw EF/Mongo exceptions escape.
+7. **Docs are updated in the same change**: endpoint additions/changes are reflected in [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md), and feature/endpoint status changes in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).

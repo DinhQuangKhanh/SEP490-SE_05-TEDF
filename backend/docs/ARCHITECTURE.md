@@ -1,23 +1,25 @@
 # TEDF Backend — Architecture
 
-Architecture reference for the TEDF API (`backend/`, solution `TEDF.sln`). Built with **Clean Architecture + DDD + CQRS** on .NET 8 / ASP.NET Core Minimal API. This document focuses on *how the backend is wired*; for system-wide diagrams (domain model, DB tables, deployment) see the root [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md).
+Architecture reference for the TEDF API (`backend/`, solution `TEDF.sln`). Built with **Clean Architecture + DDD + CQRS** on .NET 8 / ASP.NET Core Minimal API. This document focuses on _how the backend is wired_; for system-wide diagrams (domain model, DB tables, deployment) see the root [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 ---
 
 ## Table of Contents
 
-1. [Layers & Dependency Rule](#1-layers--dependency-rule)
-2. [Composition Root (`Program.cs`)](#2-composition-root-programcs)
-3. [HTTP Request Pipeline](#3-http-request-pipeline)
-4. [CQRS & the MediatR Pipeline](#4-cqrs--the-mediatr-pipeline)
-5. [Domain Layer](#5-domain-layer)
-6. [Domain Events](#6-domain-events)
-7. [Persistence](#7-persistence)
-8. [Caching](#8-caching)
-9. [Authentication & Authorization](#9-authentication--authorization)
-10. [Real-time, Background Jobs & Cross-cutting Services](#10-real-time-background-jobs--cross-cutting-services)
-11. [API Endpoints](#11-api-endpoints)
-12. [Error Handling & Response Envelope](#12-error-handling--response-envelope)
+- [TEDF Backend — Architecture](#tedf-backend--architecture)
+  - [Table of Contents](#table-of-contents)
+  - [1. Layers \& Dependency Rule](#1-layers--dependency-rule)
+  - [2. Composition Root (`Program.cs`)](#2-composition-root-programcs)
+  - [3. HTTP Request Pipeline](#3-http-request-pipeline)
+  - [4. CQRS \& the MediatR Pipeline](#4-cqrs--the-mediatr-pipeline)
+  - [5. Domain Layer](#5-domain-layer)
+  - [6. Domain Events](#6-domain-events)
+  - [7. Persistence](#7-persistence)
+  - [8. Caching](#8-caching)
+  - [9. Authentication \& Authorization](#9-authentication--authorization)
+  - [10. Real-time, Background Jobs \& Cross-cutting Services](#10-real-time-background-jobs--cross-cutting-services)
+  - [11. API Endpoints](#11-api-endpoints)
+  - [12. Error Handling \& Response Envelope](#12-error-handling--response-envelope)
 
 ---
 
@@ -27,7 +29,7 @@ Five projects; dependencies point **inward** only. The Domain has zero external 
 
 ```
         ┌──────────────────────────────────────────────┐
-        │  TEDF.API  (Presentation)                     │  Minimal API endpoints, Program.cs
+        │  TEDF.API  (Presentation)                    │  Minimal API endpoints, Program.cs
         └───────────────┬──────────────────────────────┘
                         │ depends on
    ┌────────────────────┼─────────────────────────────────┐
@@ -41,13 +43,13 @@ Five projects; dependencies point **inward** only. The Domain has zero external 
                                             (no external deps)
 ```
 
-| Project | Responsibility |
-|---------|----------------|
-| `TEDF.Domain` | Aggregates, entities, value objects, enums, domain events, business `Rules`, domain services, and **interfaces** (repository contracts, `IUnitOfWork`, `ICurrentUserService`, …). |
-| `TEDF.Application` | CQRS use-cases: `Features/<Context>/{Commands,Queries,DTOs}`, MediatR handlers, FluentValidation validators, pipeline behaviors, and the `Common/Interfaces` service contracts it needs. |
-| `TEDF.Persistence` | EF Core `AppDbContext` (SQL Server), repositories, interceptors, query services, MongoDB documents/repositories, migrations, seeds. |
-| `TEDF.Infrastructure` | Firebase auth, authorization handlers, SignalR hubs, Hangfire jobs, hybrid caching, domain-event handlers, email, file storage, health checks, middleware. |
-| `TEDF.API` | Composition root + Minimal API endpoints + Swagger. |
+| Project               | Responsibility                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEDF.Domain`         | Aggregates, entities, value objects, enums, domain events, business `Rules`, domain services, and **interfaces** (repository contracts, `IUnitOfWork`, `ICurrentUserService`, …).        |
+| `TEDF.Application`    | CQRS use-cases: `Features/<Context>/{Commands,Queries,DTOs}`, MediatR handlers, FluentValidation validators, pipeline behaviors, and the `Common/Interfaces` service contracts it needs. |
+| `TEDF.Persistence`    | EF Core `AppDbContext` (SQL Server), repositories, interceptors, query services, MongoDB documents/repositories, migrations, seeds.                                                      |
+| `TEDF.Infrastructure` | Firebase auth, authorization handlers, SignalR hubs, Hangfire jobs, hybrid caching, domain-event handlers, email, file storage, health checks, middleware.                               |
+| `TEDF.API`            | Composition root + Minimal API endpoints + Swagger.                                                                                                                                      |
 
 Each outer layer exposes a single `AddXxx` DI extension (`AddApplicationServices`, `AddPersistence`, `AddInfrastructure`) consumed by `Program.cs`.
 
@@ -75,10 +77,10 @@ Middleware order (from `Program.cs` + `UseInfrastructure`):
 ```
 ForwardedHeaders            # real client IP (must be first)
 └─ UseInfrastructure:
-     CorrelationIdMiddleware        # X-Correlation-Id for tracing
-     RequestLoggingMiddleware       # structured request logs (Serilog)
-     ExceptionHandlingMiddleware    # maps exceptions → ApiResponse + status
-     PerformanceMonitoringMiddleware# flags slow requests
+     CorrelationIdMiddleware         # X-Correlation-Id for tracing
+     RequestLoggingMiddleware        # structured request logs (Serilog)
+     ExceptionHandlingMiddleware     # maps exceptions → ApiResponse + status
+     PerformanceMonitoringMiddleware # flags slow requests
      UseHangfireDashboard("/hangfire", admin-only)
      RecurringJobsConfiguration.ConfigureRecurringJobs()
 RequestTimeouts
@@ -209,14 +211,14 @@ Query (ICachedQuery) ─► CachingBehavior ─► ICacheService
 
 **Authorization** — policy + resource based. Six `IAuthorizationHandler`s are registered:
 
-| Handler / Requirement | Checks |
-|-----------------------|--------|
-| `PermissionAuthorizationHandler` (`PermissionRequirement`) | role/permission policy (`Permissions`, `PolicyNames`) |
-| `ProjectOwnerAuthorizationHandler` (`ProjectOwnerRequirement`) | caller owns the project |
-| `GroupMemberAuthorizationHandler` (`GroupMemberRequirement`) | caller is in the group |
-| `GroupLeaderAuthorizationHandler` (`GroupLeaderRequirement`) | caller is the group leader |
-| `MentorOfProjectAuthorizationHandler` (`MentorOfProjectRequirement`) | caller mentors the project |
-| `DepartmentHeadOfDepartmentAuthorizationHandler` (`DepartmentHeadOfDepartmentRequirement`) | caller heads the department |
+| Handler / Requirement                                                                      | Checks                                                |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `PermissionAuthorizationHandler` (`PermissionRequirement`)                                 | role/permission policy (`Permissions`, `PolicyNames`) |
+| `ProjectOwnerAuthorizationHandler` (`ProjectOwnerRequirement`)                             | caller owns the project                               |
+| `GroupMemberAuthorizationHandler` (`GroupMemberRequirement`)                               | caller is in the group                                |
+| `GroupLeaderAuthorizationHandler` (`GroupLeaderRequirement`)                               | caller is the group leader                            |
+| `MentorOfProjectAuthorizationHandler` (`MentorOfProjectRequirement`)                       | caller mentors the project                            |
+| `DepartmentHeadOfDepartmentAuthorizationHandler` (`DepartmentHeadOfDepartmentRequirement`) | caller heads the department                           |
 
 Policies are declared in `Authorization/Policies/` (`AuthorizationPolicies`, `Permissions`, `PolicyNames`). The Hangfire dashboard is gated by `HangfireAuthFilter` (authenticated **Admin** only).
 
@@ -235,25 +237,49 @@ Policies are declared in `Authorization/Policies/` (`AuthorizationPolicies`, `Pe
 
 ## 11. API Endpoints
 
-Endpoints use the **Minimal API + `IEndpoint`** convention rather than controllers:
+Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers), and are being standardized onto a **partial-class-per-feature template** (StudentGroups, Supports, DepartmentHeads). Each feature is **one** `IEndpoint` type split across files under `Endpoints/<Context>/`:
+
+```
+Endpoints/<Context>/
+├── <Context>Endpoints.cs          # entry: partial IEndpoint, creates the route group, delegates
+├── <Context>QueryEndpoints.cs     # MapQueryEndpoints(group) + private static query handlers
+├── <Context>CommandEndpoint.cs    # MapCommandEndpoints(group) + private static command handlers
+└── Requests/<Context>Requests.cs  # request-body DTO records (…<Context>.Requests namespace)
+```
+
+The entry point only builds the route group and delegates:
 
 ```csharp
-public class GetActivityLogErrorDetailsEndpoint : IEndpoint
+public partial class StudentGroupEndpoints : IEndpoint
 {
-    public void MapEndpoint(IEndpointRouteBuilder app) =>
-        app.MapGet("/api/admin/activity-logs/errors", async (IUserActivityLogRepository repo, …) => Ok(result))
-           .RequireAuthorization()
-           .WithTags("Admin")
-           .WithName("GetActivityLogErrorDetails")
-           .Produces(200).Produces(401);
+    public void MapEndpoint(IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("api/student-groups").RequireAuthorization();
+        MapQueryEndpoints(group);
+        MapCommandEndpoints(group);
+    }
 }
 ```
 
-- Every endpoint implements `IEndpoint.MapEndpoint`. `MapEndpoints()` discovers all non-abstract `IEndpoint` types in the API assembly by reflection and maps them — no central route table to maintain.
-- Endpoints are grouped into 18 folders under `Endpoints/` (Admin, Authentications, Chats, DepartmentHead, Departments, DirectRegistration, Evaluations, Meetings, Mentor, Notifications, Projects, Reports, Semesters, StudentGroups, Supports, TopicPools, Topics, Users).
-- Handlers stay thin: resolve services from DI, send a MediatR command/query (or call a repository directly for trivial reads), and return via the `ApiResponse` helpers (`ApiResponseExtensions.Ok/Fail`). Authorization is attached per-endpoint with `RequireAuthorization(...)`.
+The query/command partials map relative routes to **named `private static async Task<IResult>` handlers** (method-group references, not inline lambdas), grouped with `#region`s and a verb+path comment per route:
 
-The matching Application bounded contexts live in `Features/` (Authentications, Chats, Dashboard, Departments, DirectRegistration, Evaluations, Meetings, Mentor, Notifications, Projects, Reports, Semesters, StudentGroups, Supports, TopicPools, Topics, Users).
+```csharp
+// GET /api/student-groups/my-group
+group.MapGet("my-group", GetMyCurrentGroupForStudent)
+    .WithName("GetStudentGroup").WithTags("StudentGroups");
+
+private static async Task<IResult> GetMyCurrentGroupForStudent(ISender sender, CancellationToken ct)
+{
+    var result = await sender.Send(new GetStudentGroupQuery(), ct);
+    return Ok(result);
+}
+```
+
+- **Auto-registration unchanged:** `MapEndpoints()` discovers every non-abstract `IEndpoint` type by reflection and calls `MapEndpoint` — the partial class is one type, registered once. No central route table.
+- Handlers stay thin: read the caller from `ICurrentUserService`/`HttpContext`/policies, send one MediatR command/query, return via the `ApiResponse` helpers. Authorization is the group default plus per-route `RequireAuthorization(PolicyNames.…)` overrides.
+- **Legacy style:** some features still use one `class XxxEndpoint : IEndpoint` per route with an inline lambda; migrate them to the template when touched. Full conventions: [`PROJECT-RULES.md`](PROJECT-RULES.md) §9.
+
+Endpoints live in ~20 folders under `Endpoints/` (Admin, Settings, Archives, StudentGroups, Supports, DepartmentHeads, Evaluations, Semesters, TopicPools, Topics, Mentor, Notifications, DirectRegistration, …); each maps to an Application bounded context in `Features/`.
 
 ---
 
@@ -262,15 +288,14 @@ The matching Application bounded contexts live in `Features/` (Authentications, 
 - All responses use the `ApiResponse` / `ApiResponse<T>` envelope (`{ success, message, data?, errors? }`), produced via `ApiResponseExtensions`.
 - `ExceptionHandlingMiddleware` (Infrastructure) maps exceptions to status codes and an `ApiResponse.Fail(...)` body:
 
-  | Exception | HTTP |
-  |-----------|------|
-  | `EntityNotFoundException` | 404 |
-  | `ValidationException` | 400 (+ field errors) |
-  | `BusinessRuleValidationException` | 400 |
-  | `ConcurrencyException` | 409 |
-  | `UnauthorizedAccessException` | 403 |
-  | `DomainException` | 400 |
-  | *(unhandled)* | 500 — logged to Mongo `error_logs` + a summary in `user_activity_logs` |
+  | Exception                         | HTTP                                                                   |
+  | --------------------------------- | ---------------------------------------------------------------------- |
+  | `EntityNotFoundException`         | 404                                                                    |
+  | `ValidationException`             | 400 (+ field errors)                                                   |
+  | `BusinessRuleValidationException` | 400                                                                    |
+  | `ConcurrencyException`            | 409                                                                    |
+  | `UnauthorizedAccessException`     | 403                                                                    |
+  | `DomainException`                 | 400                                                                    |
+  | _(unhandled)_                     | 500 — logged to Mongo `error_logs` + a summary in `user_activity_logs` |
 
 - Error codes themselves are documented in [`../CLAUDE.md`](../CLAUDE.md) (§ Error Code Prefix) and [`PROJECT-RULES.md`](PROJECT-RULES.md). Validation failures are raised early by `ValidationBehavior` before the handler runs.
-```
