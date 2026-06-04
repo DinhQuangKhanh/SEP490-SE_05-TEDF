@@ -90,12 +90,17 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
         public async Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default)
         {
+            var codes = await _dbSet
+                .Where(g => g.CreatedAt.Year == year)
+                .Select(g => g.Code)
+                .ToListAsync(cancellationToken);
+
             var prefix = $"PROJ-{year}-";
-            var lastCode = await _dbSet
-                .Where(p => p.CreatedAt.Year == year)
-                .OrderByDescending(p => p.Code)
-                .Select(p => p.Code)
-                .FirstOrDefaultAsync(cancellationToken);
+
+            var lastCode = codes
+                .Where(c => c.Value.StartsWith(prefix))
+                .OrderByDescending(c => c.Value)
+                .FirstOrDefault();
 
             if (lastCode == null) return 1;
 
