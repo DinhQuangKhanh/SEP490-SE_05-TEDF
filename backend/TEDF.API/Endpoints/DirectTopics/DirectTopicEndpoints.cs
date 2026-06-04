@@ -34,7 +34,7 @@ public sealed class DirectTopicEndpoints : IEndpoint
             .WithName("UpdateDirectTopic")
             .Produces(204).Produces(400).Produces(401).Produces(404);
 
-        group.MapPost("/{projectId:guid}/submit-to-mentor/{groupId:guid}", SubmitToMentor)
+        group.MapPut("/{projectId:guid}/submit-to-mentor/{groupId:guid}", SubmitToMentor)
             .RequireAuthorization(PolicyNames.GroupLeader)
             .WithTags("DirectTopics")
             .WithName("SubmitToMentor")
