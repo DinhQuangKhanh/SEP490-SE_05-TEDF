@@ -17,8 +17,8 @@ These rules describe the conventions the codebase already follows — match them
 
 - **Always import via the `@/` alias** (`@/*` → `src/*`). Do not use deep relative paths like `../../components/...`.
 - **Import through barrels** where they exist: `@/pages`, `@/components/layout`, `@/components/mentor`, `@/pages/errors`. When you add a page or shared component, export it from the matching `index.ts` so it stays importable via `@/...`.
-- Use **type-only imports** for types: `import { apiClient, type ProjectFilters } from "@/lib/projectService"`.
-- Keep the dependency direction one-way: `pages` → `components` / `lib` / `hooks` / `contexts`. Components and `lib` services must **not** import from `pages`.
+- Import **services from `@/lib`** (barrel) and **types from `@/types`** (barrel) — separately. Use `import type { … }` for type-only imports. **Never import type names from a service module**, and never define API types inside a page/service.
+- Keep the dependency direction one-way: `pages` → `components` / `lib` / `hooks` / `contexts`; and within `lib`: `<domain>Service` → `@/types` + `lib/common`. Components and `lib` services must **not** import from `pages`.
 
 ## 3. File & Symbol Naming
 
@@ -26,12 +26,12 @@ These rules describe the conventions the codebase already follows — match them
 |------|------------|---------|
 | Component / page file | `PascalCase.tsx` | `ProjectsPage.tsx`, `NotificationDropdown.tsx` |
 | Component export | named `PascalCase` function | `export function ProjectsPage() {}` |
-| Service file | `<domain>Service.ts` | `projectService.ts` |
+| Service file | `lib/<domain>/<domain>Service.ts` | `project/projectService.ts` |
 | Service export | `export const <domain>Service = { … }` | `projectService` |
 | Hook file / export | `useXxx.ts` / `useXxx` | `useSignalR.ts` → `useSignalR` |
 | Context | `XxxContext.tsx` → `XxxProvider` + `useXxx` | `AuthContext.tsx` |
-| Types file | `<area>.types.ts` | `admin.types.ts` |
-| Interfaces / types | `PascalCase` | `ProjectListItem`, `ProjectFilters` |
+| Types file | `types/<domain>/<domain>.types.ts` | `projects/project.types.ts` |
+| API type names | HTTP-method-driven (§5) | `…Response` / `…Request` / `…Dto` / `…Filters` / `…Option` |
 | Constants | `UPPER_SNAKE_CASE` for module-level config | `PAGE_SIZE` |
 
 Prefer **named exports** everywhere. Default exports are reserved for `App.tsx`.
@@ -46,10 +46,11 @@ Prefer **named exports** everywhere. Default exports are reserved for `App.tsx`.
 
 ## 5. Data Fetching & the API Layer
 
-- **Never call `fetch` directly from a component.** All HTTP goes through a `lib/<domain>Service.ts` method, which calls `@/lib/apiClient`.
+- **Never call `apiClient` (or `fetch`) directly from a page or component.** All HTTP goes through a `lib/<domain>/<domain>Service.ts` method. (`grep apiClient src/pages src/components` must stay empty.)
+- **Build URLs from `lib/common/routes.ts`** (`routes.<domain>.*`) inside services — no raw URL strings anywhere, in services or pages.
 - `apiClient` already handles: base URL (`VITE_API_BASE_URL`), the `Authorization: Bearer` header, the `X-Route-Path` header, unwrapping the `ApiResponse<T> = { success, message, data, errors }` envelope, and throwing a normalized `Error` on failure. Don't re-implement these.
-- Use `apiClient.postForm(path, FormData)` for file uploads (let the browser set the multipart boundary) — see `lib/fileUploadUtils.ts`. Do not set `Content-Type` manually for uploads.
-- A service module owns its request/response **interfaces** plus thin methods. Define `export interface …` types next to the service; export them so pages can consume them.
+- Use `apiClient.postForm(path, FormData)` for file uploads (let the browser set the multipart boundary) — see `lib/common/fileUploadUtils.ts`. Do not set `Content-Type` manually for uploads.
+- **Types belong in `types/<domain>/<domain>.types.ts`**, imported via `@/types` — a service does not declare or re-export API types. Name them by HTTP method: GET top-level return → `…Response` (nested/shared shapes stay `…Dto`), query/pagination input → `…Filters` (or `…Request` for non-list query inputs); POST/PUT/PATCH → `…Request` body + `…Response` result (or `void` for 204). Select options → `…Option`.
 - Treat thrown errors as user-facing messages: catch in the page and either show inline or call `useSystemError().showError(message)`. Don't swallow errors silently.
 
 ## 6. State Management
@@ -95,6 +96,6 @@ Before marking a change complete:
 1. `npm run lint` passes (no new warnings you introduced).
 2. `npm run build` passes (type-check + bundle, no errors).
 3. New pages/components are routed in `App.tsx` (if applicable) and exported from the relevant barrel.
-4. Data access goes through a service + `apiClient`; no raw `fetch`, no hardcoded URLs.
+4. Data access goes through a `lib/<domain>` service (no `apiClient`/`fetch` in pages/components); URLs come from `routes.*`; API types live in `types/` and are imported from `@/types`.
 5. Styling uses Tailwind semantic tokens; no hardcoded brand color.
 6. User-facing copy is Vietnamese and consistent with sibling pages.

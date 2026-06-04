@@ -71,41 +71,42 @@ These rules describe conventions the codebase already follows — match them rat
 
 ## 9. API Endpoints
 
-Each feature's endpoints live in `Endpoints/<Context>/`, organized as **one partial `IEndpoint` class split across files** (the StudentGroups / Supports / DepartmentHeads layout). The type is still **auto-discovered by reflection** (`MapEndpoints()`) and registered once — there is no central route table.
+Each domain's endpoints live in `Endpoints/<Domain>/`, organized as **one `sealed class <Domain>Endpoints : IEndpoint` per route group** — route map and handlers in a **single file** (no partial/Query/Command split). The type is **auto-discovered by reflection** (`MapEndpoints()`) and registered once — there is no central route table. A folder may hold **more than one** `IEndpoint` class if the domain spans multiple route groups (e.g. `Topics/TopicCatalogEndpoints` + `Topics/TopicPoolsEndpoints`).
 
-**File template** (per feature):
+**File template** (per route group):
 
-| File                            | Contents                                                                                                                                     |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<Context>Endpoints.cs`         | Entry point **only**: `public partial class <Context>Endpoints : IEndpoint` with `MapEndpoint(...)` — creates the route group and delegates. |
-| `<Context>QueryEndpoints.cs`    | `MapQueryEndpoints(RouteGroupBuilder group)` + the private static **query** handler methods.                                                 |
-| `<Context>CommandEndpoint.cs`   | `MapCommandEndpoints(RouteGroupBuilder group)` + the private static **command** handler methods.                                             |
-| `Requests/<Context>Requests.cs` | All request-body DTO `record`s, in the `…<Context>.Requests` namespace.                                                                      |
+| File                            | Contents                                                                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `<Domain>Endpoints.cs`          | `public sealed class <Domain>Endpoints : IEndpoint` — `MapEndpoint(...)` builds the route group and maps every route inline, plus the `private static` handler methods. |
+| `Requests/<Domain>Requests.cs`  | All request-body / `[AsParameters]` DTO `record`s, in the `…<Domain>.Requests` namespace (only if the domain has request bodies). |
 
-The entry point is just the route group + delegation:
+The class builds the group and maps each route to a named handler:
 
 ```csharp
-public partial class <Context>Endpoints : IEndpoint
+public sealed class <Domain>Endpoints : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("api/<context>").RequireAuthorization();
-        MapQueryEndpoints(group);   // omit either call if the feature has no queries / no commands
-        MapCommandEndpoints(group);
+        var group = app.MapGroup("/api/<domain>").RequireAuthorization();
+
+        group.MapGet("", GetThings).WithTags("<Domain>").WithName("GetThings").Produces(200).Produces(401);
+        group.MapPost("", CreateThing).WithTags("<Domain>").WithName("CreateThing").Produces(201).Produces(400);
     }
+
+    private static async Task<IResult> GetThings(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetThingsQuery(), ct));
 }
 ```
 
-Inside the query/command partial files:
+Rules for the endpoint class:
 
-- Wrap each route and each handler in `#region` / `#endregion`; put a comment with the **HTTP verb + path** above every `group.Map…` call.
-- Map routes to **named `private static async Task<IResult>` handler methods** (method-group references), **not inline lambdas**. Handlers thread `CancellationToken ct` and return via the `ApiResponse` helpers (`using static ApiResponseExtensions` → `Ok` / `Created` / `NoContent`).
+- Map routes to **named `private static async Task<IResult>` handler methods** (method-group references), **not inline lambdas**. Handlers thread `CancellationToken ct` and return via the `ApiResponse` helpers (`using static ApiResponseExtensions` → `Ok` / `Created` / `NoContent`); expression-bodied one-liners are fine for thin reads.
 - Keep endpoints **thin**: read the caller from `ICurrentUserService`/`HttpContext`/policies as needed, send one MediatR command/query, return. No business logic.
-- Annotate each route: per-endpoint `.RequireAuthorization(PolicyNames.…)` where it overrides the group default, `.WithTags("<Context>")`, `.WithName(...)`, and `.Produces(...)` for documented status codes.
+- Annotate each route: per-route `.RequireAuthorization(PolicyNames.…)` where it overrides the group default, `.WithTags("<Domain>")`, `.WithName(...)`, and `.Produces(...)` for documented status codes.
 - Don't catch exceptions for control flow — let `ExceptionHandlingMiddleware` map them (§10).
-- Request DTOs live **only** in `Requests/<Context>Requests.cs`, never inline in the endpoint files.
+- Request DTOs live **only** in `Requests/<Domain>Requests.cs`, never inline in the endpoint file.
 
-> **Migrating legacy features:** some features still use the older one-class-per-endpoint style (`class XxxEndpoint : IEndpoint` with an inline lambda). When you add to or touch such a feature, refactor it to this template.
+> **Reorganization (in progress).** `Endpoints/` was renamed to domain folders mirroring the frontend, and the older partial-class split (`…Endpoints` entry + `…QueryEndpoints` + `…CommandEndpoint`) collapsed into one class per group. Some route prefixes changed and the Mentor-area endpoints are not yet re-migrated — see [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md).
 
 **Whenever you add, remove, or change an endpoint, also update the docs in the same change:**
 
@@ -147,6 +148,6 @@ Before marking a change complete:
 2. New write paths go through an aggregate + `IUnitOfWork`; reads through a repository/query service — **no `DbContext` in API/Application**.
 3. Commands have a validator; cacheable queries set a sensible `CacheKey` (null on search); mutating commands invalidate the right prefixes.
 4. Schema changes ship with an EF migration.
-5. Endpoints follow the partial-class file template (§9): mapped in the query/command partial, named `private static` handlers, request DTOs in `Requests/<Context>Requests.cs`, authorized, tagged, and returning the `ApiResponse` envelope.
+5. Endpoints follow the one-class-per-group template (§9): a `sealed class <Domain>Endpoints : IEndpoint` mapping routes to named `private static` handlers, request DTOs in `Requests/<Domain>Requests.cs`, authorized, tagged, and returning the `ApiResponse` envelope.
 6. Exceptions are typed so the middleware maps them correctly; no raw EF/Mongo exceptions escape.
 7. **Docs are updated in the same change**: endpoint additions/changes are reflected in [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md), and feature/endpoint status changes in [`PROJECT-STATUS.md`](PROJECT-STATUS.md).

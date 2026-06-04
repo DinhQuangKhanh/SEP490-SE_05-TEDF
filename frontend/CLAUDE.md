@@ -64,12 +64,13 @@ npm run preview  # preview the production build
 | Role layouts + sidebars + header | `src/components/layout/` |
 | Route guard | `src/components/auth/ProtectedRoute.tsx` |
 | Other components | `src/components/{admin,mentor,student,support,common,shared}/` |
-| API clients (one per domain) | `src/lib/*Service.ts` over `src/lib/apiClient.ts` |
-| File upload helpers | `src/lib/fileUploadUtils.ts` |
+| API clients (one per domain) | `src/lib/<domain>/<domain>Service.ts` over `src/lib/common/apiClient.ts`; barrel `src/lib/index.ts` (`@/lib`) |
+| API route registry (single source of truth) | `src/lib/common/routes.ts` — services build URLs from `routes.*`, never raw strings |
+| File upload helpers | `src/lib/common/fileUploadUtils.ts` |
 | Global state | `src/contexts/` — `AuthContext`, `MaintenanceContext`, `SystemErrorContext` |
 | Hooks | `src/hooks/` — `useSignalR`, `useUnreadSupportCount`, `useWishlist` |
 | Firebase setup | `src/config/firebase.ts` |
-| Shared types | `src/types/` — `admin.types.ts`, `support.types.ts` |
+| Shared types | `src/types/<domain>/<domain>.types.ts`; barrel `src/types/index.ts` (`@/types`) |
 | Static assets | `src/assets/` (e.g. `logo/`) |
 
 Role → home route map (from `App.tsx`): `admin → /admin`, `mentor → /mentor`, `evaluator → /evaluator`, `student → /student`, `departmenthead → /department-head`. Public routes: `/login`, `/maintenance`, `/403`; unmatched → `NotFoundPage`.
@@ -83,6 +84,13 @@ Prefer importing from barrels via the `@/` alias rather than deep file paths:
 - `@/components/mentor` — `RegisterTopicModal` (`src/components/mentor/index.ts`).
 - `@/pages/errors` — `NotFoundPage`, `AccessDeniedPage`.
 - Contexts expose a provider + hook pair, e.g. `@/contexts/AuthContext` → `AuthProvider`, `useAuth`.
-- Service modules in `@/lib/*Service.ts` export named API functions per domain.
+- Service modules in `@/lib` (barrel) export named API objects per domain (`studentGroupService`, `supportService`, …).
+- Shared types live in `@/types` (barrel). **Type names are imported from `@/types`, never from a service module.**
+
+### Frontend data-access rules (enforced)
+
+- **Pages/components never call `apiClient` directly** — every request goes through a domain service in `src/lib/<domain>/<domain>Service.ts`. (`grep apiClient src/pages src/components` must be empty.)
+- **Services own the API call + URL** (`routes.*`) and return typed results; **types are declared in `src/types/`**, not inside service or page files.
+- **Naming convention** (HTTP-method-driven): GET → top-level return `…Response` (nested/shared shapes keep `…Dto`), optional query object `…Request`; POST/PUT/PATCH → `…Request` body + `…Response` result (a 204 mutation returns `void`). Query/pagination objects stay `…Filters`; select options stay `…Option`.
 
 When adding a page or shared component, export it from the matching barrel so it stays importable through `@/...`.

@@ -237,49 +237,42 @@ Policies are declared in `Authorization/Policies/` (`AuthorizationPolicies`, `Pe
 
 ## 11. API Endpoints
 
-Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers), and are being standardized onto a **partial-class-per-feature template** (StudentGroups, Supports, DepartmentHeads). Each feature is **one** `IEndpoint` type split across files under `Endpoints/<Context>/`:
+Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers). The folder is organized **one domain per folder, one `sealed class <Domain>Endpoints : IEndpoint` per route group** — the whole group (route map + handlers) lives in a single file:
 
 ```
-Endpoints/<Context>/
-├── <Context>Endpoints.cs          # entry: partial IEndpoint, creates the route group, delegates
-├── <Context>QueryEndpoints.cs     # MapQueryEndpoints(group) + private static query handlers
-├── <Context>CommandEndpoint.cs    # MapCommandEndpoints(group) + private static command handlers
-└── Requests/<Context>Requests.cs  # request-body DTO records (…<Context>.Requests namespace)
+Endpoints/<Domain>/
+├── <Domain>Endpoints.cs           # sealed IEndpoint: MapEndpoint builds the group + maps every route inline
+└── Requests/<Domain>Requests.cs   # request-body DTO records (…<Domain>.Requests namespace), if any
 ```
 
-The entry point only builds the route group and delegates:
+A domain folder may hold **more than one** `IEndpoint` class when it spans multiple route groups (e.g. `Topics/TopicCatalogEndpoints` for `/api/topics` and `Topics/TopicPoolsEndpoints` for `/api/topic-pools`).
+
+`MapEndpoint` builds the route group and maps each route to a **named `private static async Task<IResult>` handler** (method-group reference, not an inline lambda), with `.WithTags`/`.WithName`/`.Produces` per route:
 
 ```csharp
-public partial class StudentGroupEndpoints : IEndpoint
+public sealed class SupportTicketsEndpoints : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("api/student-groups").RequireAuthorization();
-        MapQueryEndpoints(group);
-        MapCommandEndpoints(group);
+        var group = app.MapGroup("/api/support-tickets").RequireAuthorization();
+
+        group.MapGet("", GetTickets).WithTags("SupportTickets").WithName("GetTickets").Produces(200).Produces(401);
+        group.MapPost("", CreateTicket).WithTags("SupportTickets").WithName("CreateTicket").Produces(201).Produces(400);
+        // …
+    }
+
+    private static async Task<IResult> GetTickets([AsParameters] GetTicketsRequest request, ISender sender, HttpContext ctx, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetTicketsQuery(ctx.User.GetUserId(), ctx.User.IsInRole("Admin"), request.SearchTerm, request.Status, request.Priority), ct);
+        return Results.Ok(result);
     }
 }
 ```
 
-The query/command partials map relative routes to **named `private static async Task<IResult>` handlers** (method-group references, not inline lambdas), grouped with `#region`s and a verb+path comment per route:
+- **Auto-registration unchanged:** `MapEndpoints()` discovers every non-abstract `IEndpoint` type by reflection and calls `MapEndpoint`. No central route table.
+- Handlers stay thin: read the caller from `ICurrentUserService`/`HttpContext`/policies, send one MediatR command/query, return via the `ApiResponse` helpers. Authorization is the group default plus per-route `RequireAuthorization(PolicyNames.…)` overrides. Full conventions: [`PROJECT-RULES.md`](PROJECT-RULES.md) §9.
 
-```csharp
-// GET /api/student-groups/my-group
-group.MapGet("my-group", GetMyCurrentGroupForStudent)
-    .WithName("GetStudentGroup").WithTags("StudentGroups");
-
-private static async Task<IResult> GetMyCurrentGroupForStudent(ISender sender, CancellationToken ct)
-{
-    var result = await sender.Send(new GetStudentGroupQuery(), ct);
-    return Ok(result);
-}
-```
-
-- **Auto-registration unchanged:** `MapEndpoints()` discovers every non-abstract `IEndpoint` type by reflection and calls `MapEndpoint` — the partial class is one type, registered once. No central route table.
-- Handlers stay thin: read the caller from `ICurrentUserService`/`HttpContext`/policies, send one MediatR command/query, return via the `ApiResponse` helpers. Authorization is the group default plus per-route `RequireAuthorization(PolicyNames.…)` overrides.
-- **Legacy style:** some features still use one `class XxxEndpoint : IEndpoint` per route with an inline lambda; migrate them to the template when touched. Full conventions: [`PROJECT-RULES.md`](PROJECT-RULES.md) §9.
-
-Endpoints live in ~20 folders under `Endpoints/` (Admin, Settings, Archives, StudentGroups, Supports, DepartmentHeads, Evaluations, Semesters, TopicPools, Topics, Mentor, Notifications, DirectRegistration, …); each maps to an Application bounded context in `Features/`.
+> **Reorganization (in progress).** `Endpoints/` was renamed to **domain folders mirroring the frontend** (`Admin`, `Users`, `ActivityLogs`, `Semesters`, `Settings`, `Archives`, `Majors`, `DepartmentHead`, `Groups`, `DirectTopics`, `Topics`, `Notifications`, `SupportTickets`, `Evaluations`), collapsing the earlier partial-class split (`…QueryEndpoints`/`…CommandEndpoint`) into a single class per group. Some route **prefixes changed** and the Mentor-area endpoints are not yet re-migrated — see [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) for the current route list and migration note.
 
 ---
 

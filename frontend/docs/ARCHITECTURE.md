@@ -67,12 +67,18 @@ src/
 │   ├── admin/ mentor/ student/ support/   # Feature-scoped components
 │
 ├── contexts/                 # AuthContext, MaintenanceContext, SystemErrorContext
-├── lib/                      # apiClient + one *Service.ts per domain + fileUploadUtils
+├── lib/                      # API layer — barrel index.ts + per-domain folders
+│   ├── common/               #   apiClient.ts, routes.ts (URL registry), fileUploadUtils, dashboardService
+│   └── <domain>/             #   <domain>Service.ts  (group, evaluation, topicPool, supportTickets, …)
 ├── hooks/                    # useSignalR, useUnreadSupportCount, useWishlist
 ├── config/                   # firebase.ts (Firebase SDK init)
-├── types/                    # admin.types.ts, support.types.ts
+├── types/                    # Shared types — barrel index.ts + per-domain folders
+│   ├── common/               #   api.types.ts, pagination.types.ts
+│   └── <domain>/             #   <domain>.types.ts  (groups, evaluations, supportTickets, …)
 └── assets/                   # logo, static assets
 ```
+
+`lib/` and `types/` mirror each other by domain and each expose a **barrel** (`@/lib`, `@/types`). Services import their types from `@/types`; pages/components import services from `@/lib` and types from `@/types`.
 
 Per-role narrative docs live in `src/*_CONTEXT.md` (one per role).
 
@@ -187,12 +193,12 @@ Each context exports a `Provider` + a `use…()` hook that throws if used outsid
 
 ## 7. API Layer
 
-All HTTP traffic goes through `lib/apiClient.ts`, a thin typed wrapper over `fetch`. Domain modules (`lib/<domain>Service.ts`) build typed request/response interfaces and call `apiClient`.
+All HTTP traffic goes through `lib/common/apiClient.ts`, a thin typed wrapper over `fetch`. Domain services (`lib/<domain>/<domain>Service.ts`) build their URLs from the central `lib/common/routes.ts` registry, take/return types declared in `types/`, and call `apiClient`. **Pages and components never call `apiClient` directly** — they go through a service.
 
 ```
-Page/Component ─► lib/<domain>Service.ts ─► apiClient ─► fetch ─► TEDF.API
-                                                │
-                                  unwraps ApiResponse envelope
+Page/Component ─► lib/<domain>/<domain>Service.ts ─► apiClient ─► fetch ─► TEDF.API
+                          │ uses routes.* + types from @/types        │
+                          │                              unwraps ApiResponse envelope
 ```
 
 `apiClient` behavior:
@@ -202,9 +208,15 @@ Page/Component ─► lib/<domain>Service.ts ─► apiClient ─► fetch ─�
 - **`X-Route-Path` header** — current `window.location.pathname`, used by the backend for activity/error logging.
 - **Response envelope** — the backend returns `ApiResponse<T> = { success, message, data?, errors? }`. The client detects the envelope, throws `Error(message)` when `success === false`, and otherwise returns the unwrapped `data`. Non-envelope JSON is returned as-is; empty bodies resolve to `{}`.
 - **Error normalization** — on a non-2xx response it parses `{ message, errors }` and throws a single `Error` whose message includes flattened field errors.
-- **Verbs** — `get/post/put/patch/delete`, plus `postForm(path, FormData)` for file uploads (lets the browser set the multipart `Content-Type`; see `lib/fileUploadUtils.ts`).
+- **Verbs** — `get/post/put/patch/delete`, plus `postForm(path, FormData)` for file uploads (lets the browser set the multipart `Content-Type`; see `lib/common/fileUploadUtils.ts`).
 
-Services follow a consistent shape: exported TypeScript interfaces for payloads/results next to thin functions, e.g. `lib/projectService.ts` exports `ProjectListItem`, `ProjectFilters`, `ProjectDetail`, etc. Current services: `activityLog`, `dashboard`, `departmentHead`, `directTopic`, `evaluator`, `mentorTopic`, `project`, `studentGroup`, `topicPool`, `user`.
+**Layering rules:**
+
+- **Single source of truth for URLs** — every service builds paths from `lib/common/routes.ts` (`routes.<domain>.*`); no raw URL strings in services or pages.
+- **Types live in `types/`**, not in service or page files. A service imports its types from `@/types`; it does not define or re-export them. Pages import services from `@/lib` and types from `@/types`.
+- **Type naming** is HTTP-method-driven: a GET's top-level return is `…Response` (nested/shared shapes stay `…Dto`), a query object is `…Request` (or a `…Filters` for pagination/filters); POST/PUT/PATCH take a `…Request` body and return a `…Response` (or `void` for 204). Select options stay `…Option`.
+
+Services (in `lib/<domain>/`): `activityLog`, `dashboard` (in `common/`), `departmentHead`, `evaluator`, `major`, `mentorTopic`, `notification`, `project`, `proposedTopic`, `semester`, `settings`, `studentGroup`, `support`, `topicPool`, `user`.
 
 ---
 

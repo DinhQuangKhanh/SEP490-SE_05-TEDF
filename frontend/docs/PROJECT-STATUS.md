@@ -1,8 +1,8 @@
 # TEDF Frontend — Project Status
 
-Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page and per feature. Status is inferred from the source — whether a page is wired to the API layer (`lib/*Service.ts` + `apiClient`) or still renders static/mock data.
+Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page and per feature. Status is inferred from the source — whether a page is wired to the API layer (a `lib/<domain>/<domain>Service.ts` over `apiClient`) or still renders static/mock data.
 
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-04
 
 > This is a living document. When a page moves from mock to live data (or a new feature lands), update its row here.
 
@@ -19,6 +19,7 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 - **Core lifecycle is live:** auth, role routing, dashboards, users, projects, semesters, groups, topic pools, evaluations, and support tickets are wired to the API across all five roles.
 - **Real-time notifications** work (SignalR + `NotificationDropdown`).
+- **`lib/` + `types/` reorganized** into per-domain subfolders with barrels (`@/lib`, `@/types`); URLs centralized in `lib/common/routes.ts`. Pages/components now go through services only — no direct `apiClient` calls. (See [`PROJECT-RULES.md`](PROJECT-RULES.md) §5.)
 - **Still mock / not wired:** schedules & meetings, evaluator similarity, the mentor feedback page, and report exports. **Real-time chat** has no frontend yet.
 
 ---
@@ -113,9 +114,9 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 ## Service Layer Coverage
 
-Wired API clients in `src/lib/` (10): `activityLog`, `dashboard`, `departmentHead`, `directTopic`, `evaluator`, `mentorTopic`, `project`, `studentGroup`, `topicPool`, `user`.
+Wired API services in `src/lib/<domain>/` (barrel `@/lib`): `activityLog`, `dashboard`, `departmentHead`, `evaluator`, `major`, `mentorTopic`, `notification`, `project`, `proposedTopic`, `semester`, `settings`, `studentGroup`, `support`, `topicPool`, `user`.
 
-**No service module yet** for: meetings/schedule, chat, notifications list, and reports — these correspond to the 🚧 / 📋 / ❌ items above.
+**No service module yet** for: meetings/schedule, chat, and reports — these correspond to the 🚧 / 📋 / ❌ items above. (`notification` and `support` services now exist, replacing the former direct `apiClient` calls in the bell dropdown and support pages.)
 
 ---
 
