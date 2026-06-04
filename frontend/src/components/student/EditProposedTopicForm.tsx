@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
 import { CreateProposedTopicRequest } from "@/types";
+import { proposedTopicService } from "@/lib";
 
 interface Props {
   projectId: string;

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { NotificationDropdown } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { studentGroupService } from "@/lib/group/studentGroupService";
+import { studentGroupService } from "@/lib/groups/studentGroupService";
 import type { MentorGroupDto } from "@/types";
 
 const container = {

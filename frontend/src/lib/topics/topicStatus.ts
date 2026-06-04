@@ -1,28 +1,5 @@
-import { MentorTopicFilters, MentorTopicsResponse, UpdatePoolTopicRequest } from "@/types";
-import { apiClient } from "../common/apiClient";
-import { routes } from "../common/routes";
+// UI label/colour helpers for topic & project status enums (used by mentor topic screens).
 
-export const mentorTopicService = {
-  getTopics: (filters: MentorTopicFilters = {}): Promise<MentorTopicsResponse> => {
-    const params = new URLSearchParams();
-    if (filters.semesterId != null) params.set("semesterId", String(filters.semesterId));
-    if (filters.search) params.set("search", filters.search);
-    params.set("page", String(filters.page ?? 1));
-    params.set("pageSize", String(filters.pageSize ?? 10));
-
-    return apiClient.get<MentorTopicsResponse>(`${routes.mentor.topics}?${params.toString()}`);
-  },
-
-  /** Update a pool-based topic (mentor edits after NeedsModification). */
-  updatePoolTopic: (projectId: string, data: UpdatePoolTopicRequest): Promise<void> =>
-    apiClient.put<void>(routes.mentor.topicUpdate(projectId), data),
-
-  /** Resubmit a pool-based topic for evaluation. */
-  resubmitPoolTopic: (projectId: string): Promise<void> =>
-    apiClient.put<void>(routes.mentor.topicResubmit(projectId)),
-};
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 export function sourceTypeLabel(sourceType: number): string {
   return sourceType === 0 ? "Trong kho" : "Đăng ký trực tiếp";
 }

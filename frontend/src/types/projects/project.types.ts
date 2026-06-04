@@ -1,4 +1,4 @@
-import { TopicMentorDto } from "../topicPools/topicPool.types";
+import { TopicMentorDto } from "../topics/topic.types";
 
 /** Mentor projection used by department-head project lists (mentorName). */
 export interface MentorSummary {

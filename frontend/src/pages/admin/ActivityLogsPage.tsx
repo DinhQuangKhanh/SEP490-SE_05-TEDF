@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { activityLogService } from "@/lib/admin/activityLogService";
+import { activityLogService } from "@/lib/activityLogs/activityLogService";
 import type {
   ErrorDetailItem,
   ErrorLogDetail,
@@ -29,7 +29,6 @@ const roleTabs = [
   { key: "evaluator", label: "Evaluator", icon: "fact_check" },
   { key: "student", label: "Sinh viên", icon: "person" },
 ];
-
 
 const severityConfig: Record<string, { bg: string; text: string; border: string; icon: string; cardBg: string }> = {
   info: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "info", cardBg: "bg-blue-50/80" },
@@ -110,7 +109,7 @@ export function ActivityLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeRole, severity, debouncedSearch, fromDate, toDate, page]);
+  }, [activeRole, severity, debouncedSearch, fromDate, toDate, page, showError]);
 
   useEffect(() => {
     fetchLogs();
@@ -144,10 +143,10 @@ export function ActivityLogsPage() {
     <>
       <Header title="Nhật Ký Hoạt Động" showSearch={false} />
 
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-hide bg-slate-50">
+      <div className="flex-1 p-8 overflow-y-auto scrollbar-hide bg-slate-50">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col h-full">
           {/* ── Severity Summary Cards ──────────────────────── */}
-          <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <motion.div variants={item} className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-5">
             <SeverityCard
               label="Tổng"
               count={ss?.total ?? 0}
@@ -178,8 +177,8 @@ export function ActivityLogsPage() {
           {/* ── Filters ─────────────────────────────────────── */}
           <motion.div variants={item} className="flex flex-col gap-4 mb-6">
             {/* Row 1: Role tabs + Search + Refresh */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm overflow-x-auto scrollbar-hide">
+            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+              <div className="flex p-1 overflow-x-auto bg-white border rounded-lg shadow-sm border-slate-200 scrollbar-hide">
                 {roleTabs.map((tab) => (
                   <button
                     key={tab.key}
@@ -196,13 +195,13 @@ export function ActivityLogsPage() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 w-full lg:w-auto">
+              <div className="flex items-center w-full gap-3 lg:w-auto">
                 <div className="relative flex-1 lg:w-80">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-[18px]">
                     search
                   </span>
                   <input
-                    className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white placeholder-slate-400 text-slate-700"
+                    className="w-full py-2 pr-4 text-sm bg-white border rounded-md pl-9 border-slate-200 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 text-slate-700"
                     placeholder="Tìm theo tên, email, hành động..."
                     type="text"
                     value={search}
@@ -211,7 +210,7 @@ export function ActivityLogsPage() {
                 </div>
                 <button
                   onClick={fetchLogs}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors bg-white border rounded-md border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-primary whitespace-nowrap"
                 >
                   <span className="material-symbols-outlined text-[20px]">refresh</span>
                   <span className="hidden sm:inline">Làm mới</span>
@@ -220,14 +219,14 @@ export function ActivityLogsPage() {
             </div>
 
             {/* Row 2: Date range */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-500 whitespace-nowrap">Từ ngày:</span>
                 <input
                   type="datetime-local"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  className="px-3 py-2 text-sm bg-white border rounded-md border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                 />
               </div>
 
@@ -237,7 +236,7 @@ export function ActivityLogsPage() {
                   type="datetime-local"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  className="px-3 py-2 text-sm bg-white border rounded-md border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                 />
               </div>
 
@@ -247,7 +246,7 @@ export function ActivityLogsPage() {
                     setFromDate("");
                     setToDate("");
                   }}
-                  className="flex items-center gap-1 px-3 py-2 text-sm text-slate-500 hover:text-red-600 transition-colors"
+                  className="flex items-center gap-1 px-3 py-2 text-sm transition-colors text-slate-500 hover:text-red-600"
                 >
                   <span className="material-symbols-outlined text-[16px]">close</span>
                   Xóa lọc
@@ -259,11 +258,11 @@ export function ActivityLogsPage() {
           {/* ── Table ─────────────────────────────────────────── */}
           <motion.div
             variants={item}
-            className="bento-card rounded-md overflow-hidden bg-white flex flex-col flex-1 min-h-0"
+            className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white rounded-md bento-card"
           >
-            <div className="overflow-auto flex-1">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200 sticky top-0 z-10">
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-sm text-left text-slate-600">
+                <thead className="sticky top-0 z-10 text-xs font-bold uppercase border-b bg-slate-50 text-slate-500 border-slate-200">
                   <tr>
                     <th className="px-6 py-4">Người dùng</th>
                     <th className="px-6 py-4">Vai trò</th>
@@ -307,24 +306,24 @@ export function ActivityLogsPage() {
 
             {/* Pagination */}
             {data && data.totalPages > 1 && (
-              <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-white shrink-0">
-                <span className="text-sm text-slate-500 hidden sm:inline">
+              <div className="flex items-center justify-between p-4 bg-white border-t border-slate-200 shrink-0">
+                <span className="hidden text-sm text-slate-500 sm:inline">
                   Trang <span className="font-medium text-slate-900">{page}</span>
                   {" / "}
                   <span className="font-medium text-slate-900">{totalPages}</span> ({data.totalGroups.toLocaleString()}{" "}
                   nhóm)
                 </span>
-                <div className="flex gap-1 w-full sm:w-auto justify-center sm:justify-end">
+                <div className="flex justify-center w-full gap-1 sm:w-auto sm:justify-end">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 text-slate-600 text-sm disabled:opacity-50 transition-colors"
+                    className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
                   >
                     Trước
                   </button>
                   {getPageNumbers(page, totalPages).map((p, i) =>
                     p === "..." ? (
-                      <span key={`dot-${i}`} className="px-2 py-1 text-slate-400 hidden sm:inline">
+                      <span key={`dot-${i}`} className="hidden px-2 py-1 text-slate-400 sm:inline">
                         ...
                       </span>
                     ) : (
@@ -344,7 +343,7 @@ export function ActivityLogsPage() {
                   <button
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 text-slate-600 text-sm disabled:opacity-50 transition-colors"
+                    className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
                   >
                     Sau
                   </button>
@@ -433,18 +432,18 @@ function GroupedLogRow({ log, onClick }: { log: GroupedActivityLogItem; onClick:
   return (
     <motion.tr
       whileHover={{ backgroundColor: "rgb(248 250 252)" }}
-      className="transition-colors group cursor-pointer"
+      className="transition-colors cursor-pointer group"
       onClick={onClick}
     >
       {/* User */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+          <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full bg-primary/10 text-primary shrink-0">
             {getInitials(log.userName)}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-slate-800 truncate">{log.userName}</p>
-            <p className="text-xs text-slate-500 truncate">{log.userEmail ?? log.userId}</p>
+            <p className="font-semibold truncate text-slate-800">{log.userName}</p>
+            <p className="text-xs truncate text-slate-500">{log.userEmail ?? log.userId}</p>
           </div>
         </div>
       </td>
@@ -483,7 +482,7 @@ function GroupedLogRow({ log, onClick }: { log: GroupedActivityLogItem; onClick:
         </span>
       </td>
       {/* Latest Timestamp */}
-      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{formatTimestamp(log.latestTimestamp)}</td>
+      <td className="px-6 py-4 text-xs whitespace-nowrap text-slate-500">{formatTimestamp(log.latestTimestamp)}</td>
     </motion.tr>
   );
 }
@@ -527,7 +526,7 @@ function DetailModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -540,7 +539,7 @@ function DetailModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold rounded-full bg-primary/10 text-primary">
               {getInitials(log.userName)}
             </div>
             <div>
@@ -553,7 +552,7 @@ function DetailModal({
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
             <span className="material-symbols-outlined text-slate-500">close</span>
           </button>
         </div>
@@ -563,7 +562,7 @@ function DetailModal({
           {/* Summary row */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-500">Tổng số lần:</span>
-            <span className="font-bold text-slate-800 text-lg">{log.totalCount}</span>
+            <span className="text-lg font-bold text-slate-800">{log.totalCount}</span>
             <span
               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColors[log.activeRole] ?? roleColors.student}`}
             >
@@ -573,8 +572,8 @@ function DetailModal({
 
           {/* Severity breakdown */}
           <div>
-            <p className="text-sm font-semibold text-slate-700 mb-3">Phân bố mức độ</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <p className="mb-3 text-sm font-semibold text-slate-700">Phân bố mức độ</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(["info", "warning", "error", "critical"] as const).map((sev) => {
                 const cfg = severityConfig[sev];
                 const count = sc[sev];
@@ -597,16 +596,16 @@ function DetailModal({
           {/* Error details */}
           {hasErrors && (
             <div>
-              <p className="text-sm font-semibold text-slate-700 mb-3">Chi tiết lỗi</p>
+              <p className="mb-3 text-sm font-semibold text-slate-700">Chi tiết lỗi</p>
               {loadingErrors ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
                   <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>
                   Đang tải...
                 </div>
               ) : errorDetails.length > 0 ? (
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <div className="overflow-x-auto border rounded-lg border-slate-200">
                   <table className="w-full text-sm text-left text-slate-600">
-                    <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
+                    <thead className="text-xs font-bold uppercase border-b bg-slate-50 text-slate-500 border-slate-200">
                       <tr>
                         <th className="px-4 py-3">Thông báo lỗi</th>
                         <th className="px-4 py-3">Loại lỗi</th>
@@ -616,13 +615,13 @@ function DetailModal({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {errorDetails.map((err, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <tr key={i} className="transition-colors hover:bg-slate-50">
                           <td className="px-4 py-3 max-w-[250px] truncate text-red-700 font-medium" title={err.message}>
                             {err.message}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {err.errorType ? (
-                              <span className="text-xs bg-slate-50 text-slate-600 px-2 py-1 rounded border border-slate-200 font-mono">
+                              <span className="px-2 py-1 font-mono text-xs border rounded bg-slate-50 text-slate-600 border-slate-200">
                                 {err.errorType}
                               </span>
                             ) : (
@@ -634,7 +633,7 @@ function DetailModal({
                               {err.count}
                             </span>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
+                          <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-500">
                             {formatTimestamp(err.latestAt)}
                           </td>
                         </tr>
@@ -643,7 +642,7 @@ function DetailModal({
                   </table>
                 </div>
               ) : (
-                <p className="text-sm text-slate-400 py-4 text-center">Không có chi tiết lỗi</p>
+                <p className="py-4 text-sm text-center text-slate-400">Không có chi tiết lỗi</p>
               )}
             </div>
           )}
@@ -664,8 +663,8 @@ function DetailModal({
 
 function ErrorLogDetailPanel({ detail, onClose }: { detail: ErrorLogDetail; onClose: () => void }) {
   return (
-    <div className="border border-red-200 rounded-lg bg-red-50/30 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-red-50 border-b border-red-200">
+    <div className="overflow-hidden border border-red-200 rounded-lg bg-red-50/30">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-red-200 bg-red-50">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-red-600 text-[18px]">bug_report</span>
           <span className="text-sm font-semibold text-red-800">Chi tiết lỗi hệ thống</span>
@@ -711,18 +710,18 @@ function ErrorLogDetailPanel({ detail, onClose }: { detail: ErrorLogDetail; onCl
 
         {/* Error message */}
         <div>
-          <p className="text-xs font-semibold text-slate-600 mb-1">Lỗi:</p>
-          <div className="bg-white border border-red-200 rounded p-3">
-            <p className="text-sm text-red-800 font-medium">{detail.errorMessage}</p>
-            <p className="text-xs text-slate-500 mt-1 font-mono">{detail.errorType}</p>
+          <p className="mb-1 text-xs font-semibold text-slate-600">Lỗi:</p>
+          <div className="p-3 bg-white border border-red-200 rounded">
+            <p className="text-sm font-medium text-red-800">{detail.errorMessage}</p>
+            <p className="mt-1 font-mono text-xs text-slate-500">{detail.errorType}</p>
           </div>
         </div>
 
         {/* Stack trace */}
         {detail.stackTrace && (
           <div>
-            <p className="text-xs font-semibold text-slate-600 mb-1">Stack Trace:</p>
-            <pre className="bg-slate-900 text-green-400 text-xs p-4 rounded-lg overflow-x-auto max-h-64 scrollbar-hide font-mono leading-relaxed">
+            <p className="mb-1 text-xs font-semibold text-slate-600">Stack Trace:</p>
+            <pre className="p-4 overflow-x-auto font-mono text-xs leading-relaxed text-green-400 rounded-lg bg-slate-900 max-h-64 scrollbar-hide">
               {detail.stackTrace}
             </pre>
           </div>
@@ -731,16 +730,16 @@ function ErrorLogDetailPanel({ detail, onClose }: { detail: ErrorLogDetail; onCl
         {/* Inner exceptions */}
         {detail.innerExceptions.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-600 mb-1">
+            <p className="mb-1 text-xs font-semibold text-slate-600">
               Inner Exceptions ({detail.innerExceptions.length}):
             </p>
             <div className="space-y-2">
               {detail.innerExceptions.map((ie, i) => (
-                <div key={i} className="bg-white border border-slate-200 rounded p-3">
-                  <p className="text-sm text-red-700 font-medium">{ie.message}</p>
-                  <p className="text-xs text-slate-500 font-mono">{ie.type}</p>
+                <div key={i} className="p-3 bg-white border rounded border-slate-200">
+                  <p className="text-sm font-medium text-red-700">{ie.message}</p>
+                  <p className="font-mono text-xs text-slate-500">{ie.type}</p>
                   {ie.stackTrace && (
-                    <pre className="mt-2 bg-slate-900 text-green-400 text-xs p-3 rounded overflow-x-auto max-h-32 scrollbar-hide font-mono">
+                    <pre className="p-3 mt-2 overflow-x-auto font-mono text-xs text-green-400 rounded bg-slate-900 max-h-32 scrollbar-hide">
                       {ie.stackTrace}
                     </pre>
                   )}

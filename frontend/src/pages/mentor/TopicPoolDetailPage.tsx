@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import { topicPoolService } from "@/lib/topicPools/topicPoolService";
 import type { TopicDetail, TopicInPoolItem, TopicPoolDto, TopicPoolStatisticsDto } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationDropdown } from "@/components/layout";
@@ -13,6 +13,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   MAX_TOTAL_SIZE_BYTES,
 } from "@/lib/common/fileUploadUtils";
+import { topicService } from "@/lib";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -336,7 +337,7 @@ function TopicDetailModal({ topicId, onClose }: TopicDetailModalProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    topicPoolService
+    topicService
       .getTopicDetail(topicId)
       .then(setDetail)
       .catch((err: Error) => setError(err.message))
@@ -518,7 +519,7 @@ export function TopicPoolDetailPage() {
   useEffect(() => {
     if (!pool) return;
     setTopicsLoading(true);
-    topicPoolService
+    topicService
       .getTopics({
         majorId: pool.majorId,
         page,

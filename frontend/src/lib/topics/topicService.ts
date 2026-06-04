@@ -1,35 +1,16 @@
 import {
-  DepartmentWithPoolsDto,
+  MentorTopicFilters,
+  MentorTopicsResponse,
   TopicDetail,
   TopicDetailRaw,
   TopicDocument,
   TopicFilters,
-  TopicPoolDto,
-  TopicPoolStatisticsDto,
   TopicsInPoolResponse,
 } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
-export const topicPoolService = {
-  // ── Pool catalog ──────────────────────────────────────────────────────────
-  /** All topic pools (optionally filtered by major). */
-  getTopicPools: (majorId?: number): Promise<TopicPoolDto[]> =>
-    apiClient.get<TopicPoolDto[]>(`${routes.topicPools.list}${majorId != null ? `?majorId=${majorId}` : ""}`),
-
-  getTopicPoolsByDepartment: (): Promise<DepartmentWithPoolsDto[]> =>
-    apiClient.get<DepartmentWithPoolsDto[]>(routes.topicPools.byDepartment),
-
-  getTopicPoolById: (id: string): Promise<TopicPoolDto> => apiClient.get<TopicPoolDto>(routes.topicPools.byId(id)),
-
-  getTopicPoolStatistics: (id: string): Promise<TopicPoolStatisticsDto> =>
-    apiClient.get<TopicPoolStatisticsDto>(routes.topicPools.statistics(id)),
-
-  /** Mentor proposes a new topic into a pool (multipart: fields + attachments). */
-  proposeTopic: (poolId: string, formData: FormData): Promise<{ id: string }> =>
-    apiClient.postForm<{ id: string }>(routes.topicPools.propose(poolId), formData),
-
-  // ── Topics in a pool ──────────────────────────────────────────────────────
+export const topicService = {
   /** Paginated list of topics available in pool for student browsing. */
   getTopics: (filters: TopicFilters = {}): Promise<TopicsInPoolResponse> => {
     const params = buildParams(filters);
@@ -37,14 +18,13 @@ export const topicPoolService = {
   },
 
   /** Full detail of a topic by ID. Works for FromPool and DirectRegistration. */
-  getTopicDetail: (topicId: string): Promise<TopicDetail> => {
-    return apiClient.get<TopicDetailRaw>(routes.topics.detail(topicId)).then((raw) => ({
+  getTopicDetail: (topicId: string): Promise<TopicDetail> =>
+    apiClient.get<TopicDetailRaw>(routes.topics.detail(topicId)).then((raw) => ({
       ...raw,
       technologies: raw.technologies ?? null,
-    }));
-  },
+    })),
 
-  /** Get documents attached to a topic. */
+  /** Documents attached to a topic. */
   getTopicDocuments: (topicId: string): Promise<TopicDocument[]> =>
     apiClient.get<TopicDocument[]>(routes.topics.documents(topicId)),
 
@@ -53,6 +33,16 @@ export const topicPoolService = {
     const formData = new FormData();
     files.forEach((file) => formData.append("attachments", file));
     return apiClient.postForm<{ queuedCount: number }>(routes.topics.documents(topicId), formData);
+  },
+
+  /** Topics owned by the current mentor. */
+  getMentorTopics: (filters: MentorTopicFilters = {}): Promise<MentorTopicsResponse> => {
+    const params = new URLSearchParams();
+    if (filters.semesterId != null) params.set("semesterId", String(filters.semesterId));
+    if (filters.search) params.set("search", filters.search);
+    params.set("page", String(filters.page ?? 1));
+    params.set("pageSize", String(filters.pageSize ?? 10));
+    return apiClient.get<MentorTopicsResponse>(`${routes.mentor.topics}?${params.toString()}`);
   },
 };
 

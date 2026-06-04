@@ -5,8 +5,8 @@ import { Header } from "@/components/layout";
 import { SemesterTimeline } from "@/components/shared/SemesterTimeline";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { departmentHeadService } from "@/lib/departmentHead/departmentHeadService";
-import type { DepartmentHeadDashboardData, RecentActivity } from "@/types/departmentHead/departmentHead.types";
+import { dashboardService } from "@/lib";
+import type { DepartmentHeadDashboardData, RecentActivity } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,8 +63,8 @@ export function DepartmentHeadDashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    departmentHeadService
-      .getDashboard()
+    dashboardService
+      .getDepartmentHeadDashboard()
       .then(setData)
       .catch((err) => showError(err instanceof Error ? err.message : "Không thể tải dữ liệu dashboard."))
       .finally(() => setLoading(false));

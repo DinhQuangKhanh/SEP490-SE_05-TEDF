@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
-import { studentGroupService } from "@/lib/group/studentGroupService";
+import { studentGroupService } from "@/lib/groups/studentGroupService";
 import type { StudentGroupDto } from "@/types";
 
 const container = {
@@ -79,7 +79,7 @@ export function StudentDashboardPage() {
       />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 p-8 overflow-y-auto">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
           {/* Welcome Section */}
           <motion.section
@@ -93,11 +93,11 @@ export function StudentDashboardPage() {
                 backgroundSize: "24px 24px",
               }}
             />
-            <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="relative flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
               <div className="flex flex-col gap-1.5">
-                <p className="text-blue-200 text-xs font-bold uppercase tracking-widest">Tổng quan</p>
+                <p className="text-xs font-bold tracking-widest text-blue-200 uppercase">Tổng quan</p>
                 <h2 className="text-2xl font-bold">Chào mừng {user?.name ?? "bạn"} trở lại</h2>
-                <p className="text-blue-100 text-sm max-w-sm">
+                <p className="max-w-sm text-sm text-blue-100">
                   {myGroup?.projectName ? (
                     <>
                       <span className="text-blue-200">Đề tài:</span>{" "}
@@ -113,11 +113,11 @@ export function StudentDashboardPage() {
                   )}
                 </p>
               </div>
-              <div className="flex gap-3 flex-wrap shrink-0">
+              <div className="flex flex-wrap gap-3 shrink-0">
                 {loadingGroup ? (
                   <>
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-white/10 rounded-xl w-28 h-16 animate-pulse" />
+                      <div key={i} className="h-16 bg-white/10 rounded-xl w-28 animate-pulse" />
                     ))}
                   </>
                 ) : myGroup ? (
@@ -125,7 +125,7 @@ export function StudentDashboardPage() {
                     <div className="bg-white/10 backdrop-blur-sm rounded-xl px-5 py-3 text-center border border-white/20 min-w-[88px]">
                       <p className="text-xl font-bold">
                         {myGroup.members?.length ?? 0}
-                        <span className="text-blue-200 text-base">/{myGroup.maxMembers}</span>
+                        <span className="text-base text-blue-200">/{myGroup.maxMembers}</span>
                       </p>
                       <p className="text-blue-200 text-xs mt-0.5">Thành viên</p>
                     </div>
@@ -155,7 +155,7 @@ export function StudentDashboardPage() {
                     ].map((step, i) => (
                       <div
                         key={i}
-                        className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2 border border-white/20"
+                        className="flex items-center gap-2 px-4 py-3 border bg-white/10 backdrop-blur-sm rounded-xl border-white/20"
                       >
                         <span className="material-symbols-outlined text-[18px] text-blue-200">{step.icon}</span>
                         <span className="text-xs font-medium text-blue-100">{step.label}</span>
@@ -168,7 +168,7 @@ export function StudentDashboardPage() {
           </motion.section>
 
           {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             {/* Topic Overview */}
             <motion.div
               variants={item}
@@ -192,7 +192,7 @@ export function StudentDashboardPage() {
 
               {loadingGroup ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                  <div className="w-6 h-6 border-b-2 rounded-full animate-spin border-primary" />
                 </div>
               ) : myGroup?.projectName ? (
                 <div className="flex flex-col gap-5">
@@ -244,7 +244,7 @@ export function StudentDashboardPage() {
                   <p className="text-[#58698d] text-sm mb-3">Bạn chưa tham gia nhóm nào.</p>
                   <button
                     onClick={() => navigate("/student/groups")}
-                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-light transition-colors"
+                    className="px-4 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
                   >
                     Tìm nhóm / Tạo nhóm
                   </button>
@@ -261,7 +261,7 @@ export function StudentDashboardPage() {
                 <span className="material-symbols-outlined text-primary">bolt</span>
                 Truy cập nhanh
               </h3>
-              <div className="grid grid-cols-2 gap-4 h-full">
+              <div className="grid h-full grid-cols-2 gap-4">
                 {quickAccess.map((qa) => (
                   <button
                     key={qa.label}
@@ -331,12 +331,12 @@ export function StudentDashboardPage() {
                       {dl.title}
                     </h4>
                   </div>
-                  <div className="hidden sm:flex flex-col items-end gap-1 text-right shrink-0">
+                  <div className="flex-col items-end hidden gap-1 text-right sm:flex shrink-0">
                     <span className="text-xs text-[#58698d] font-medium flex items-center gap-1">
                       <span className="material-symbols-outlined text-[16px]">location_on</span>
                       {dl.location}
                     </span>
-                    <button className="text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button className="text-xs font-bold transition-opacity opacity-0 text-primary group-hover:opacity-100">
                       Chi tiết
                     </button>
                   </div>

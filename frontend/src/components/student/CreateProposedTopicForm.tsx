@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
-import { majorService } from "@/lib";
+import { majorService, proposedTopicService } from "@/lib";
 import { AvailableMentor, CreateProposedTopicRequest, MajorOption } from "@/types";
 
 interface Props {

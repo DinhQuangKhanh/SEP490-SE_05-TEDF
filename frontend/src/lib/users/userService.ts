@@ -11,6 +11,10 @@ export const userService = {
   lockUser: (userId: string): Promise<void> => apiClient.put<void>(`${routes.admin.users}/${userId}/lock`, {}),
 
   unlockUser: (userId: string): Promise<void> => apiClient.put<void>(`${routes.admin.users}/${userId}/unlock`, {}),
+
+  /** Assign a user as head of a department. */
+  assignDepartmentHead: (departmentId: number, userId: string): Promise<void> =>
+    apiClient.post<void>(routes.admin.assignDepartmentHead(departmentId), { userId }),
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

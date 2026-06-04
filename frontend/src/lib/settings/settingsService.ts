@@ -1,4 +1,4 @@
-import { ArchiveGroup, PublicSettings, SystemSetting } from "@/types";
+import { PublicSettings, SystemSetting } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -22,7 +22,4 @@ export const settingsService = {
     fd.append("file", file);
     return apiClient.postForm<{ logoUrl: string }>(routes.admin.settingsLogo, fd);
   },
-
-  /** Admin: archived projects grouped by academic year. */
-  getArchives: () => apiClient.get<ArchiveGroup[]>(routes.admin.archives),
 };

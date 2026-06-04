@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { projectService } from "@/lib/project/projectService";
-import { semesterService } from "@/lib/semester/semesterService";
-import { majorService } from "@/lib";
+import { semesterService, projectService, majorService } from "@/lib";
 import { ProjectDetailDrawer } from "@/components/admin/ProjectDetailDrawer";
 import { ProjectListItem, ProjectListResponse } from "@/types";
 

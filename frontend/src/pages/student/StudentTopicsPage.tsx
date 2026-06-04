@@ -7,8 +7,7 @@ import { WishlistDrawer } from "@/components/student/WishlistDrawer";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
-import { studentGroupService } from "@/lib/group/studentGroupService";
+import { topicService, studentGroupService } from "@/lib";
 import { majorService } from "@/lib";
 import type { MajorOption, StudentGroupDto, TopicFilters, TopicsInPoolResponse } from "@/types";
 
@@ -117,7 +116,7 @@ export function StudentTopicsPage() {
   // Fetch topics when filters change
   useEffect(() => {
     setLoading(true);
-    topicPoolService
+    topicService
       .getTopics(filters)
       .then(setData)
       .catch((err) => {
@@ -158,12 +157,12 @@ export function StudentTopicsPage() {
         showSearch={false}
         role="student"
         actions={
-          <div className="relative hidden md:block w-64">
+          <div className="relative hidden w-64 md:block">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[20px] text-blue-200">
               search
             </span>
             <input
-              className="w-full text-sm rounded-md py-2 pl-10 pr-4 focus:outline-none transition-all bg-white/10 border border-white/20 text-white placeholder-blue-200/70 focus:ring-1 focus:ring-white/40 focus:border-white/40 focus:bg-white/20"
+              className="w-full py-2 pl-10 pr-4 text-sm text-white transition-all border rounded-md focus:outline-none bg-white/10 border-white/20 placeholder-blue-200/70 focus:ring-1 focus:ring-white/40 focus:border-white/40 focus:bg-white/20"
               placeholder="Tìm kiếm đề tài hoặc mentor..."
               type="text"
               value={search}
@@ -174,10 +173,10 @@ export function StudentTopicsPage() {
       />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
+      <div className="flex-1 p-8 overflow-y-auto scrollbar-hide">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
           {/* Page Header */}
-          <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <motion.div variants={item} className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
               <h2 className="text-2xl font-bold text-primary">Kho Đề Tài Mentor Đề Xuất</h2>
               <p className="text-[#58698d] text-sm mt-1">
@@ -190,7 +189,7 @@ export function StudentTopicsPage() {
                 onClick={() => setShowWishlist(true)}
                 className="flex items-center gap-2 bg-white border border-[#e9ecf1] px-4 py-2 rounded-lg text-sm font-semibold text-[#101319] hover:bg-gray-50 transition-colors relative"
               >
-                <span className="material-symbols-outlined text-xl">bookmark</span>
+                <span className="text-xl material-symbols-outlined">bookmark</span>
                 Quan tâm
                 {wishlist.count > 0 && (
                   <span className="bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
@@ -281,7 +280,7 @@ export function StudentTopicsPage() {
                     onClick={clearFilters}
                     className="bg-[#f6f7f8] hover:bg-gray-200 text-[#101319] font-bold py-1.5 px-4 rounded-lg text-xs transition-colors flex items-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-sm">filter_alt_off</span>
+                    <span className="text-sm material-symbols-outlined">filter_alt_off</span>
                     Xóa bộ lọc
                   </button>
                 )}
@@ -291,7 +290,7 @@ export function StudentTopicsPage() {
 
           {/* Topics Grid */}
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <TopicCardSkeleton key={i} />
               ))}
@@ -301,7 +300,7 @@ export function StudentTopicsPage() {
               variants={container}
               initial="hidden"
               animate="show"
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+              className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
             >
               {data.items.map((topic) => (
                 <TopicCard
@@ -317,14 +316,14 @@ export function StudentTopicsPage() {
           ) : (
             <motion.div variants={item} className="flex flex-col items-center justify-center py-20">
               <span className="material-symbols-outlined text-[56px] text-slate-200 mb-4">search_off</span>
-              <p className="text-slate-500 font-medium mb-1">Không tìm thấy đề tài nào</p>
-              <p className="text-slate-400 text-sm">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.</p>
+              <p className="mb-1 font-medium text-slate-500">Không tìm thấy đề tài nào</p>
+              <p className="text-sm text-slate-400">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.</p>
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="mt-4 text-primary text-sm font-medium hover:underline flex items-center gap-1"
+                  className="flex items-center gap-1 mt-4 text-sm font-medium text-primary hover:underline"
                 >
-                  <span className="material-symbols-outlined text-sm">filter_alt_off</span>
+                  <span className="text-sm material-symbols-outlined">filter_alt_off</span>
                   Xóa bộ lọc
                 </button>
               )}
@@ -350,7 +349,7 @@ export function StudentTopicsPage() {
                   disabled={data.page <= 1}
                   className="p-2 rounded-lg border border-[#e9ecf1] hover:bg-gray-50 text-[#58698d] transition-colors disabled:opacity-40"
                 >
-                  <span className="material-symbols-outlined text-xl">chevron_left</span>
+                  <span className="text-xl material-symbols-outlined">chevron_left</span>
                 </button>
                 {pageNumbers.map((p, i) =>
                   p === "..." ? (
@@ -376,7 +375,7 @@ export function StudentTopicsPage() {
                   disabled={data.page >= data.totalPages}
                   className="p-2 rounded-lg border border-[#e9ecf1] hover:bg-gray-50 text-[#58698d] transition-colors disabled:opacity-40"
                 >
-                  <span className="material-symbols-outlined text-xl">chevron_right</span>
+                  <span className="text-xl material-symbols-outlined">chevron_right</span>
                 </button>
               </div>
             </motion.div>
@@ -386,10 +385,10 @@ export function StudentTopicsPage() {
           <div className="mt-8 pt-6 border-t border-[#e9ecf1] flex flex-col md:flex-row justify-between items-center text-[#58698d] text-sm pb-8">
             <p>&copy; 2023 University Thesis Management System.</p>
             <div className="flex gap-4 mt-2 md:mt-0">
-              <a className="hover:text-primary transition-colors" href="#">
+              <a className="transition-colors hover:text-primary" href="#">
                 Quy định bảo mật
               </a>
-              <a className="hover:text-primary transition-colors" href="#">
+              <a className="transition-colors hover:text-primary" href="#">
                 Điều khoản sử dụng
               </a>
             </div>
@@ -434,7 +433,7 @@ export function StudentTopicsPage() {
             setRegisterNote("");
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-[#101319] mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">app_registration</span>
               Xác nhận đăng ký đề tài
@@ -457,9 +456,9 @@ export function StudentTopicsPage() {
                 className="flex-1 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {registering ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent" />
                 ) : (
-                  <span className="material-symbols-outlined text-lg">check</span>
+                  <span className="text-lg material-symbols-outlined">check</span>
                 )}
                 Xác nhận
               </button>

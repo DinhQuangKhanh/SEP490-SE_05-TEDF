@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import { topicPoolService } from "@/lib/topicPools/topicPoolService";
 import type { DepartmentWithPoolsDto } from "@/types";
 import { NotificationDropdown } from "@/components/layout";
 
@@ -70,22 +70,22 @@ export function TopicPoolsPage() {
   return (
     <>
       {/* Header */}
-      <header className="h-16 flex items-center justify-between px-8 bg-white border-b border-slate-200 flex-shrink-0 z-50 shadow-sm">
+      <header className="z-50 flex items-center justify-between flex-shrink-0 h-16 px-8 bg-white border-b shadow-sm border-slate-200">
         <div className="flex items-center gap-2 text-slate-800">
-          <span className="text-slate-400 font-medium text-sm">Quản lý</span>
-          <span className="material-symbols-outlined text-sm text-slate-400">chevron_right</span>
+          <span className="text-sm font-medium text-slate-400">Quản lý</span>
+          <span className="text-sm material-symbols-outlined text-slate-400">chevron_right</span>
           <h2 className="text-lg font-bold">Kho đề tài</h2>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative hidden md:block">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
               <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
             </div>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="block w-64 pl-10 pr-3 py-2 rounded-lg bg-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary sm:text-sm transition-all border-none"
+              className="block w-64 py-2 pl-10 pr-3 transition-all border-none rounded-lg bg-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary sm:text-sm"
               placeholder="Tìm khoa, chuyên ngành..."
             />
           </div>
@@ -94,19 +94,19 @@ export function TopicPoolsPage() {
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
+      <div className="flex-1 p-8 overflow-y-auto bg-slate-50">
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
           {/* Title */}
           <motion.div variants={item} className="flex flex-col gap-1">
             <h1 className="text-2xl font-bold text-slate-900">Kho đề tài theo khoa</h1>
-            <p className="text-slate-500 text-sm">Chọn khoa → chuyên ngành để xem kho đề tài tương ứng.</p>
+            <p className="text-sm text-slate-500">Chọn khoa → chuyên ngành để xem kho đề tài tương ứng.</p>
           </motion.div>
 
           {/* Error */}
           {error && (
             <motion.div
               variants={item}
-              className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4 text-red-700"
+              className="flex items-center gap-3 p-4 text-red-700 border border-red-200 bg-red-50 rounded-xl"
             >
               <span className="material-symbols-outlined">error</span>
               <p className="text-sm font-medium">{error}</p>
@@ -117,11 +117,11 @@ export function TopicPoolsPage() {
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 animate-pulse space-y-4">
-                  <div className="h-5 bg-slate-200 rounded w-1/3" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div key={i} className="p-5 space-y-4 bg-white border rounded-xl border-slate-200 animate-pulse">
+                  <div className="w-1/3 h-5 rounded bg-slate-200" />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {[1, 2].map((j) => (
-                      <div key={j} className="h-24 bg-slate-100 rounded-lg" />
+                      <div key={j} className="h-24 rounded-lg bg-slate-100" />
                     ))}
                   </div>
                 </div>
@@ -129,8 +129,8 @@ export function TopicPoolsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <motion.div variants={item} className="flex flex-col items-center justify-center py-20 text-center">
-              <span className="material-symbols-outlined text-5xl text-slate-300">school</span>
-              <p className="text-slate-400 font-medium mt-3">
+              <span className="text-5xl material-symbols-outlined text-slate-300">school</span>
+              <p className="mt-3 font-medium text-slate-400">
                 {search ? "Không tìm thấy kết quả nào" : "Chưa có dữ liệu khoa nào"}
               </p>
             </motion.div>
@@ -140,20 +140,20 @@ export function TopicPoolsPage() {
                 <motion.div
                   key={dept.departmentId}
                   variants={item}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200"
                 >
                   {/* Department header — clickable to expand */}
                   <button
                     onClick={() => toggleDept(dept.departmentId)}
-                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+                    className="flex items-center justify-between w-full px-6 py-4 transition-colors hover:bg-slate-50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                      <div className="flex items-center justify-center flex-shrink-0 rounded-lg size-10 bg-primary/10 text-primary">
                         <span className="material-symbols-outlined">school</span>
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-slate-900">{dept.departmentName}</p>
-                        <p className="text-xs font-mono text-slate-400">
+                        <p className="font-mono text-xs text-slate-400">
                           {dept.departmentCode} · {dept.majors.length} chuyên ngành
                         </p>
                       </div>
@@ -176,7 +176,7 @@ export function TopicPoolsPage() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="px-6 pb-5 pt-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 border-t border-slate-100">
+                        <div className="grid grid-cols-1 gap-4 px-6 pt-1 pb-5 border-t md:grid-cols-2 xl:grid-cols-3 border-slate-100">
                           {dept.majors.map((major) => (
                             <div
                               key={major.majorId}

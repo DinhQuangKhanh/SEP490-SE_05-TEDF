@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { evaluatorService } from "@/lib";
+import { dashboardService } from "@/lib";
 import type { EvaluatorDashboardResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 
@@ -111,8 +111,8 @@ export function EvaluatorDashboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    evaluatorService
-      .getDashboard()
+    dashboardService
+      .getEvaluatorDashboard()
       .then(setData)
       .catch((err) => showError(err.message))
       .finally(() => setLoading(false));

@@ -2,10 +2,7 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
-import { notificationService } from "@/lib";
-import { studentGroupService } from "@/lib/group/studentGroupService";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
-import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
+import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
 import type { StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -197,7 +194,7 @@ export function StudentMyTopicPage() {
   }, []);
 
   const loadDocuments = useCallback((projectId: string) => {
-    topicPoolService
+    topicService
       .getTopicDocuments(projectId)
       .then(setDocuments)
       .catch(() => {
@@ -212,7 +209,7 @@ export function StudentMyTopicPage() {
         setMyGroup(group);
         if (group?.projectId) {
           try {
-            const detail = await topicPoolService.getTopicDetail(group.projectId);
+            const detail = await topicService.getTopicDetail(group.projectId);
             setTopicDetail(detail);
           } catch (err) {
             console.error("Error fetching topic detail:", err);
@@ -246,7 +243,7 @@ export function StudentMyTopicPage() {
     if (pendingFiles.length === 0 || !myGroup?.projectId) return;
     setUploading(true);
     try {
-      await topicPoolService.uploadTopicDocuments(myGroup.projectId, pendingFiles);
+      await topicService.uploadTopicDocuments(myGroup.projectId, pendingFiles);
       setPendingFiles([]);
       setFileWarnings([]);
       setUploadSuccess(true);
@@ -260,7 +257,7 @@ export function StudentMyTopicPage() {
         elapsed += 3000;
         try {
           const [docs, notifs] = await Promise.all([
-            topicPoolService.getTopicDocuments(projectId),
+            topicService.getTopicDocuments(projectId),
             notificationService.getNotifications(5),
           ]);
           setDocuments(docs);
@@ -311,20 +308,20 @@ export function StudentMyTopicPage() {
       />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 p-8 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+            <div className="w-10 h-10 border-b-2 rounded-full animate-spin border-primary" />
           </div>
         ) : !myGroup ? (
           /* No group */
-          <div className="flex flex-col items-center justify-center h-64 text-center gap-4">
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
             <span className="material-symbols-outlined text-5xl text-[#58698d]">group_add</span>
             <p className="text-[#101319] font-bold text-lg">Bạn chưa tham gia nhóm nào</p>
             <p className="text-[#58698d] text-sm">Tham gia hoặc tạo nhóm để được gán đề tài.</p>
             <button
               onClick={() => navigate("/student/groups")}
-              className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-light transition-colors"
+              className="px-5 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
             >
               Quản lý nhóm
             </button>
@@ -343,7 +340,7 @@ export function StudentMyTopicPage() {
                     .then(async (group) => {
                       setMyGroup(group);
                       if (group?.projectId) {
-                        const detail = await topicPoolService.getTopicDetail(group.projectId);
+                        const detail = await topicService.getTopicDetail(group.projectId);
                         setTopicDetail(detail);
                         loadDocuments(group.projectId);
                       }
@@ -354,7 +351,7 @@ export function StudentMyTopicPage() {
               />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-center gap-4">
+            <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
               <span className="material-symbols-outlined text-5xl text-[#58698d]">topic</span>
               <p className="text-[#101319] font-bold text-lg">
                 Nhóm <span className="text-primary">{myGroup.groupName ?? myGroup.groupCode}</span> chưa có đề tài
@@ -365,7 +362,7 @@ export function StudentMyTopicPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => navigate("/student/topics")}
-                  className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-light transition-colors"
+                  className="px-5 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
                 >
                   Xem kho đề tài
                 </button>
@@ -374,7 +371,7 @@ export function StudentMyTopicPage() {
                     onClick={() => setShowCreateForm(true)}
                     className="px-5 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-lg">edit_note</span>
+                    <span className="text-lg material-symbols-outlined">edit_note</span>
                     Đề xuất đề tài mới
                   </button>
                 )}
@@ -385,12 +382,12 @@ export function StudentMyTopicPage() {
           /* Full view */
           <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
             {/* Breadcrumb */}
-            <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <motion.div variants={item} className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <div className="flex items-center gap-2 text-sm text-[#58698d] mb-1">
                   <span>Hệ thống</span>
-                  <span className="material-symbols-outlined text-sm">chevron_right</span>
-                  <span className="text-primary font-semibold">Đề tài của tôi</span>
+                  <span className="text-sm material-symbols-outlined">chevron_right</span>
+                  <span className="font-semibold text-primary">Đề tài của tôi</span>
                 </div>
                 <h2 className="text-2xl font-bold text-[#101319]">Chi tiết Nội dung Đề tài</h2>
               </div>
@@ -402,11 +399,11 @@ export function StudentMyTopicPage() {
               className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm overflow-hidden"
             >
               <div className="p-8 border-b border-[#e9ecf1]">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
                   <div className="max-w-4xl">
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
                       {myGroup.projectCode && (
-                        <span className="bg-blue-100 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                        <span className="px-3 py-1 text-xs font-bold tracking-wider uppercase bg-blue-100 rounded-full text-primary">
                           Mã đề tài: {myGroup.projectCode}
                         </span>
                       )}
@@ -429,7 +426,7 @@ export function StudentMyTopicPage() {
                                   const group = await studentGroupService.getMyGroup();
                                   setMyGroup(group);
                                   if (group?.projectId) {
-                                    const detail = await topicPoolService.getTopicDetail(group.projectId);
+                                    const detail = await topicService.getTopicDetail(group.projectId);
                                     setTopicDetail(detail);
                                   }
                                 } catch (err) {
@@ -442,9 +439,9 @@ export function StudentMyTopicPage() {
                               className="ml-2 px-4 py-1.5 bg-primary text-white rounded-full text-xs font-bold hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center gap-1.5"
                             >
                               {submittingToMentor ? (
-                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                                <div className="w-3 h-3 border-2 border-white rounded-full animate-spin border-t-transparent" />
                               ) : (
-                                <span className="material-symbols-outlined text-sm">send</span>
+                                <span className="text-sm material-symbols-outlined">send</span>
                               )}
                               {myGroup.projectStatus === "Draft" ? "Gửi cho giảng viên" : "Gửi lại cho giảng viên"}
                             </button>
@@ -453,7 +450,7 @@ export function StudentMyTopicPage() {
                                 onClick={() => setShowEditForm(true)}
                                 className="ml-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-bold hover:bg-amber-600 transition-colors flex items-center gap-1.5"
                               >
-                                <span className="material-symbols-outlined text-sm">edit_note</span>
+                                <span className="text-sm material-symbols-outlined">edit_note</span>
                                 Chỉnh sửa
                               </button>
                             )}
@@ -461,7 +458,7 @@ export function StudentMyTopicPage() {
                         )}
                       {myGroup.projectStatus === "PendingMentorReview" && (
                         <span className="ml-2 px-3 py-1.5 bg-violet-50 text-violet-700 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                          <span className="text-sm material-symbols-outlined">hourglass_top</span>
                           Đang chờ giảng viên duyệt
                         </span>
                       )}
@@ -472,7 +469,7 @@ export function StudentMyTopicPage() {
                     <div className="flex flex-wrap gap-6 text-sm">
                       {myGroup.mentorName && (
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-primary">
+                          <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full text-primary">
                             <span className="material-symbols-outlined">person</span>
                           </div>
                           <div>
@@ -483,7 +480,7 @@ export function StudentMyTopicPage() {
                       )}
                       {topicDetail?.createdAt && (
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-primary">
+                          <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full text-primary">
                             <span className="material-symbols-outlined">calendar_today</span>
                           </div>
                           <div>
@@ -494,7 +491,7 @@ export function StudentMyTopicPage() {
                       )}
                       {topicDetail?.majorName && (
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-primary">
+                          <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full text-primary">
                             <span className="material-symbols-outlined">school</span>
                           </div>
                           <div>
@@ -510,9 +507,9 @@ export function StudentMyTopicPage() {
             </motion.section>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
               {/* Left Column - Topic Details */}
-              <motion.div variants={item} className="lg:col-span-2 space-y-6">
+              <motion.div variants={item} className="space-y-6 lg:col-span-2">
                 <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm flex flex-col">
                   <div className="p-5 border-b border-[#e9ecf1] flex items-center justify-between">
                     <h3 className="font-bold text-[#101319] flex items-center gap-2">
@@ -524,7 +521,7 @@ export function StudentMyTopicPage() {
                     {/* Description */}
                     {topicDetail?.description && (
                       <div>
-                        <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
                           <span className="w-1.5 h-6 bg-primary rounded-full" />
                           Tổng quan
                         </h4>
@@ -537,7 +534,7 @@ export function StudentMyTopicPage() {
                     {/* Objective */}
                     {topicDetail?.objectives && (
                       <div>
-                        <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
                           <span className="w-1.5 h-6 bg-primary rounded-full" />
                           Mục tiêu đề tài
                         </h4>
@@ -550,7 +547,7 @@ export function StudentMyTopicPage() {
                     {/* Scope & Technologies */}
                     {(topicDetail?.scope || topicDetail?.technologies) && (
                       <div>
-                        <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
                           <span className="w-1.5 h-6 bg-primary rounded-full" />
                           Phạm vi nghiên cứu
                         </h4>
@@ -572,7 +569,7 @@ export function StudentMyTopicPage() {
                     {/* Expected Results */}
                     {topicDetail?.expectedResults && (
                       <div>
-                        <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
                           <span className="w-1.5 h-6 bg-primary rounded-full" />
                           Kết quả dự kiến
                         </h4>
@@ -597,7 +594,7 @@ export function StudentMyTopicPage() {
               </motion.div>
 
               {/* Right Column - Files */}
-              <motion.div variants={item} className="lg:col-span-1 space-y-6">
+              <motion.div variants={item} className="space-y-6 lg:col-span-1">
                 <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm flex flex-col">
                   <div className="p-5 border-b border-[#e9ecf1] flex items-center justify-between">
                     <h3 className="font-bold text-[#101319] flex items-center gap-2">
@@ -610,12 +607,12 @@ export function StudentMyTopicPage() {
                       </span>
                     )}
                   </div>
-                  <div className="p-4 flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 p-4">
                     {/* Upload success banner */}
                     {uploadSuccess && (
-                      <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg animate-pulse">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-500 border-t-transparent shrink-0" />
-                        <p className="text-xs text-green-700 font-medium">
+                      <div className="flex items-center gap-2 p-3 border border-green-200 rounded-lg bg-green-50 animate-pulse">
+                        <div className="w-4 h-4 border-2 border-green-500 rounded-full animate-spin border-t-transparent shrink-0" />
+                        <p className="text-xs font-medium text-green-700">
                           Tải lên thành công! File đang được quét mã độc và sẽ xuất hiện sau vài giây...
                         </p>
                       </div>
@@ -623,7 +620,7 @@ export function StudentMyTopicPage() {
 
                     {/* Uploaded documents list */}
                     {documents.length > 0 ? (
-                      <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                      <div className="flex flex-col gap-2 overflow-y-auto max-h-64">
                         {documents.map((doc) => {
                           const ext = `.${doc.originalFileName.split(".").pop()?.toLowerCase() ?? ""}`;
                           const icon = FILE_ICON_MAP[ext] ?? "draft";
@@ -632,7 +629,7 @@ export function StudentMyTopicPage() {
                               key={doc.id}
                               className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                             >
-                              <span className="material-symbols-outlined text-primary text-xl shrink-0">{icon}</span>
+                              <span className="text-xl material-symbols-outlined text-primary shrink-0">{icon}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold text-[#101319] truncate">{doc.originalFileName}</p>
                                 <p className="text-[10px] text-[#58698d]">
@@ -644,8 +641,8 @@ export function StudentMyTopicPage() {
                         })}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-6 text-center gap-2">
-                        <span className="material-symbols-outlined text-3xl text-gray-300">folder_open</span>
+                      <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+                        <span className="text-3xl text-gray-300 material-symbols-outlined">folder_open</span>
                         <p className="text-xs text-[#58698d]">Chưa có tài liệu nào được tải lên.</p>
                       </div>
                     )}
@@ -661,16 +658,16 @@ export function StudentMyTopicPage() {
                           const icon = FILE_ICON_MAP[ext] ?? "draft";
                           return (
                             <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-blue-50">
-                              <span className="material-symbols-outlined text-primary text-lg shrink-0">{icon}</span>
+                              <span className="text-lg material-symbols-outlined text-primary shrink-0">{icon}</span>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-[#101319] truncate">{file.name}</p>
                                 <p className="text-[10px] text-[#58698d]">{formatFileSize(file.size)}</p>
                               </div>
                               <button
                                 onClick={() => removePendingFile(idx)}
-                                className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                                className="text-gray-400 transition-colors hover:text-red-500 shrink-0"
                               >
-                                <span className="material-symbols-outlined text-lg">close</span>
+                                <span className="text-lg material-symbols-outlined">close</span>
                               </button>
                             </div>
                           );
@@ -683,7 +680,7 @@ export function StudentMyTopicPage() {
                       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
                         {fileWarnings.map((w, i) => (
                           <p key={i} className="text-[10px] text-amber-700 flex items-start gap-1">
-                            <span className="material-symbols-outlined text-xs mt-px shrink-0">warning</span>
+                            <span className="mt-px text-xs material-symbols-outlined shrink-0">warning</span>
                             {w}
                           </p>
                         ))}
@@ -706,7 +703,7 @@ export function StudentMyTopicPage() {
                         setFileWarnings(rejected);
                       }}
                     >
-                      <span className="material-symbols-outlined text-2xl">cloud_upload</span>
+                      <span className="text-2xl material-symbols-outlined">cloud_upload</span>
                       <span className="text-xs font-bold">Kéo thả hoặc nhấn để chọn file</span>
                       <span className="text-[10px] text-[#58698d]">
                         Tối đa {MAX_ATTACHMENTS} file · {formatFileSize(MAX_FILE_SIZE_BYTES)}/file
@@ -729,12 +726,12 @@ export function StudentMyTopicPage() {
                       >
                         {uploading ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                            <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent" />
                             Đang tải lên...
                           </>
                         ) : (
                           <>
-                            <span className="material-symbols-outlined text-lg">upload</span>
+                            <span className="text-lg material-symbols-outlined">upload</span>
                             Tải lên {pendingFiles.length} file
                           </>
                         )}
@@ -752,13 +749,13 @@ export function StudentMyTopicPage() {
                         Thành viên nhóm
                       </h3>
                     </div>
-                    <div className="p-4 flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 p-4">
                       {myGroup.members.map((m) => (
                         <div
                           key={m.studentId}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex items-center gap-3 p-2 transition-colors rounded-lg hover:bg-gray-50"
                         >
-                          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                          <div className="flex items-center justify-center text-sm font-bold rounded-full h-9 w-9 bg-primary/10 text-primary shrink-0">
                             {m.fullName.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -796,7 +793,7 @@ export function StudentMyTopicPage() {
 
       {/* Edit Topic Modal */}
       {showEditForm && myGroup?.projectId && topicDetail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <EditProposedTopicForm
               projectId={myGroup.projectId}
@@ -819,7 +816,7 @@ export function StudentMyTopicPage() {
                   .then(async (group) => {
                     setMyGroup(group);
                     if (group?.projectId) {
-                      const detail = await topicPoolService.getTopicDetail(group.projectId);
+                      const detail = await topicService.getTopicDetail(group.projectId);
                       setTopicDetail(detail);
                     }
                   })

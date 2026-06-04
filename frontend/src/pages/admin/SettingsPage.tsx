@@ -4,7 +4,7 @@ import { Header } from '@/components/layout'
 import { useMaintenance } from '@/contexts/MaintenanceContext'
 import { useBranding } from '@/contexts/SettingsContext'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { settingsService } from "@/lib";
+import { archiveService, settingsService } from "@/lib";
 import type { ArchiveGroup } from "@/types";
 
 const container = {
@@ -78,7 +78,7 @@ export function SettingsPage() {
             try {
                 const [settings, arch] = await Promise.all([
                     settingsService.getAdminSettings(),
-                    settingsService.getArchives().catch(() => [] as ArchiveGroup[]),
+                    archiveService.getArchives().catch(() => [] as ArchiveGroup[]),
                 ])
                 if (!active) return
                 const map = Object.fromEntries(settings.map((s) => [s.key, s.value]))

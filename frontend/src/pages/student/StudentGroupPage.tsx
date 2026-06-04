@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { SuccessModal } from "@/components/common/SuccessModal";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { studentGroupService } from "@/lib/group/studentGroupService";
+import { studentGroupService } from "@/lib";
 import type {
   AvailableStudentDto,
   InvitationDto,
@@ -35,7 +35,7 @@ export function StudentGroupPage() {
       <Header variant="primary" title="Quản lý nhóm" showSearch={false} role="student" />
 
       {/* Tab Bar */}
-      <div className="bg-white border-b border-gray-200 px-8">
+      <div className="px-8 bg-white border-b border-gray-200">
         <div className="flex gap-1">
           {tabs.map((tab) => (
             <button
@@ -62,7 +62,7 @@ export function StudentGroupPage() {
       </div>
 
       {/* Tab Content */}
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -237,24 +237,24 @@ function MyGroupContent() {
     return (
       <>
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <div className="text-5xl mb-4">👥</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Bạn chưa có nhóm</h2>
-            <p className="text-gray-500 mb-6">Tạo nhóm của bạn ngay để bắt đầu hợp tác với những sinh viên khác</p>
+          <div className="p-8 text-center bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="mb-4 text-5xl">👥</div>
+            <h2 className="mb-2 text-2xl font-bold text-gray-800">Bạn chưa có nhóm</h2>
+            <p className="mb-6 text-gray-500">Tạo nhóm của bạn ngay để bắt đầu hợp tác với những sinh viên khác</p>
 
             {pendingJoinRequest && (
-              <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-left">
+              <div className="px-4 py-3 mb-6 text-left border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
                 <p className="font-semibold">Đang chờ phê duyệt yêu cầu tham gia nhóm</p>
-                <p className="text-sm mt-1">
+                <p className="mt-1 text-sm">
                   Nhóm: {pendingJoinRequest.groupName || pendingJoinRequest.groupCode} • Hết hạn lúc{" "}
                   {new Date(pendingJoinRequest.expiresAt).toLocaleString("vi-VN")}
                 </p>
               </div>
             )}
 
-            <div className="space-y-4 mb-6">
+            <div className="mb-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tên nhóm (tùy chọn)</label>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Tên nhóm (tùy chọn)</label>
                 <input
                   type="text"
                   value={groupName}
@@ -269,7 +269,7 @@ function MyGroupContent() {
             <button
               onClick={handleCreateGroup}
               disabled={creatingGroup || !!pendingJoinRequest}
-              className="w-full bg-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition"
+              className="w-full px-6 py-3 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
             >
               {pendingJoinRequest ? "Đang chờ phê duyệt yêu cầu" : creatingGroup ? "Đang tạo..." : "Tạo nhóm mới"}
             </button>
@@ -283,13 +283,13 @@ function MyGroupContent() {
     <>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Group Info Card */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-1">{myGroup.groupName || myGroup.groupCode}</h2>
+              <h2 className="mb-1 text-2xl font-bold text-gray-800">{myGroup.groupName || myGroup.groupCode}</h2>
               <p className="text-sm text-gray-500">Mã nhóm: {myGroup.groupCode}</p>
               {myGroup.projectName && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="mt-1 text-sm text-gray-600">
                   <span className="material-symbols-outlined text-[16px] align-text-bottom mr-1">description</span>
                   Đề tài: {myGroup.projectName}
                 </p>
@@ -302,7 +302,7 @@ function MyGroupContent() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-2 gap-4 p-4 mb-6 rounded-lg bg-gray-50">
             <div>
               <p className="text-sm text-gray-600">Số thành viên</p>
               <p className="text-2xl font-bold text-gray-800">
@@ -319,7 +319,7 @@ function MyGroupContent() {
 
           <button
             onClick={() => setShowInviteModal(true)}
-            className="w-full bg-blue-50 text-blue-700 px-4 py-3 rounded-lg font-semibold hover:bg-blue-100 transition"
+            className="w-full px-4 py-3 font-semibold text-blue-700 transition rounded-lg bg-blue-50 hover:bg-blue-100"
           >
             <span className="material-symbols-outlined text-[18px] align-text-bottom mr-1">person_add</span>
             Mời thành viên mới
@@ -327,8 +327,8 @@ function MyGroupContent() {
         </div>
 
         {/* Members List */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Thành viên nhóm</h3>
+        <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h3 className="mb-4 text-lg font-bold text-gray-800">Thành viên nhóm</h3>
           <div className="space-y-3">
             {myGroup.members && myGroup.members.length > 0 ? (
               myGroup.members.map((member) => (
@@ -351,38 +351,38 @@ function MyGroupContent() {
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-center py-4">Chưa có thành viên nào</p>
+              <p className="py-4 text-center text-gray-500">Chưa có thành viên nào</p>
             )}
           </div>
         </div>
 
         {/* Join Requests */}
         {joinRequests.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Yêu cầu tham gia ({joinRequests.length})</h3>
+          <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-gray-800">Yêu cầu tham gia ({joinRequests.length})</h3>
             <div className="space-y-3">
               {joinRequests.map((request) => (
-                <div key={request.id} className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
+                <div key={request.id} className="p-4 border border-yellow-200 rounded-lg bg-yellow-50">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="font-semibold text-gray-800">{request.studentName}</p>
                       <p className="text-sm text-gray-600">{request.studentCode}</p>
-                      {request.message && <p className="text-sm text-gray-700 mt-2 italic">"{request.message}"</p>}
+                      {request.message && <p className="mt-2 text-sm italic text-gray-700">"{request.message}"</p>}
                     </div>
                     <span className="text-xs text-gray-500">
                       {new Date(request.createdAt).toLocaleDateString("vi-VN")}
                     </span>
                   </div>
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex justify-end gap-2">
                     <button
                       onClick={() => handleRejectRequest(request.id)}
-                      className="px-4 py-2 bg-red-50 text-red-700 rounded-lg font-semibold hover:bg-red-100 transition text-sm"
+                      className="px-4 py-2 text-sm font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100"
                     >
                       Từ chối
                     </button>
                     <button
                       onClick={() => handleApproveRequest(request.id)}
-                      className="px-4 py-2 bg-green-50 text-green-700 rounded-lg font-semibold hover:bg-green-100 transition text-sm"
+                      className="px-4 py-2 text-sm font-semibold text-green-700 transition rounded-lg bg-green-50 hover:bg-green-100"
                     >
                       Chấp nhận
                     </button>
@@ -396,12 +396,12 @@ function MyGroupContent() {
 
       {/* Invite Modal */}
       {showInviteModal && myGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Mời thành viên mới</h3>
-            <div className="space-y-4 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-4 text-xl font-bold text-gray-800">Mời thành viên mới</h3>
+            <div className="mb-6 space-y-4">
               <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Chọn sinh viên</label>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Chọn sinh viên</label>
                 <input
                   type="text"
                   value={studentSearch}
@@ -417,7 +417,7 @@ function MyGroupContent() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {showStudentDropdown && (
-                  <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                  <div className="absolute z-10 w-full mt-1 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg max-h-60">
                     {loadingStudents ? (
                       <div className="px-4 py-3 text-sm text-gray-500">Đang tải danh sách sinh viên...</div>
                     ) : filteredStudents.length === 0 ? (
@@ -442,7 +442,7 @@ function MyGroupContent() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Lời nhắn (tùy chọn)</label>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Lời nhắn (tùy chọn)</label>
                 <textarea
                   value={inviteData.message}
                   onChange={(e) => setInviteData({ ...inviteData, message: e.target.value })}
@@ -456,14 +456,14 @@ function MyGroupContent() {
             <div className="flex gap-3">
               <button
                 onClick={closeInviteModal}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition"
+                className="flex-1 px-4 py-2 font-semibold text-gray-700 transition bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 Hủy
               </button>
               <button
                 onClick={handleInviteMember}
                 disabled={!inviteData.studentCode || inviting}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition"
+                className="flex-1 px-4 py-2 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
               >
                 {inviting ? "Đang gửi..." : "Gửi lời mời"}
               </button>
@@ -572,15 +572,15 @@ function OpenGroupsContent() {
   return (
     <>
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg max-w-md">
+        <div className="fixed z-50 max-w-md px-5 py-3 text-white bg-green-600 rounded-lg shadow-lg top-6 right-6">
           {toastMessage}
         </div>
       )}
 
       {pendingJoinRequest && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg">
+        <div className="px-4 py-3 mb-6 border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
           <p className="font-semibold">Bạn đang chờ phê duyệt yêu cầu tham gia nhóm</p>
-          <p className="text-sm mt-1">
+          <p className="mt-1 text-sm">
             Nhóm: {pendingJoinRequest.groupName || pendingJoinRequest.groupCode} • Hết hạn lúc{" "}
             {new Date(pendingJoinRequest.expiresAt).toLocaleString("vi-VN")}
           </p>
@@ -588,9 +588,9 @@ function OpenGroupsContent() {
       )}
 
       {hasGroupInCurrentSemester && (
-        <div className="mb-6 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-3 rounded-lg">
+        <div className="px-4 py-3 mb-6 border rounded-lg bg-slate-100 border-slate-300 text-slate-700">
           <p className="font-semibold">Bạn đã có nhóm ở kỳ này</p>
-          <p className="text-sm mt-1">Nhóm hiện tại: {myGroup!.groupName || myGroup!.groupCode}</p>
+          <p className="mt-1 text-sm">Nhóm hiện tại: {myGroup!.groupName || myGroup!.groupCode}</p>
         </div>
       )}
 
@@ -610,20 +610,20 @@ function OpenGroupsContent() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute text-gray-400 -translate-y-1/2 right-3 top-1/2 hover:text-gray-600"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           )}
         </div>
-        {searchQuery && <p className="text-sm text-gray-500 mt-2">Tìm thấy {filteredGroups.length} nhóm</p>}
+        {searchQuery && <p className="mt-2 text-sm text-gray-500">Tìm thấy {filteredGroups.length} nhóm</p>}
       </div>
 
       {filteredGroups.length === 0 ? (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <div className="text-5xl mb-4">{searchQuery ? "🔍" : "🔍"}</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          <div className="p-8 text-center bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="mb-4 text-5xl">{searchQuery ? "🔍" : "🔍"}</div>
+            <h2 className="mb-2 text-2xl font-bold text-gray-800">
               {searchQuery ? "Không tìm thấy nhóm nào" : "Không có nhóm mở"}
             </h2>
             <p className="text-gray-500">
@@ -635,7 +635,7 @@ function OpenGroupsContent() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {paginatedGroups.map((group) => (
               <div
                 key={group.groupId}
@@ -643,23 +643,23 @@ function OpenGroupsContent() {
                   setSelectedGroup(group);
                   setShowDetailModal(true);
                 }}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-primary/30 transition cursor-pointer p-6"
+                className="p-6 transition bg-white border border-gray-200 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-primary/30"
               >
                 <div className="mb-4">
-                  <h3 className="text-lg font-bold text-gray-800 mb-1">{group.groupName || group.groupCode}</h3>
+                  <h3 className="mb-1 text-lg font-bold text-gray-800">{group.groupName || group.groupCode}</h3>
                   <p className="text-sm text-gray-600">Mã: {group.groupCode}</p>
                 </div>
 
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <div className="p-3 mb-4 rounded-lg bg-blue-50">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700">Số thành viên</span>
                     <span className="text-xl font-bold text-blue-600">
                       {group.memberCount}/{group.maxMembers}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full h-2 mt-2 bg-gray-200 rounded-full">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all"
+                      className="h-2 transition-all bg-blue-600 rounded-full"
                       style={{ width: `${(group.memberCount / group.maxMembers) * 100}%` }}
                     />
                   </div>
@@ -667,7 +667,7 @@ function OpenGroupsContent() {
 
                 {group.members && group.members.length > 0 && (
                   <div className="mb-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Thành viên hiện tại:</p>
+                    <p className="mb-2 text-sm font-semibold text-gray-700">Thành viên hiện tại:</p>
                     <div className="space-y-1">
                       {group.members.slice(0, 3).map((member) => (
                         <div key={member.studentId} className="text-sm text-gray-600">
@@ -676,7 +676,7 @@ function OpenGroupsContent() {
                         </div>
                       ))}
                       {group.members.length > 3 && (
-                        <p className="text-sm text-gray-500 italic">...và {group.members.length - 3} người khác</p>
+                        <p className="text-sm italic text-gray-500">...và {group.members.length - 3} người khác</p>
                       )}
                     </div>
                   </div>
@@ -695,7 +695,7 @@ function OpenGroupsContent() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="px-3 py-2 text-sm font-medium transition border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[18px]">chevron_left</span>
               </button>
@@ -713,7 +713,7 @@ function OpenGroupsContent() {
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="px-3 py-2 text-sm font-medium transition border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </button>
@@ -725,10 +725,10 @@ function OpenGroupsContent() {
       {/* Group Detail Modal */}
       {showDetailModal && selectedGroup && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setShowDetailModal(false)}
         >
-          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-lg p-6 bg-white rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-6">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">
@@ -741,7 +741,7 @@ function OpenGroupsContent() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 gap-4 p-4 mb-6 rounded-lg bg-gray-50">
               <div>
                 <p className="text-sm text-gray-600">Số thành viên</p>
                 <p className="text-2xl font-bold text-gray-800">
@@ -758,7 +758,7 @@ function OpenGroupsContent() {
 
             {/* Full Members List */}
             <div className="mb-6">
-              <h4 className="text-sm font-bold text-gray-700 mb-3">Danh sách thành viên</h4>
+              <h4 className="mb-3 text-sm font-bold text-gray-700">Danh sách thành viên</h4>
               <div className="space-y-2">
                 {selectedGroup.members.map((member) => (
                   <div
@@ -769,7 +769,7 @@ function OpenGroupsContent() {
                       <p className="font-semibold text-gray-800">{member.fullName}</p>
                       <p className="text-sm text-gray-500">{member.studentCode}</p>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    <span className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded">
                       {member.role}
                     </span>
                   </div>
@@ -785,7 +785,7 @@ function OpenGroupsContent() {
                 }
               }}
               disabled={!!pendingJoinRequest || hasGroupInCurrentSemester}
-              className="w-full bg-primary text-white px-4 py-3 rounded-lg font-semibold hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              className="w-full px-4 py-3 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {hasGroupInCurrentSemester
                 ? "Bạn đã có nhóm ở kỳ này"
@@ -799,13 +799,13 @@ function OpenGroupsContent() {
 
       {/* Request Join Modal */}
       {showRequestModal && selectedGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Yêu cầu tham gia nhóm</h3>
-            <p className="text-gray-600 mb-4">{selectedGroup.groupName || selectedGroup.groupCode}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-2 text-xl font-bold text-gray-800">Yêu cầu tham gia nhóm</h3>
+            <p className="mb-4 text-gray-600">{selectedGroup.groupName || selectedGroup.groupCode}</p>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Lời nhắn (tùy chọn)</label>
+              <label className="block mb-2 text-sm font-medium text-gray-700">Lời nhắn (tùy chọn)</label>
               <textarea
                 value={requestMessage}
                 onChange={(e) => setRequestMessage(e.target.value)}
@@ -814,7 +814,7 @@ function OpenGroupsContent() {
                 rows={4}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <p className="text-xs text-gray-500 mt-1">{requestMessage.length}/500</p>
+              <p className="mt-1 text-xs text-gray-500">{requestMessage.length}/500</p>
             </div>
 
             <div className="flex gap-3">
@@ -824,14 +824,14 @@ function OpenGroupsContent() {
                   setRequestMessage("");
                   setSelectedGroup(null);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition"
+                className="flex-1 px-4 py-2 font-semibold text-gray-700 transition bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 Hủy
               </button>
               <button
                 onClick={handleRequestJoin}
                 disabled={requesting}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition"
+                className="flex-1 px-4 py-2 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
               >
                 {requesting ? "Đang gửi..." : "Gửi yêu cầu"}
               </button>
@@ -928,13 +928,13 @@ function InvitationsContent() {
   if (invitations.length === 0) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <div className="text-5xl mb-4">
-            <span className="material-symbols-outlined text-gray-300" style={{ fontSize: 64 }}>
+        <div className="p-8 text-center bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="mb-4 text-5xl">
+            <span className="text-gray-300 material-symbols-outlined" style={{ fontSize: 64 }}>
               mail
             </span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Không có lời mời nào</h2>
+          <h2 className="mb-2 text-2xl font-bold text-gray-800">Không có lời mời nào</h2>
           <p className="text-gray-500">Bạn sẽ nhận được lời mời khi các nhóm khác mời bạn tham gia.</p>
         </div>
       </div>
@@ -947,14 +947,14 @@ function InvitationsContent() {
         {/* Pending Invitations */}
         {invitations.some((inv) => isPending(inv)) && (
           <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Lời mời chờ xử lý</h2>
-            <div className="space-y-3 mb-6">
+            <h2 className="mb-3 text-lg font-bold text-gray-800">Lời mời chờ xử lý</h2>
+            <div className="mb-6 space-y-3">
               {invitations
                 .filter((inv) => isPending(inv))
                 .map((invitation) => (
                   <div
                     key={invitation.id}
-                    className="bg-white border-l-4 border-yellow-500 rounded-lg shadow-sm p-6 hover:shadow-md transition"
+                    className="p-6 transition bg-white border-l-4 border-yellow-500 rounded-lg shadow-sm hover:shadow-md"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div>
@@ -964,7 +964,7 @@ function InvitationsContent() {
                         <p className="text-sm text-gray-600">Mã nhóm: {invitation.groupCode}</p>
                       </div>
                       <div className="text-right">
-                        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 mb-2">
+                        <span className="inline-block px-3 py-1 mb-2 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
                           Chờ xử lý
                         </span>
                         <p className="text-xs text-gray-500">
@@ -974,12 +974,12 @@ function InvitationsContent() {
                     </div>
 
                     <div className="mb-4">
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="mb-1 text-sm text-gray-600">
                         <span className="font-medium">Từ:</span> {invitation.inviterName}
                       </p>
                       {invitation.message && (
-                        <div className="bg-gray-50 p-3 rounded-lg mt-2">
-                          <p className="text-sm text-gray-700 italic">"{invitation.message}"</p>
+                        <div className="p-3 mt-2 rounded-lg bg-gray-50">
+                          <p className="text-sm italic text-gray-700">"{invitation.message}"</p>
                         </div>
                       )}
                     </div>
@@ -989,20 +989,20 @@ function InvitationsContent() {
                         <button
                           onClick={() => handleReject(invitation.groupId, invitation.id)}
                           disabled={acting === invitation.id}
-                          className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg font-semibold hover:bg-red-50 disabled:opacity-50 transition"
+                          className="flex-1 px-4 py-2 font-semibold text-red-700 transition border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
                         >
                           {acting === invitation.id ? "Đang xử lý..." : "Từ chối"}
                         </button>
                         <button
                           onClick={() => handleAccept(invitation.groupId, invitation.id)}
                           disabled={acting === invitation.id}
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition"
+                          className="flex-1 px-4 py-2 font-semibold text-white transition bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
                         >
                           {acting === invitation.id ? "Đang xử lý..." : "Chấp nhận"}
                         </button>
                       </div>
                     ) : (
-                      <div className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-center font-semibold">
+                      <div className="px-4 py-2 font-semibold text-center text-gray-600 bg-gray-100 rounded-lg">
                         Lời mời đã hết hạn
                       </div>
                     )}
@@ -1015,7 +1015,7 @@ function InvitationsContent() {
         {/* Other Invitations */}
         {invitations.some((inv) => !isPending(inv)) && (
           <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Lịch sử lời mời</h2>
+            <h2 className="mb-3 text-lg font-bold text-gray-800">Lịch sử lời mời</h2>
             <div className="space-y-3">
               {invitations
                 .filter((inv) => !isPending(inv))
@@ -1024,7 +1024,7 @@ function InvitationsContent() {
                   return (
                     <div
                       key={invitation.id}
-                      className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 opacity-75"
+                      className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm opacity-75"
                     >
                       <div className="flex items-start justify-between">
                         <div>
@@ -1032,7 +1032,7 @@ function InvitationsContent() {
                             {invitation.groupName || invitation.groupCode}
                           </h3>
                           <p className="text-sm text-gray-600">Mã nhóm: {invitation.groupCode}</p>
-                          <p className="text-sm text-gray-500 mt-2">
+                          <p className="mt-2 text-sm text-gray-500">
                             Từ: {invitation.inviterName} • {new Date(invitation.createdAt).toLocaleDateString("vi-VN")}
                           </p>
                         </div>

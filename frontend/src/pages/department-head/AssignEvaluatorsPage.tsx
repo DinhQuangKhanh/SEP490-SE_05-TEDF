@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
-import { departmentHeadService } from "@/lib/departmentHead/departmentHeadService";
+import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
 // ── Tab config ───────────────────────────────────────────────────────────────
@@ -123,8 +123,8 @@ export function AssignEvaluatorsPage() {
     setError(null);
     try {
       const [projectsResult, evalsResult] = await Promise.allSettled([
-        departmentHeadService.getProjects(),
-        departmentHeadService.getEvaluators(),
+        projectService.getDepartmentProjects(),
+        evaluatorService.getDepartmentEvaluators(),
       ]);
       if (projectsResult.status === "fulfilled") {
         setGrouped(groupProjects(projectsResult.value));
@@ -631,15 +631,15 @@ function AssignEvaluatorModal({
           setSubmitting(false);
           return;
         }
-        await departmentHeadService.assignEvaluator(project.projectId, eval1, 1);
-        await departmentHeadService.assignEvaluator(project.projectId, eval2, 2);
+        await evaluatorService.assignEvaluator(project.projectId, eval1, 1);
+        await evaluatorService.assignEvaluator(project.projectId, eval2, 2);
       } else {
         if (!eval1) {
           setError("Vui lòng chọn evaluator");
           setSubmitting(false);
           return;
         }
-        await departmentHeadService.assignEvaluator(project.projectId, eval1, nextOrder);
+        await evaluatorService.assignEvaluator(project.projectId, eval1, nextOrder);
       }
       setSuccess(true);
       setTimeout(onSuccess, 1500);
@@ -915,7 +915,7 @@ function FinalDecisionModal({
     setSubmitting(true);
     setError(null);
     try {
-      await departmentHeadService.submitFinalDecision(project.projectId, result, notes || undefined);
+      await evaluatorService.submitFinalDecision(project.projectId, result, notes || undefined);
       setSuccess(true);
       setTimeout(onSuccess, 1500);
     } catch (err) {

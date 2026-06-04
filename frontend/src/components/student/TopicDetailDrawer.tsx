@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
 import { TopicDetail } from "@/types";
+import { topicService } from "@/lib";
 
 // ── Major color mapping ──────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ export function TopicDetailDrawer({
     if (!projectId || !isOpen) return;
     setLoading(true);
     setError(null);
-    topicPoolService
+    topicService
       .getTopicDetail(projectId)
       .then(setDetail)
       .catch((e) => setError(e.message))

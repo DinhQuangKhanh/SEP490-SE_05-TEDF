@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
 import type { TopicPoolDto } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { validateFiles, formatFileSize, ACCEPTED_TYPES, MAX_ATTACHMENTS } from "@/lib/common/fileUploadUtils";
+import { topicPoolService } from "@/lib";
 
 interface RegisterTopicModalProps {
   isOpen: boolean;

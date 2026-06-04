@@ -1,4 +1,4 @@
-import { ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse } from "@/types";
+import { DepartmentProjectsResponse, ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -7,6 +7,10 @@ export const projectService = {
     const params = buildParams(filters);
     return apiClient.get<ProjectListResponse>(`${routes.admin.projects}?${params.toString()}`);
   },
+
+  /** Department head: projects within the caller's department (with evaluator assignments). */
+  getDepartmentProjects: (): Promise<DepartmentProjectsResponse> =>
+    apiClient.get<DepartmentProjectsResponse>(routes.departmentHead.projects),
 
   /** Get full detail of a project by ID. Reuses the topic detail endpoint. */
   getProjectDetail: async (projectId: string): Promise<ProjectDetail> => {

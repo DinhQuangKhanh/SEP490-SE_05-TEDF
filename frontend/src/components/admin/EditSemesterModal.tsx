@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { semesterService } from "@/lib/semester/semesterService";
+import { semesterService } from "@/lib";
 import { SemesterDto } from "@/types";
-import { validatePhases, findCurrentSemester } from "@/lib/semester/semesterValidation";
+import { findCurrentSemester, validatePhases } from "@/lib";
 
 interface EditSemesterModalProps {
   isOpen: boolean;
@@ -181,7 +181,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
           onClick={handleDismiss}
         >
           <motion.div
@@ -193,7 +193,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
             className="bg-white w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
           >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Chỉnh sửa Kỳ Học</h2>
                 <p className="text-sm text-slate-500">Cập nhật thời gian và đối tượng tham gia đồ án</p>
@@ -201,7 +201,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleDismiss}
-                  className="text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-lg"
+                  className="p-1 transition-colors rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -209,18 +209,18 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
             </div>
 
             {/* Content */}
-            <div ref={contentRef} className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div ref={contentRef} className="flex-1 p-6 space-y-8 overflow-y-auto">
               {/* Error / Success */}
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-3">
+                <div className="flex items-start gap-3 p-3 border border-red-200 rounded-md bg-red-50">
                   <span className="material-symbols-outlined text-red-600 text-[20px] mt-0.5">error</span>
                   <p className="text-sm text-red-800">{error}</p>
                 </div>
               )}
               {success && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-start gap-3">
+                <div className="flex items-start gap-3 p-3 border border-green-200 rounded-md bg-green-50">
                   <span className="material-symbols-outlined text-green-600 text-[20px] mt-0.5">check_circle</span>
-                  <p className="text-sm text-green-800 font-semibold">Cập nhật kỳ học thành công!</p>
+                  <p className="text-sm font-semibold text-green-800">Cập nhật kỳ học thành công!</p>
                 </div>
               )}
 
@@ -231,18 +231,18 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                 transition={{ delay: 0.1 }}
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 rounded bg-blue-50 text-primary flex items-center justify-center font-bold text-sm">
+                  <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     1
                   </span>
                   <h3 className="font-bold text-slate-700">Thông tin chung</h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Tên kỳ học <span className="text-red-500">*</span>
                     </label>
                     <input
-                      className="w-full border border-slate-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm outline-none transition-all"
+                      className="w-full px-3 py-2 text-sm transition-all border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       placeholder="VD: Summer 2024"
                       type="text"
                       value={name}
@@ -252,7 +252,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mã kỳ học</label>
                     <input
-                      className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none transition-all bg-slate-50 text-slate-500 cursor-not-allowed"
+                      className="w-full px-3 py-2 text-sm transition-all border rounded-md outline-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500"
                       type="text"
                       value={initialData?.code ?? ""}
                       readOnly
@@ -263,7 +263,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                       Ngày bắt đầu <span className="text-red-500">*</span>
                     </label>
                     <input
-                      className="w-full border border-slate-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm outline-none transition-all"
+                      className="w-full px-3 py-2 text-sm transition-all border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
@@ -274,7 +274,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                       Ngày kết thúc <span className="text-red-500">*</span>
                     </label>
                     <input
-                      className="w-full border border-slate-200 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm outline-none transition-all"
+                      className="w-full px-3 py-2 text-sm transition-all border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
@@ -290,29 +290,29 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                 transition={{ delay: 0.2 }}
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 rounded bg-blue-50 text-primary flex items-center justify-center font-bold text-sm">
+                  <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     2
                   </span>
                   <h3 className="font-bold text-slate-700">Thiết lập giai đoạn (Timeline)</h3>
                 </div>
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 border rounded-lg bg-slate-50 border-slate-100">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {displayPhases.map((phase) => (
                       <div
                         key={phase.type}
-                        className="bg-white p-3 rounded border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+                        className="p-3 transition-shadow bg-white border rounded shadow-sm border-slate-200 hover:shadow-md"
                       >
                         <p className={`text-xs font-bold ${phase.color} uppercase mb-2`}>{phase.label}</p>
                         <input
-                          className="w-full border-none p-0 text-sm focus:ring-0 bg-transparent"
+                          className="w-full p-0 text-sm bg-transparent border-none focus:ring-0"
                           type="date"
                           placeholder="Từ ngày"
                           value={phase.startDate}
                           onChange={(e) => updatePhase(phase.index, "startDate", e.target.value)}
                         />
-                        <div className="h-px bg-slate-100 my-1" />
+                        <div className="h-px my-1 bg-slate-100" />
                         <input
-                          className="w-full border-none p-0 text-sm focus:ring-0 bg-transparent"
+                          className="w-full p-0 text-sm bg-transparent border-none focus:ring-0"
                           type="date"
                           placeholder="Đến ngày"
                           value={phase.endDate}
@@ -331,7 +331,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                 transition={{ delay: 0.3 }}
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 rounded bg-blue-50 text-primary flex items-center justify-center font-bold text-sm">
+                  <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     3
                   </span>
                   <div className="flex items-center gap-2">
@@ -341,7 +341,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   {/* Upload Excel */}
                   <input
                     ref={fileInputRef}
@@ -368,11 +368,11 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                     <div className="flex flex-col items-center text-center">
                       {uploadedFile ? (
                         <>
-                          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-3">
-                            <span className="material-symbols-outlined text-3xl">check_circle</span>
+                          <div className="flex items-center justify-center w-12 h-12 mb-3 text-green-600 bg-green-100 rounded-full">
+                            <span className="text-3xl material-symbols-outlined">check_circle</span>
                           </div>
-                          <h4 className="font-bold text-slate-800 mb-1">Đã tải lên</h4>
-                          <p className="text-xs text-slate-600 mb-1 font-medium">{uploadedFile.name}</p>
+                          <h4 className="mb-1 font-bold text-slate-800">Đã tải lên</h4>
+                          <p className="mb-1 text-xs font-medium text-slate-600">{uploadedFile.name}</p>
                           <p className="text-[10px] text-slate-400 mb-3">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
                           <button
                             onClick={(e) => {
@@ -387,11 +387,11 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                         </>
                       ) : (
                         <>
-                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors mb-3">
-                            <span className="material-symbols-outlined text-3xl">upload_file</span>
+                          <div className="flex items-center justify-center w-12 h-12 mb-3 transition-colors rounded-full bg-slate-100 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary">
+                            <span className="text-3xl material-symbols-outlined">upload_file</span>
                           </div>
-                          <h4 className="font-bold text-slate-800 mb-1">Tải danh sách Excel</h4>
-                          <p className="text-xs text-slate-500 mb-4 px-4">
+                          <h4 className="mb-1 font-bold text-slate-800">Tải danh sách Excel</h4>
+                          <p className="px-4 mb-4 text-xs text-slate-500">
                             Kéo thả hoặc bấm để tải lên file .csv / .xlsx chứa danh sách MSSV đủ điều kiện.
                           </p>
                           <button
@@ -400,7 +400,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                               e.stopPropagation();
                               fileInputRef.current?.click();
                             }}
-                            className="w-full py-2 px-4 bg-white border border-slate-300 rounded-md text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                            className="w-full px-4 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-slate-300 text-slate-700 hover:bg-slate-50"
                           >
                             Chọn tệp tin
                           </button>
@@ -417,8 +417,8 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                   </div>
 
                   {/* Filter */}
-                  <div className="border border-slate-200 rounded-xl p-6 bg-slate-50/50">
-                    <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  <div className="p-6 border border-slate-200 rounded-xl bg-slate-50/50">
+                    <h4 className="flex items-center gap-2 mb-3 font-bold text-slate-800">
                       <span className="material-symbols-outlined text-[20px] text-primary">filter_alt</span>
                       Lọc theo điều kiện
                     </h4>
@@ -428,12 +428,12 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                           Khóa &amp; Ngành
                         </label>
                         <div className="grid grid-cols-2 gap-2">
-                          <select className="text-xs border border-slate-200 rounded-md px-2 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                          <select className="px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary">
                             <option>Tất cả Khóa</option>
                             <option>K2020</option>
                             <option>K2021</option>
                           </select>
-                          <select className="text-xs border border-slate-200 rounded-md px-2 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+                          <select className="px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary">
                             <option>Tất cả Ngành</option>
                             <option>CNTT</option>
                             <option>Kỹ thuật phần mềm</option>
@@ -446,16 +446,16 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                         </label>
                         <div className="flex items-center gap-3">
                           <input
-                            className="w-full text-xs border border-slate-200 rounded-md px-2 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                            className="w-full px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                             placeholder="VD: 2.5"
                             step="0.1"
                             type="number"
                           />
-                          <span className="text-xs text-slate-400 font-medium whitespace-nowrap">/ 4.0</span>
+                          <span className="text-xs font-medium text-slate-400 whitespace-nowrap">/ 4.0</span>
                         </div>
                       </div>
                       <div className="pt-2">
-                        <button className="w-full py-2 px-4 bg-primary/10 text-primary border border-primary/20 rounded-md text-xs font-bold hover:bg-primary/20 transition-all">
+                        <button className="w-full px-4 py-2 text-xs font-bold transition-all border rounded-md bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
                           Xem trước danh sách (245 SV)
                         </button>
                       </div>
@@ -468,10 +468,10 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 }}
-                  className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md flex items-start gap-3"
+                  className="flex items-start gap-3 p-3 mt-4 border border-blue-100 rounded-md bg-blue-50"
                 >
                   <span className="material-symbols-outlined text-blue-600 text-[20px] mt-0.5">verified</span>
-                  <p className="text-xs text-blue-800 leading-relaxed">
+                  <p className="text-xs leading-relaxed text-blue-800">
                     <strong>Lưu ý:</strong> Sau khi xác nhận, hệ thống sẽ tự động gắn thẻ
                     <span className="px-1.5 py-0.5 bg-blue-100 border border-blue-200 rounded text-[10px] font-bold mx-1">
                       ĐỦ ĐIỀU KIỆN LÀM ĐỒ ÁN
@@ -483,18 +483,18 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50 shrink-0">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
               <button
                 onClick={handleDismiss}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800 disabled:opacity-50"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || success}
-                className="px-6 py-2 bg-primary text-white rounded-md text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>

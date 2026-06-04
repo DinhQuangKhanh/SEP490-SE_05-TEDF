@@ -1,5 +1,5 @@
 import {
-  EvaluatorDashboardResponse,
+  DepartmentEvaluator,
   EvaluatorFilterOptionsResponse,
   EvaluatorHistoryFilters,
   EvaluatorHistoryResponse,
@@ -12,10 +12,7 @@ import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
 export const evaluatorService = {
-  // Queries
-  getDashboard: (): Promise<EvaluatorDashboardResponse> =>
-    apiClient.get<EvaluatorDashboardResponse>(routes.evaluator.dashboard),
-
+  // ── Evaluator self-service ──────────────────────────────────────────────────
   getFilterOptions: (): Promise<EvaluatorFilterOptionsResponse> =>
     apiClient.get<EvaluatorFilterOptionsResponse>(routes.evaluator.filterOptions),
 
@@ -46,7 +43,16 @@ export const evaluatorService = {
   checkSimilarity: (projectId: string): Promise<SimilarTitleDto[]> =>
     apiClient.get<SimilarTitleDto[]>(routes.evaluator.similarity(projectId)),
 
-  // Commands
   submitEvaluation: (projectId: string, data: { result: number; feedback?: string }): Promise<string> =>
     apiClient.post<string>(routes.evaluator.evaluate(projectId), data),
+
+  // ── Department-head evaluation management ────────────────────────────────────
+  getDepartmentEvaluators: (): Promise<DepartmentEvaluator[]> =>
+    apiClient.get<DepartmentEvaluator[]>(routes.departmentHead.evaluators),
+
+  assignEvaluator: (projectId: string, evaluatorId: string, order: number): Promise<unknown> =>
+    apiClient.post(routes.departmentHead.assignEvaluator, { projectId, evaluatorId, evaluatorOrder: order }),
+
+  submitFinalDecision: (projectId: string, result: number, notes?: string): Promise<unknown> =>
+    apiClient.post(routes.departmentHead.finalDecision(projectId), { result, notes }),
 };

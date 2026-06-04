@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
 import { Header } from "@/components/layout/Header";
 import {
-  mentorTopicService,
+  topicService,
+  topicPoolService,
+  proposedTopicService,
+  semesterService,
   sourceTypeLabel,
   statusConfig,
   evaluationStatusConfig,
-} from "@/lib/directTopic/mentorTopicService";
-import { topicPoolService } from "@/lib/topicPool/topicPoolService";
-import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
-import { semesterService } from "@/lib/semester/semesterService";
+} from "@/lib";
 import type {
   MentorTopicItem,
   MentorTopicsResponse,
@@ -109,7 +109,7 @@ export function MentorTopicsPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await mentorTopicService.getTopics({
+      const result = await topicService.getMentorTopics({
         semesterId: selectedSemester,
         search: debouncedSearch || undefined,
         page,
@@ -404,7 +404,7 @@ function TopicDetailModal({
 
   useEffect(() => {
     setLoading(true);
-    Promise.allSettled([topicPoolService.getTopicDetail(topic.id), topicPoolService.getTopicDocuments(topic.id)]).then(
+    Promise.allSettled([topicService.getTopicDetail(topic.id), topicService.getTopicDocuments(topic.id)]).then(
       ([detailRes, docsRes]) => {
         if (detailRes.status === "fulfilled") {
           const d = detailRes.value;
@@ -780,10 +780,10 @@ function TopicDetailModal({
                   setEditLoading(true);
                   setEditError(null);
                   try {
-                    await mentorTopicService.updatePoolTopic(topic.id, editForm);
+                    await topicPoolService.updatePoolTopic(topic.id, editForm);
                     setIsEditing(false);
                     // Reload detail
-                    const updated = await topicPoolService.getTopicDetail(topic.id);
+                    const updated = await topicService.getTopicDetail(topic.id);
                     setDetail(updated);
                   } catch (err) {
                     setEditError(err instanceof Error ? err.message : "Đã xảy ra lỗi khi cập nhật.");
@@ -843,7 +843,7 @@ function TopicDetailModal({
                     setResubmitLoading(true);
                     setResubmitError(null);
                     try {
-                      await mentorTopicService.resubmitPoolTopic(topic.id);
+                      await topicPoolService.resubmitPoolTopic(topic.id);
                       onReviewed();
                     } catch (err) {
                       setResubmitError(err instanceof Error ? err.message : "Đã xảy ra lỗi.");

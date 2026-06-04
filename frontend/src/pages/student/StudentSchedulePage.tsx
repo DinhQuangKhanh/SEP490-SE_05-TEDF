@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout";
-import { studentGroupService } from "@/lib/group/studentGroupService";
+import { studentGroupService } from "@/lib/groups/studentGroupService";
 import type { StudentGroupDto } from "@/types";
 
 const container = {
@@ -78,7 +78,7 @@ export function StudentSchedulePage() {
         showSearch={false}
         role="student"
         actions={
-          <div className="flex p-1 bg-white/10 rounded-lg">
+          <div className="flex p-1 rounded-lg bg-white/10">
             <button className="px-3 py-1.5 rounded-md text-sm font-bold bg-white/20 shadow-sm text-white flex items-center gap-2">
               <span className="text-lg material-symbols-outlined">calendar_view_month</span>
               Lịch

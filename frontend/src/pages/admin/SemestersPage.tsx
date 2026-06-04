@@ -4,7 +4,7 @@ import { vi } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { CreateSemesterModal } from "@/components/admin/CreateSemesterModal";
 import { EditSemesterModal } from "@/components/admin/EditSemesterModal";
-import { semesterService } from "@/lib/semester/semesterService";
+import { semesterService } from "@/lib/semesters/semesterService";
 import { SemesterDto, SemesterPhaseDto } from "@/types";
 
 // ---- Helpers ----
@@ -118,14 +118,14 @@ export function SemestersPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex flex-col items-start justify-between gap-4 mb-8 md:flex-row md:items-center">
         <div>
           <h1 className="text-[28px] font-bold tracking-tight text-slate-800">Danh Sách Kỳ Học</h1>
-          <p className="text-sm text-slate-500 mt-1">Quản lý các kỳ bảo vệ đồ án, tiến độ và mốc thời gian.</p>
+          <p className="mt-1 text-sm text-slate-500">Quản lý các kỳ bảo vệ đồ án, tiến độ và mốc thời gian.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center w-full gap-3 md:w-auto">
           {/* Status Filter */}
           <div className="relative flex-1 md:flex-none">
             <select
@@ -487,7 +487,7 @@ function TimelineStep({
           )}
         </div>
       </div>
-      <div className="text-center mt-1">
+      <div className="mt-1 text-center">
         <p
           className={`text-xs font-bold uppercase ${isCurrent ? "text-sm text-green-700" : isPending ? "text-slate-500" : "text-slate-700"}`}
         >

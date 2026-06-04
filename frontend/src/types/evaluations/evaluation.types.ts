@@ -1,6 +1,8 @@
-// ── Review a single project ───────────────────────────────────────────────────
+import { MentorSummary } from "../projects/project.types";
 
-/** GET /api/evaluator/projects/{id}/review */
+// ── Review a single project (evaluator) ─────────────────────────────────────────
+
+/** GET /api/evaluations/projects/{id}/review */
 export interface ProjectReviewResponse {
   projectId: string;
   projectCode: string;
@@ -28,7 +30,7 @@ export interface ProjectReviewResponse {
   existingResult: string | null;
 }
 
-/** Element of GET /api/evaluator/projects/{id}/similarity */
+/** Element of GET /api/evaluations/projects/{id}/similarity */
 export interface SimilarTitleDto {
   projectId: string;
   projectCode: string;
@@ -37,7 +39,6 @@ export interface SimilarTitleDto {
   semesterName: string;
   similarity: number;
   commonKeywords: string[];
-  // Comparison panel fields
   description: string;
   objectives: string;
   scope: string | null;
@@ -47,48 +48,10 @@ export interface SimilarTitleDto {
   studentName: string;
 }
 
-/** PUT /api/evaluator/projects/{id}/evaluate */
+/** POST /api/evaluations/projects/{id}/evaluate */
 export interface SubmitEvaluationRequest {
   result: number;
   feedback?: string;
-}
-
-// ── Evaluator dashboard ───────────────────────────────────────────────────────
-export interface EvaluatorStatsDto {
-  totalAssigned: number;
-  pendingCount: number;
-  approvedCount: number;
-  rejectedCount: number;
-  needsModificationCount: number;
-  reviewedCount: number;
-  avgReviewDays: number | null;
-}
-
-export interface PendingEvaluationDto {
-  assignmentId: string;
-  projectId: string;
-  projectCode: string;
-  projectNameVi: string;
-  majorName: string;
-  studentName: string;
-  studentAvatar: string | null;
-  assignedAt: string;
-  daysElapsed: number;
-  isUrgent: boolean;
-}
-
-export interface RecentReviewedDto {
-  projectId: string;
-  projectNameVi: string;
-  result: string;
-  evaluatedAt: string;
-}
-
-/** GET /api/evaluator/dashboard */
-export interface EvaluatorDashboardResponse {
-  stats: EvaluatorStatsDto;
-  pendingEvaluations: PendingEvaluationDto[];
-  recentReviewed: RecentReviewedDto[];
 }
 
 // ── Filter options ────────────────────────────────────────────────────────────
@@ -97,13 +60,13 @@ export interface FilterOptionDto {
   label: string;
 }
 
-/** GET /api/evaluator/filter-options */
+/** GET /api/evaluations/filter-options */
 export interface EvaluatorFilterOptionsResponse {
   semesters: FilterOptionDto[];
   majors: FilterOptionDto[];
 }
 
-// ── Assigned projects list ────────────────────────────────────────────────────
+// ── Assigned projects list (evaluator) ──────────────────────────────────────────
 export interface EvaluatorProjectItemDto {
   assignmentId: string;
   projectId: string;
@@ -119,7 +82,7 @@ export interface EvaluatorProjectItemDto {
   isUrgent: boolean;
 }
 
-/** GET /api/evaluator/projects */
+/** GET /api/evaluations/projects */
 export interface EvaluatorProjectsResponse {
   items: EvaluatorProjectItemDto[];
   totalCount: number;
@@ -136,7 +99,7 @@ export interface EvaluatorProjectsFilters {
   result?: string;
 }
 
-// ── Evaluation history ────────────────────────────────────────────────────────
+// ── Evaluation history (evaluator) ───────────────────────────────────────────────
 export interface EvaluatorHistoryStatsDto {
   totalReviewed: number;
   approvedCount: number;
@@ -155,7 +118,7 @@ export interface EvaluatorHistoryItemDto {
   feedback: string | null;
 }
 
-/** GET /api/evaluator/history */
+/** GET /api/evaluations/history */
 export interface EvaluatorHistoryResponse {
   stats: EvaluatorHistoryStatsDto;
   items: EvaluatorHistoryItemDto[];
@@ -170,4 +133,95 @@ export interface EvaluatorHistoryFilters {
   search?: string;
   result?: string;
   dateRange?: string;
+}
+
+// ── Department-head evaluation management ───────────────────────────────────────
+// (assign evaluators, view department projects/evaluators, submit final decision)
+export interface EvaluatorAssignment {
+  assignmentId: string;
+  evaluatorId: string;
+  evaluatorName: string;
+  evaluatorOrder: number;
+  individualResult: string | null; // "Approved" | "Rejected" | "NeedsModification" | null
+  individualResultValue: number | null;
+  feedback: string | null;
+  evaluatedAt: string | null;
+  hasSubmitted: boolean;
+}
+
+export interface DepartmentProject {
+  projectId: string;
+  projectCode: string;
+  nameVi: string;
+  nameEn: string;
+  majorName: string;
+  semesterName: string;
+  status: string;
+  statusValue: number;
+  submittedAt: string | null;
+  evaluators: EvaluatorAssignment[];
+  mentors: MentorSummary[];
+  hasConflict: boolean;
+  needsFinalDecision: boolean;
+  assignedEvaluatorCount: number;
+}
+
+/** GET /api/projects/department */
+export interface DepartmentProjectsResponse {
+  items: DepartmentProject[];
+  totalCount: number;
+  pendingAssignmentCount: number;
+  inEvaluationCount: number;
+  needsFinalDecisionCount: number;
+  completedCount: number;
+}
+
+/** GET /api/evaluations/evaluators */
+export interface DepartmentEvaluator {
+  userId: string;
+  fullName: string;
+  email: string;
+  academicTitle: string | null;
+  activeAssignmentCount: number;
+}
+
+// ── Grouped data for the assign-evaluators UI ───────────────────────────────────
+export interface GroupedProjects {
+  pendingAssignment: DepartmentProject[];
+  inEvaluation: DepartmentProject[];
+  needsDecision: DepartmentProject[];
+  completed: DepartmentProject[];
+}
+
+/** StatusValue 1 = PendingEvaluation in the backend enum */
+const STATUS_PENDING_EVALUATION = 1;
+
+export function groupProjects(resp: DepartmentProjectsResponse | null | undefined): GroupedProjects {
+  const empty: GroupedProjects = {
+    pendingAssignment: [],
+    inEvaluation: [],
+    needsDecision: [],
+    completed: [],
+  };
+
+  if (!resp?.items?.length) return empty;
+
+  const pending: DepartmentProject[] = [];
+  const inEval: DepartmentProject[] = [];
+  const needs: DepartmentProject[] = [];
+  const done: DepartmentProject[] = [];
+
+  for (const project of resp.items) {
+    if (project.needsFinalDecision) {
+      needs.push(project);
+    } else if (project.statusValue !== STATUS_PENDING_EVALUATION) {
+      done.push(project);
+    } else if (project.assignedEvaluatorCount < 2) {
+      pending.push(project);
+    } else {
+      inEval.push(project);
+    }
+  }
+
+  return { pendingAssignment: pending, inEvaluation: inEval, needsDecision: needs, completed: done };
 }
