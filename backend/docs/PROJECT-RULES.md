@@ -106,7 +106,7 @@ Rules for the endpoint class:
 - Don't catch exceptions for control flow — let `ExceptionHandlingMiddleware` map them (§10).
 - Request DTOs live **only** in `Requests/<Domain>Requests.cs`, never inline in the endpoint file.
 
-> **Reorganization (in progress).** `Endpoints/` was renamed to domain folders mirroring the frontend, and the older partial-class split (`…Endpoints` entry + `…QueryEndpoints` + `…CommandEndpoint`) collapsed into one class per group. Some route prefixes changed and the Mentor-area endpoints are not yet re-migrated — see [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md).
+> **Feature-based, not role-based.** `Endpoints/` is organised by feature; there is **no** `Mentor`, `DepartmentHead`, `Admin`, or `Departments` folder. A role action lives in the feature it belongs to (e.g. all dashboards under `Dashboard`, dept-head evaluator management under `Evaluations`, the admin + dept-head project lists under `Projects`, assign-department-head under `Users`). The folders are `ActivityLogs`, `Archives`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics`, `Users`, and the frontend `src/lib`/`src/types` mirror them. See [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) for the full route list.
 
 **Whenever you add, remove, or change an endpoint, also update the docs in the same change:**
 

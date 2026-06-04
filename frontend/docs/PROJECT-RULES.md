@@ -26,8 +26,8 @@ These rules describe the conventions the codebase already follows — match them
 |------|------------|---------|
 | Component / page file | `PascalCase.tsx` | `ProjectsPage.tsx`, `NotificationDropdown.tsx` |
 | Component export | named `PascalCase` function | `export function ProjectsPage() {}` |
-| Service file | `lib/<domain>/<domain>Service.ts` | `project/projectService.ts` |
-| Service export | `export const <domain>Service = { … }` | `projectService` |
+| Service file | `lib/<feature>/<feature>Service.ts` | `projects/projectService.ts` |
+| Service export | `export const <feature>Service = { … }` | `projectService` |
 | Hook file / export | `useXxx.ts` / `useXxx` | `useSignalR.ts` → `useSignalR` |
 | Context | `XxxContext.tsx` → `XxxProvider` + `useXxx` | `AuthContext.tsx` |
 | Types file | `types/<domain>/<domain>.types.ts` | `projects/project.types.ts` |

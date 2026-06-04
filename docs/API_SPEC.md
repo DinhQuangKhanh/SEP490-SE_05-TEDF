@@ -71,25 +71,35 @@ List endpoints accept query params such as `search`, `page` (default 1), `pageSi
 
 ## Endpoints
 
-> **Reorganized (in progress).** `TEDF.API/Endpoints/` was restructured into **domain folders** (`Admin`, `Users`, `ActivityLogs`, `Semesters`, `Settings`, `Archives`, `Majors`, `DepartmentHead`, `Groups`, `DirectTopics`, `Topics`, `Notifications`, `SupportTickets`, `Evaluations`) matching the frontend, each holding **one `sealed class <Domain>Endpoints : IEndpoint`**. Several route **prefixes changed**: `/api/student-groups`→`/api/groups`, `/api/supports`→`/api/support-tickets`, `/api/evaluator`→`/api/evaluations`; and the admin-only groups dropped the `/api/admin/` prefix (`/api/admin/users`→`/api/users`, `/api/admin/semesters`→`/api/semesters`, `/api/admin/settings`→`/api/settings`, `/api/admin/archives`→`/api/archives`, `/api/admin/activity-logs`→`/api/activity-logs`). Endpoints **not yet re-migrated** (no current route): the Mentor area (`/api/mentor/*` — dashboard, topics list, topic update/resubmit, mentor's groups), admin project listing, assign-department-head, and topic-document **upload**. The frontend `lib/common/routes.ts` may still reference some previous prefixes until it is synced. Trust `/swagger` for the live surface.
+> **Feature-based layout.** `TEDF.API/Endpoints/` is organised by **feature**, not by role — there is no longer a `Mentor`, `DepartmentHead`, `Admin`, or `Departments` folder. Each folder holds a `sealed class <Feature>Endpoints : IEndpoint` (the `Topics` folder holds two: `TopicCatalogEndpoints` + `TopicPoolsEndpoints`), auto-registered by reflection. Folders: `ActivityLogs`, `Archives`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics`, `Users`. The frontend mirrors this exactly under `frontend/src/lib/<feature>/` and `frontend/src/types/<feature>/` (+ `lib/common` for shared infra).
+>
+> **Where role endpoints went.** Every role action now lives in its feature folder: **all per-role dashboards** are unified under `/api/dashboard/{admin,mentor,department-head,evaluator}` (`Dashboard`); the admin project list **and** the department-head project list live under `/api/projects` (`Projects`); department-head evaluator management (`evaluators`, `assign-evaluator`, final-decision) moved into `/api/evaluations` (`Evaluations`); assign-department-head moved into `/api/users` (`Users`); the mentor topic list moved to `/api/topics/mentor` (`Topics`) and mentor topic update/resubmit to `/api/topic-pools/topics/{projectId}/…` (`Topics`/`TopicPoolsEndpoints`); the mentor's groups list is `/api/groups/mentor` (`Groups`). Prefix renames from the earlier pass also apply: `/api/student-groups`→`/api/groups`, `/api/supports`→`/api/support-tickets`, `/api/evaluator`→`/api/evaluations`, and the admin-only groups dropped `/api/admin/` (`users`, `semesters`, `settings`, `archives`, `activity-logs`). Trust `/swagger` for the live request/response schemas.
 
 ### Authentication
 
 Login is handled **client-side via Firebase Auth**; the SPA sends the resulting Firebase ID token to the API as a Bearer token. There is no `/api/auth/login` endpoint — the API only validates tokens.
 
-### Admin · `/api/admin`
+### Dashboard · `/api/dashboard`
 
-| Method | Path                   | Auth  | Description                  |
-| ------ | ---------------------- | ----- | ---------------------------- |
-| GET    | `/api/admin/dashboard` | Admin | System overview & statistics |
+Per-role dashboards, unified under one feature group (policy applied per route).
+
+| Method | Path                             | Auth      | Description                  |
+| ------ | -------------------------------- | --------- | ---------------------------- |
+| GET    | `/api/dashboard/admin`           | Admin     | System overview & statistics |
+| GET    | `/api/dashboard/mentor`          | Mentor    | Mentor overview              |
+| GET    | `/api/dashboard/department-head` | Authenticated | Department overview      |
+| GET    | `/api/dashboard/evaluator`       | Evaluator | Evaluator overview           |
 
 ### Users · `/api/users`
 
-| Method | Path                         | Auth  | Description           |
-| ------ | ---------------------------- | ----- | --------------------- |
-| GET    | `/api/users`                 | Admin | List users            |
-| PUT    | `/api/users/{userId}/lock`   | Admin | Lock a user account   |
-| PUT    | `/api/users/{userId}/unlock` | Admin | Unlock a user account |
+Base policy: `Admin`.
+
+| Method | Path                                          | Auth  | Description                          |
+| ------ | --------------------------------------------- | ----- | ------------------------------------ |
+| GET    | `/api/users`                                  | Admin | List users                          |
+| PUT    | `/api/users/{userId}/lock`                    | Admin | Lock a user account                 |
+| PUT    | `/api/users/{userId}/unlock`                  | Admin | Unlock a user account               |
+| POST   | `/api/users/departments/{departmentId}/head`  | Admin | Assign a user as head of a department |
 
 ### Activity Logs · `/api/activity-logs`
 
@@ -137,15 +147,14 @@ Login is handled **client-side via Firebase Auth**; the SPA sends the resulting 
 | ------ | ------------- | ------------- | ----------- |
 | GET    | `/api/majors` | Authenticated | List majors |
 
-### Department Head · `/api/department-head`
+### Projects · `/api/projects`
 
-| Method | Path                                                       | Auth           | Description                                      |
-| ------ | ---------------------------------------------------------- | -------------- | ------------------------------------------------ |
-| GET    | `/api/department-head/dashboard`                           | Authenticated  | Department overview                              |
-| GET    | `/api/department-head/evaluators`                          | DeptHeadOfDept | Evaluators in the department                     |
-| GET    | `/api/department-head/projects`                            | DeptHeadOfDept | Department projects                              |
-| POST   | `/api/department-head/assign-evaluator`                    | DeptHeadOfDept | Assign an evaluator to a project                 |
-| POST   | `/api/department-head/projects/{projectId}/final-decision` | DeptHeadOfDept | Submit final decision on a conflicted evaluation |
+Base policy: `Authenticated` (per-route policy noted). *(Department-head dashboard, evaluator management, and the mentor area no longer have their own route folders — see the layout note above.)*
+
+| Method | Path                       | Auth           | Description                            |
+| ------ | -------------------------- | -------------- | -------------------------------------- |
+| GET    | `/api/projects`            | Admin          | List all projects (admin oversight)    |
+| GET    | `/api/projects/department` | DeptHeadOfDept | Projects within the caller's department |
 
 ### Groups · `/api/groups`
 
@@ -154,6 +163,7 @@ Base policy: `Authenticated` (overrides noted). *(Renamed from `/api/student-gro
 | Method | Path                                                      | Auth          | Description                            |
 | ------ | --------------------------------------------------------- | ------------- | -------------------------------------- |
 | POST   | `/api/groups`                                             | Authenticated | Create a group (caller becomes leader) |
+| GET    | `/api/groups/mentor`                                      | Mentor        | Groups supervised by the mentor        |
 | GET    | `/api/groups/my-group`                                    | Authenticated | Caller's current group                 |
 | GET    | `/api/groups/open`                                        | Authenticated | Open groups to join                    |
 | GET    | `/api/groups/my-invitations`                              | Authenticated | Caller's invitations                   |
@@ -183,9 +193,10 @@ Student-initiated topic flow + mentor review. *(Renamed from `/api/student/...`.
 
 | Method | Path                              | Auth          | Description         |
 | ------ | --------------------------------- | ------------- | ------------------- |
-| GET    | `/api/topics`                     | Authenticated | List topics in pool |
-| GET    | `/api/topics/{topicId}`           | Authenticated | Topic detail        |
-| GET    | `/api/topics/{topicId}/documents` | Authenticated | Topic documents     |
+| GET    | `/api/topics`                     | Authenticated | List topics in pool             |
+| GET    | `/api/topics/mentor`              | Mentor        | Topics owned by the current mentor |
+| GET    | `/api/topics/{topicId}`           | Authenticated | Topic detail                    |
+| GET    | `/api/topics/{topicId}/documents` | Authenticated | Topic documents                 |
 
 ### Topic Pools · `/api/topic-pools`
 
@@ -197,22 +208,26 @@ Student-initiated topic flow + mentor review. *(Renamed from `/api/student/...`.
 | GET    | `/api/topic-pools/{id}/statistics`               | Authenticated | Pool statistics                                                          |
 | POST   | `/api/topic-pools/{poolId}/propose`              | Authenticated | Mentor proposes a topic (file upload; rate-limited, 60s timeout, ≤25 MB) |
 | POST   | `/api/topic-pools/{groupId}/topic-registrations` | GroupLeader   | Group registers for a pool topic                                        |
-| PUT    | `/api/topic-pools/registrations/{id}/confirm`    | Authenticated | Confirm a topic registration                                            |
-| PUT    | `/api/topic-pools/registrations/{id}/reject`     | Authenticated | Reject a topic registration                                             |
+| PUT    | `/api/topic-pools/registrations/{id}/confirm`    | Authenticated   | Confirm a topic registration                                          |
+| PUT    | `/api/topic-pools/registrations/{id}/reject`     | Authenticated   | Reject a topic registration                                           |
+| PUT    | `/api/topic-pools/topics/{projectId}/update`     | MentorOfProject | Mentor edits a pool topic (after NeedsModification)                   |
+| PUT    | `/api/topic-pools/topics/{projectId}/resubmit`   | MentorOfProject | Mentor resubmits a pool topic for evaluation                          |
 
 ### Evaluations · `/api/evaluations`
 
-All require the `Evaluator` policy. *(Renamed from `/api/evaluator`.)*
+Mixed audience: **evaluator self-service** + **department-head evaluation management** (the dept-head routes moved here from the old `DepartmentHead` folder). Policy is applied per route, not on the group. The evaluator dashboard moved to `/api/dashboard/evaluator`. *(Renamed from `/api/evaluator`.)*
 
-| Method | Path                                               | Auth      | Description                    |
-| ------ | -------------------------------------------------- | --------- | ------------------------------ |
-| GET    | `/api/evaluations/dashboard`                       | Evaluator | Evaluator overview             |
-| GET    | `/api/evaluations/filter-options`                  | Evaluator | Filter option metadata         |
-| GET    | `/api/evaluations/history`                         | Evaluator | Evaluation history             |
-| GET    | `/api/evaluations/projects`                        | Evaluator | Assigned projects              |
-| GET    | `/api/evaluations/projects/{projectId}/review`     | Evaluator | Project review detail          |
-| GET    | `/api/evaluations/projects/{projectId}/similarity` | Evaluator | Title/content similarity check |
-| POST   | `/api/evaluations/projects/{projectId}/evaluate`   | Evaluator | Submit an evaluation result    |
+| Method | Path                                               | Auth           | Description                                      |
+| ------ | -------------------------------------------------- | -------------- | ------------------------------------------------ |
+| GET    | `/api/evaluations/filter-options`                  | Evaluator      | Filter option metadata                           |
+| GET    | `/api/evaluations/history`                         | Evaluator      | Evaluation history                               |
+| GET    | `/api/evaluations/projects`                        | Evaluator      | Assigned projects                                |
+| GET    | `/api/evaluations/projects/{projectId}/review`     | Evaluator      | Project review detail                            |
+| GET    | `/api/evaluations/projects/{projectId}/similarity` | Evaluator      | Title/content similarity check                   |
+| POST   | `/api/evaluations/projects/{projectId}/evaluate`   | Evaluator      | Submit an evaluation result                      |
+| GET    | `/api/evaluations/evaluators`                      | DeptHeadOfDept | Evaluators in the caller's department            |
+| POST   | `/api/evaluations/assign-evaluator`                | DeptHeadOfDept | Assign an evaluator to a project                 |
+| POST   | `/api/evaluations/projects/{projectId}/final-decision` | DeptHeadOfDept | Submit final decision on a conflicted evaluation |
 
 ### Notifications · `/api/notifications`
 

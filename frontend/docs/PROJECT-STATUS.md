@@ -19,7 +19,7 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 - **Core lifecycle is live:** auth, role routing, dashboards, users, projects, semesters, groups, topic pools, evaluations, and support tickets are wired to the API across all five roles.
 - **Real-time notifications** work (SignalR + `NotificationDropdown`).
-- **`lib/` + `types/` reorganized** into per-domain subfolders with barrels (`@/lib`, `@/types`); URLs centralized in `lib/common/routes.ts`. Pages/components now go through services only — no direct `apiClient` calls. (See [`PROJECT-RULES.md`](PROJECT-RULES.md) §5.)
+- **`lib/` + `types/` are feature-based**, mirroring the backend `TEDF.API/Endpoints/` folders (camelCase) with barrels (`@/lib`, `@/types`); URLs centralized in `lib/common/routes.ts`. Pages/components go through services only — no direct `apiClient` calls. (See [`PROJECT-RULES.md`](PROJECT-RULES.md) §5.)
 - **Still mock / not wired:** schedules & meetings, evaluator similarity, the mentor feedback page, and report exports. **Real-time chat** has no frontend yet.
 
 ---
@@ -42,14 +42,14 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 | Page | Status | Notes |
 |------|--------|-------|
-| DepartmentHeadDashboardPage | ✅ | `departmentHeadService` |
+| DepartmentHeadDashboardPage | ✅ | `dashboardService` (projects via `projectService`, evaluators via `evaluatorService`) |
 | AssignEvaluatorsPage | ✅ | evaluator assignment + final decision |
 
 ### Mentor (`pages/mentor/`)
 
 | Page | Status | Notes |
 |------|--------|-------|
-| MentorDashboardPage | ✅ | `mentorTopicService` / dashboard |
+| MentorDashboardPage | ✅ | `dashboardService` |
 | MentorGroupsPage | ✅ | assigned groups |
 | MentorTopicsPage | ✅ | topic management |
 | MentorTopicDetailPage | ✅ | topic detail / review |
@@ -114,7 +114,7 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 ## Service Layer Coverage
 
-Wired API services in `src/lib/<domain>/` (barrel `@/lib`): `activityLog`, `dashboard`, `departmentHead`, `evaluator`, `major`, `mentorTopic`, `notification`, `project`, `proposedTopic`, `semester`, `settings`, `studentGroup`, `support`, `topicPool`, `user`.
+Wired API services in `src/lib/<feature>/` (barrel `@/lib`), mirroring the backend feature folders: `activityLogService`, `archiveService`, `dashboardService` (all four role dashboards), `proposedTopicService`, `evaluatorService` (evaluator self-service + dept-head evaluator management), `studentGroupService`, `majorService`, `notificationService`, `projectService` (admin + dept-head project lists), `semesterService` (+ `semesterValidation`), `settingsService`, `supportService`, `topicService` (topic catalog + mentor topics; + `topicStatus` helpers), `topicPoolService` (pools + mentor topic update/resubmit), `userService`. The former `departmentHeadService` and `mentorTopicService` were dissolved into these features.
 
 **No service module yet** for: meetings/schedule, chat, and reports — these correspond to the 🚧 / 📋 / ❌ items above. (`notification` and `support` services now exist, replacing the former direct `apiClient` calls in the bell dropdown and support pages.)
 

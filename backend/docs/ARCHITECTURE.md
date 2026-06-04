@@ -237,7 +237,7 @@ Policies are declared in `Authorization/Policies/` (`AuthorizationPolicies`, `Pe
 
 ## 11. API Endpoints
 
-Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers). The folder is organized **one domain per folder, one `sealed class <Domain>Endpoints : IEndpoint` per route group** — the whole group (route map + handlers) lives in a single file:
+Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers). The folder is organized **by feature** (not by role — there is no `Mentor`/`DepartmentHead`/`Admin`/`Departments` folder), **one `sealed class <Feature>Endpoints : IEndpoint` per route group** — the whole group (route map + handlers) lives in a single file:
 
 ```
 Endpoints/<Domain>/
@@ -272,7 +272,7 @@ public sealed class SupportTicketsEndpoints : IEndpoint
 - **Auto-registration unchanged:** `MapEndpoints()` discovers every non-abstract `IEndpoint` type by reflection and calls `MapEndpoint`. No central route table.
 - Handlers stay thin: read the caller from `ICurrentUserService`/`HttpContext`/policies, send one MediatR command/query, return via the `ApiResponse` helpers. Authorization is the group default plus per-route `RequireAuthorization(PolicyNames.…)` overrides. Full conventions: [`PROJECT-RULES.md`](PROJECT-RULES.md) §9.
 
-> **Reorganization (in progress).** `Endpoints/` was renamed to **domain folders mirroring the frontend** (`Admin`, `Users`, `ActivityLogs`, `Semesters`, `Settings`, `Archives`, `Majors`, `DepartmentHead`, `Groups`, `DirectTopics`, `Topics`, `Notifications`, `SupportTickets`, `Evaluations`), collapsing the earlier partial-class split (`…QueryEndpoints`/`…CommandEndpoint`) into a single class per group. Some route **prefixes changed** and the Mentor-area endpoints are not yet re-migrated — see [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) for the current route list and migration note.
+> **Feature-based layout.** `Endpoints/` mirrors the frontend feature set: `ActivityLogs`, `Archives`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (two classes), `Users`. Role-shaped folders are gone — per-role dashboards are unified under `Dashboard`, dept-head evaluator management under `Evaluations`, the admin + dept-head project lists under `Projects`, assign-department-head under `Users`, and the mentor topic list/edits under `Topics`. See [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) for the full route list.
 
 ---
 

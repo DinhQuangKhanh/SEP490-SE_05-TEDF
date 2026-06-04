@@ -67,18 +67,18 @@ src/
 │   ├── admin/ mentor/ student/ support/   # Feature-scoped components
 │
 ├── contexts/                 # AuthContext, MaintenanceContext, SystemErrorContext
-├── lib/                      # API layer — barrel index.ts + per-domain folders
-│   ├── common/               #   apiClient.ts, routes.ts (URL registry), fileUploadUtils, dashboardService
-│   └── <domain>/             #   <domain>Service.ts  (group, evaluation, topicPool, supportTickets, …)
+├── lib/                      # API layer — barrel index.ts + per-feature folders (mirror backend Endpoints/)
+│   ├── common/               #   apiClient.ts, routes.ts (URL registry), fileUploadUtils
+│   └── <feature>/            #   <feature>Service.ts  (groups, evaluations, topicPools, dashboard, …)
 ├── hooks/                    # useSignalR, useUnreadSupportCount, useWishlist
 ├── config/                   # firebase.ts (Firebase SDK init)
-├── types/                    # Shared types — barrel index.ts + per-domain folders
+├── types/                    # Shared types — barrel index.ts + per-feature folders
 │   ├── common/               #   api.types.ts, pagination.types.ts
-│   └── <domain>/             #   <domain>.types.ts  (groups, evaluations, supportTickets, …)
+│   └── <feature>/            #   <feature>.types.ts  (groups, evaluations, topicPools, dashboard, …)
 └── assets/                   # logo, static assets
 ```
 
-`lib/` and `types/` mirror each other by domain and each expose a **barrel** (`@/lib`, `@/types`). Services import their types from `@/types`; pages/components import services from `@/lib` and types from `@/types`.
+`lib/` and `types/` mirror each other **by feature** — and both mirror the backend `TEDF.API/Endpoints/` feature folders (camelCase: `activityLogs`, `archives`, `dashboard`, `directTopics`, `evaluations`, `groups`, `majors`, `notifications`, `projects`, `semesters`, `settings`, `supportTickets`, `topics`, `topicPools`, `users`; `lib/common` holds shared infra). Each exposes a **barrel** (`@/lib`, `@/types`). Services import their types from `@/types`; pages/components import services from `@/lib` and types from `@/types`.
 
 Per-role narrative docs live in `src/*_CONTEXT.md` (one per role).
 
@@ -216,7 +216,7 @@ Page/Component ─► lib/<domain>/<domain>Service.ts ─► apiClient ─► fe
 - **Types live in `types/`**, not in service or page files. A service imports its types from `@/types`; it does not define or re-export them. Pages import services from `@/lib` and types from `@/types`.
 - **Type naming** is HTTP-method-driven: a GET's top-level return is `…Response` (nested/shared shapes stay `…Dto`), a query object is `…Request` (or a `…Filters` for pagination/filters); POST/PUT/PATCH take a `…Request` body and return a `…Response` (or `void` for 204). Select options stay `…Option`.
 
-Services (in `lib/<domain>/`): `activityLog`, `dashboard` (in `common/`), `departmentHead`, `evaluator`, `major`, `mentorTopic`, `notification`, `project`, `proposedTopic`, `semester`, `settings`, `studentGroup`, `support`, `topicPool`, `user`.
+Services (in `lib/<feature>/`, all exported from `@/lib`): `activityLogs/activityLogService`, `archives/archiveService`, `dashboard/dashboardService` (all four role dashboards), `directTopics/proposedTopicService`, `evaluations/evaluatorService` (evaluator self-service **and** dept-head evaluator management), `groups/studentGroupService`, `majors/majorService`, `notifications/notificationService`, `projects/projectService` (admin + dept-head project lists), `semesters/semesterService` (+ `semesterValidation`), `settings/settingsService`, `supportTickets/supportService`, `topics/topicService` (topic catalog + mentor topics; + `topicStatus` UI helpers), `topicPools/topicPoolService` (pools + mentor topic update/resubmit), `users/userService` (+ assign-department-head). The former role services `departmentHeadService` and `mentorTopicService` were dissolved into these features, and `dashboardService` moved out of `common/` into `dashboard/`.
 
 ---
 
