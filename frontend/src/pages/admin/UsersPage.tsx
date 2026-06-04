@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { userService, type UserListItem, type UserListResponse } from '@/lib/userService'
+import { userService } from "@/lib";
+import type { UserListItem, UserListResponse } from "@/types";
 
 const PAGE_SIZE = 20
 
@@ -310,9 +311,6 @@ function UserRow({
 }) {
     const isLocked = user.status === 'Locked'
     const code = user.studentCode ?? user.employeeCode ?? ''
-    const primaryRole = user.roles[0] ?? ''
-    const roleStyle = roleStyleMap[primaryRole] ?? 'bg-slate-100 text-slate-700 border-slate-200'
-    const roleLabel = roleLabelMap[primaryRole] ?? primaryRole
     const isCurrentAdmin = user.roles.includes('Admin')
 
     return (

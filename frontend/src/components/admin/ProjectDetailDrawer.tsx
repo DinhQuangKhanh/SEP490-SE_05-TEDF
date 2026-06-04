@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { projectService, type ProjectDetail, type ProjectListItem } from '@/lib/projectService'
+import { projectService } from "@/lib";
+import type { ProjectDetail, ProjectListItem } from "@/types";
 
 // ── Status config ────────────────────────────────────────────────────────────
 

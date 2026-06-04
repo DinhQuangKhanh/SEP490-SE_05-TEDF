@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import type { TopicInPoolItem } from "@/lib/topicPoolService";
+import type { TopicInPoolItem } from "@/types";
 
 const STORAGE_KEY = "TEDF_topic_wishlist";
 const SUMMARIES_KEY = "TEDF_topic_wishlist_summaries";
@@ -62,9 +62,7 @@ function getSnapshot() {
 
 export function useWishlist() {
   const ids = useSyncExternalStore(subscribe, getSnapshot);
-  const [summaries, setSummaries] = useState<Record<string, WishlistSummary>>(
-    readSummaries
-  );
+  const [summaries, setSummaries] = useState<Record<string, WishlistSummary>>(readSummaries);
 
   // Sync across browser tabs
   useEffect(() => {
@@ -78,36 +76,33 @@ export function useWishlist() {
 
   const has = useCallback((id: string) => ids.includes(id), [ids]);
 
-  const toggle = useCallback(
-    (id: string, topic?: TopicInPoolItem) => {
-      const current = readIds();
-      const currentSummaries = readSummaries();
+  const toggle = useCallback((id: string, topic?: TopicInPoolItem) => {
+    const current = readIds();
+    const currentSummaries = readSummaries();
 
-      if (current.includes(id)) {
-        // Remove
-        writeIds(current.filter((x) => x !== id));
-        delete currentSummaries[id];
-      } else {
-        // Add
-        writeIds([...current, id]);
-        if (topic) {
-          currentSummaries[id] = {
-            id: topic.id,
-            nameVi: topic.nameVi,
-            majorCode: topic.majorCode,
-            mentorName: topic.mentorName,
-            poolStatus: topic.poolStatus,
-            poolStatusName: topic.poolStatusName,
-          };
-        }
+    if (current.includes(id)) {
+      // Remove
+      writeIds(current.filter((x) => x !== id));
+      delete currentSummaries[id];
+    } else {
+      // Add
+      writeIds([...current, id]);
+      if (topic) {
+        currentSummaries[id] = {
+          id: topic.id,
+          nameVi: topic.nameVi,
+          majorCode: topic.majorCode,
+          mentorName: topic.mentorName,
+          poolStatus: topic.poolStatus,
+          poolStatusName: topic.poolStatusName,
+        };
       }
+    }
 
-      writeSummaries(currentSummaries);
-      setSummaries({ ...currentSummaries });
-      emitChange();
-    },
-    []
-  );
+    writeSummaries(currentSummaries);
+    setSummaries({ ...currentSummaries });
+    emitChange();
+  }, []);
 
   const clear = useCallback(() => {
     writeIds([]);

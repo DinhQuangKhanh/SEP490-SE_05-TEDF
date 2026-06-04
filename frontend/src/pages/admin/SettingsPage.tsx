@@ -4,7 +4,8 @@ import { Header } from '@/components/layout'
 import { useMaintenance } from '@/contexts/MaintenanceContext'
 import { useBranding } from '@/contexts/SettingsContext'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { settingsService, type ArchiveGroup } from '@/lib/settingsService'
+import { settingsService } from "@/lib";
+import type { ArchiveGroup } from "@/types";
 
 const container = {
     hidden: { opacity: 0 },

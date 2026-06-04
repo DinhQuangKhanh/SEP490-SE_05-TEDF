@@ -2,18 +2,15 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import {
-  evaluatorService,
-  type ProjectReviewDetail,
-  type SimilarTitle,
-} from "@/lib/evaluatorService";
+import { evaluatorService } from "@/lib";
+import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
 
 export function EvaluatorReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showError } = useSystemError();
 
-  const [project, setProject] = useState<ProjectReviewDetail | null>(null);
+  const [project, setProject] = useState<ProjectReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [verdict, setVerdict] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -21,7 +18,7 @@ export function EvaluatorReviewPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Similarity state
-  const [similarTitles, setSimilarTitles] = useState<SimilarTitle[]>([]);
+  const [similarTitles, setSimilarTitles] = useState<SimilarTitleDto[]>([]);
   const [showSimilarity, setShowSimilarity] = useState(false);
   const [loadingSimilarity, setLoadingSimilarity] = useState(false);
   const [expandedCompare, setExpandedCompare] = useState<string | null>(null);

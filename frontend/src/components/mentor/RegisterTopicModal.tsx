@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiClient } from "@/lib/apiClient";
+import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import type { TopicPoolDto } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { validateFiles, formatFileSize, ACCEPTED_TYPES, MAX_ATTACHMENTS } from "@/lib/fileUploadUtils";
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-interface TopicPoolOption {
-  id: string;
-  code: string;
-  name: string;
-  statusName: string;
-}
+import { validateFiles, formatFileSize, ACCEPTED_TYPES, MAX_ATTACHMENTS } from "@/lib/common/fileUploadUtils";
 
 interface RegisterTopicModalProps {
   isOpen: boolean;
@@ -73,7 +65,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
-  const [pools, setPools] = useState<TopicPoolOption[]>([]);
+  const [pools, setPools] = useState<TopicPoolDto[]>([]);
   const [loadingPools, setLoadingPools] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [fileWarnings, setFileWarnings] = useState<string[]>([]);
@@ -87,8 +79,8 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
   useEffect(() => {
     if (!isOpen) return;
     setLoadingPools(true);
-    apiClient
-      .get<TopicPoolOption[]>("/api/topic-pools")
+    topicPoolService
+      .getTopicPools()
       .then((data) => setPools(data.filter((p) => p.statusName === "Active")))
       .catch(() => showError("Không thể tải danh sách kho đề tài."))
       .finally(() => setLoadingPools(false));
@@ -169,7 +161,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       fd.append("maxStudents", form.maxStudents.toString());
       attachments.forEach((f) => fd.append("attachments", f));
 
-      await apiClient.postForm(`/api/topic-pools/${form.poolId}/propose`, fd);
+      await topicPoolService.proposeTopic(form.poolId, fd);
       setShowSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Đề xuất thất bại. Vui lòng thử lại.");
@@ -187,7 +179,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
           onClick={() => onClose()}
         >
           <motion.div
@@ -200,12 +192,12 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
           >
             {/* Success overlay */}
             {showSuccess ? (
-              <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+              <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
-                  className="size-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6"
+                  className="flex items-center justify-center mb-6 rounded-full size-20 bg-emerald-100"
                 >
                   <motion.span
                     initial={{ opacity: 0, scale: 0 }}
@@ -220,7 +212,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="text-xl font-bold text-slate-900 mb-3"
+                  className="mb-3 text-xl font-bold text-slate-900"
                 >
                   Đề xuất thành công!
                 </motion.h2>
@@ -228,162 +220,163 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="text-sm text-slate-600 max-w-md leading-relaxed mb-8"
+                  className="max-w-md mb-8 text-sm leading-relaxed text-slate-600"
                 >
-                  Đã đề xuất thành công, chủ nhiệm bộ môn sẽ phân công người thẩm định và sớm gửi kết quả thẩm định về cho bạn.
+                  Đã đề xuất thành công, chủ nhiệm bộ môn sẽ phân công người thẩm định và sớm gửi kết quả thẩm định về
+                  cho bạn.
                 </motion.p>
                 <motion.button
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
                   onClick={() => onClose(true)}
-                  className="px-8 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-lg shadow-blue-900/10 transition-all"
+                  className="px-8 py-3 text-sm font-semibold text-white transition-all shadow-lg rounded-xl bg-primary hover:bg-primary/90 shadow-blue-900/10"
                 >
                   Đóng
                 </motion.button>
               </div>
             ) : (
-            <>
-            {/* Header with breadcrumb */}
-            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div>
-                <h1 className="text-xl font-extrabold text-slate-900">Đăng Ký Đề Tài Mới</h1>
-                <p className="text-xs text-slate-500 mt-0.5">Điền thông tin để đề xuất đề tài vào kho</p>
-              </div>
-              <button
-                onClick={() => onClose()}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
+              <>
+                {/* Header with breadcrumb */}
+                <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 shrink-0">
+                  <div>
+                    <h1 className="text-xl font-extrabold text-slate-900">Đăng Ký Đề Tài Mới</h1>
+                    <p className="text-xs text-slate-500 mt-0.5">Điền thông tin để đề xuất đề tài vào kho</p>
+                  </div>
+                  <button
+                    onClick={() => onClose()}
+                    className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
 
-            {/* Step indicator */}
-            <div className="px-8 py-4 border-b border-slate-50 bg-slate-50/50 shrink-0">
-              <div className="flex items-center gap-2">
-                {STEPS.map((s, idx) => (
-                  <div key={s.label} className="flex items-center gap-2 flex-1">
-                    <div
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                        idx < step
-                          ? "bg-emerald-100 text-emerald-700"
-                          : idx === step
-                            ? "bg-primary text-white shadow-sm"
-                            : "bg-slate-100 text-slate-400"
-                      }`}
+                {/* Step indicator */}
+                <div className="px-8 py-4 border-b border-slate-50 bg-slate-50/50 shrink-0">
+                  <div className="flex items-center gap-2">
+                    {STEPS.map((s, idx) => (
+                      <div key={s.label} className="flex items-center flex-1 gap-2">
+                        <div
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                            idx < step
+                              ? "bg-emerald-100 text-emerald-700"
+                              : idx === step
+                                ? "bg-primary text-white shadow-sm"
+                                : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            {idx < step ? "check_circle" : s.icon}
+                          </span>
+                          <span className="hidden sm:inline">{s.label}</span>
+                        </div>
+                        {idx < STEPS.length - 1 && (
+                          <div className={`flex-1 h-px ${idx < step ? "bg-emerald-300" : "bg-slate-200"}`} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Content area */}
+                <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[320px]">
+                  <AnimatePresence mode="wait" custom={dir}>
+                    <motion.div
+                      key={step}
+                      custom={dir}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
                     >
-                      <span className="material-symbols-outlined text-[14px]">
-                        {idx < step ? "check_circle" : s.icon}
-                      </span>
-                      <span className="hidden sm:inline">{s.label}</span>
+                      {step === 0 && (
+                        <StepPool
+                          pools={pools}
+                          loading={loadingPools}
+                          selectedId={form.poolId}
+                          onSelect={(id) => set("poolId", id)}
+                        />
+                      )}
+                      {step === 1 && <StepBasicInfo form={form} set={set} />}
+                      {step === 2 && <StepContent form={form} set={set} />}
+                      {step === 3 && (
+                        <StepAttachments
+                          attachments={attachments}
+                          warnings={fileWarnings}
+                          fileInputRef={fileInputRef}
+                          onFileChange={handleFiles}
+                          onDrop={handleDrop}
+                          onRemove={removeFile}
+                          selectedPool={selectedPool}
+                          form={form}
+                        />
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <div className="px-8 py-2">
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[18px]">error</span>
+                      {error}
                     </div>
-                    {idx < STEPS.length - 1 && (
-                      <div className={`flex-1 h-px ${idx < step ? "bg-emerald-300" : "bg-slate-200"}`} />
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-8 py-5 border-t bg-slate-50 border-slate-200 shrink-0">
+                  <div>
+                    {step > 0 && (
+                      <button
+                        onClick={goPrev}
+                        className="px-4 py-2.5 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                        Quay lại
+                      </button>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[320px]">
-              <AnimatePresence mode="wait" custom={dir}>
-                <motion.div
-                  key={step}
-                  custom={dir}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
-                >
-                  {step === 0 && (
-                    <StepPool
-                      pools={pools}
-                      loading={loadingPools}
-                      selectedId={form.poolId}
-                      onSelect={(id) => set("poolId", id)}
-                    />
-                  )}
-                  {step === 1 && <StepBasicInfo form={form} set={set} />}
-                  {step === 2 && <StepContent form={form} set={set} />}
-                  {step === 3 && (
-                    <StepAttachments
-                      attachments={attachments}
-                      warnings={fileWarnings}
-                      fileInputRef={fileInputRef}
-                      onFileChange={handleFiles}
-                      onDrop={handleDrop}
-                      onRemove={removeFile}
-                      selectedPool={selectedPool}
-                      form={form}
-                    />
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="px-8 py-2">
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px]">error</span>
-                  {error}
-                </div>
-              </div>
-            )}
-
-            {/* Footer */}
-            <div className="px-8 py-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-              <div>
-                {step > 0 && (
-                  <button
-                    onClick={goPrev}
-                    className="px-4 py-2.5 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                    Quay lại
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => onClose()}
-                  className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
-                >
-                  Hủy bỏ
-                </button>
-                {step < STEPS.length - 1 ? (
-                  <button
-                    onClick={goNext}
-                    disabled={!canProceed()}
-                    className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Tiếp theo
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {submitting ? (
-                      <>
-                        <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Đang gửi...
-                      </>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => onClose()}
+                      className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
+                    >
+                      Hủy bỏ
+                    </button>
+                    {step < STEPS.length - 1 ? (
+                      <button
+                        onClick={goNext}
+                        disabled={!canProceed()}
+                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Tiếp theo
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </button>
                     ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[18px]">send</span>
-                        Gửi phê duyệt
-                      </>
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {submitting ? (
+                          <>
+                            <span className="border-2 rounded-full size-4 border-white/30 border-t-white animate-spin" />
+                            Đang gửi...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">send</span>
+                            Gửi phê duyệt
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                )}
-              </div>
-            </div>
-            </>
+                  </div>
+                </div>
+              </>
             )}
           </motion.div>
         </motion.div>
@@ -400,7 +393,7 @@ function StepPool({
   selectedId,
   onSelect,
 }: {
-  pools: TopicPoolOption[];
+  pools: TopicPoolDto[];
   loading: boolean;
   selectedId: string;
   onSelect: (id: string) => void;
@@ -408,7 +401,7 @@ function StepPool({
   if (loading) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-slate-500 mb-4">Chọn kho đề tài bạn muốn đề xuất vào:</p>
+        <p className="mb-4 text-sm text-slate-500">Chọn kho đề tài bạn muốn đề xuất vào:</p>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />
         ))}
@@ -420,15 +413,15 @@ function StepPool({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <span className="material-symbols-outlined text-[48px] text-slate-200 mb-3">inventory_2</span>
-        <p className="text-slate-500 font-medium">Không có kho đề tài nào đang mở</p>
-        <p className="text-slate-400 text-sm mt-1">Vui lòng liên hệ quản trị viên.</p>
+        <p className="font-medium text-slate-500">Không có kho đề tài nào đang mở</p>
+        <p className="mt-1 text-sm text-slate-400">Vui lòng liên hệ quản trị viên.</p>
       </div>
     );
   }
 
   return (
     <div>
-      <p className="text-sm text-slate-500 mb-4">Chọn kho đề tài bạn muốn đề xuất vào:</p>
+      <p className="mb-4 text-sm text-slate-500">Chọn kho đề tài bạn muốn đề xuất vào:</p>
       <div className="space-y-3">
         {pools.map((pool) => (
           <button
@@ -448,7 +441,7 @@ function StepPool({
               <span className="material-symbols-outlined text-[20px]">inventory_2</span>
             </div>
             <div className="flex-1">
-              <p className="font-bold text-slate-800 text-sm">{pool.name}</p>
+              <p className="text-sm font-bold text-slate-800">{pool.name}</p>
               <p className="text-xs text-slate-500 mt-0.5">Mã: {pool.code}</p>
             </div>
             {selectedId === pool.id && (
@@ -488,7 +481,7 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
           placeholder="Enter project name in English..."
         />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
           <label className={labelClass}>
             Tên viết tắt <span className="text-red-500">*</span>
@@ -535,7 +528,7 @@ function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v
           placeholder="Mô tả mục tiêu chính mà sinh viên cần đạt được..."
           maxLength={500}
         />
-        <p className="text-xs text-slate-400 text-right mt-1">{form.objectives.length}/500 ký tự</p>
+        <p className="mt-1 text-xs text-right text-slate-400">{form.objectives.length}/500 ký tự</p>
       </div>
       <div>
         <label className={labelClass}>
@@ -593,13 +586,13 @@ function StepAttachments({
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDrop: (e: React.DragEvent) => void;
   onRemove: (idx: number) => void;
-  selectedPool: TopicPoolOption | undefined;
+  selectedPool: TopicPoolDto | undefined;
   form: FormData;
 }) {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+      <div className="p-4 border bg-slate-50 rounded-xl border-slate-100">
         <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[16px] text-primary">summarize</span>
           Tóm tắt đề tài
@@ -639,10 +632,10 @@ function StepAttachments({
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="mt-1 flex justify-center px-6 pt-6 pb-7 border-2 border-slate-300 border-dashed rounded-xl hover:bg-slate-50 hover:border-primary/40 transition-colors cursor-pointer group"
+          className="flex justify-center px-6 pt-6 mt-1 transition-colors border-2 border-dashed cursor-pointer pb-7 border-slate-300 rounded-xl hover:bg-slate-50 hover:border-primary/40 group"
         >
           <div className="space-y-2 text-center">
-            <div className="mx-auto size-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:bg-blue-50 transition-colors">
+            <div className="flex items-center justify-center mx-auto transition-colors rounded-full size-12 bg-slate-100 text-slate-400 group-hover:text-primary group-hover:bg-blue-50">
               <span className="material-symbols-outlined text-[24px]">cloud_upload</span>
             </div>
             <div className="text-sm text-slate-600">
@@ -674,10 +667,10 @@ function StepAttachments({
             >
               <span className="material-symbols-outlined text-primary text-[20px]">description</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-700 truncate">{file.name}</p>
+                <p className="text-sm font-medium truncate text-slate-700">{file.name}</p>
                 <p className="text-[10px] text-slate-400">{formatFileSize(file.size)}</p>
               </div>
-              <button onClick={() => onRemove(idx)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
+              <button onClick={() => onRemove(idx)} className="p-1 transition-colors text-slate-400 hover:text-red-500">
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
@@ -687,7 +680,7 @@ function StepAttachments({
 
       {/* Warnings */}
       {warnings.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+        <div className="p-3 space-y-1 border rounded-lg bg-amber-50 border-amber-200">
           {warnings.map((w, i) => (
             <p key={i} className="text-xs text-amber-700 flex items-start gap-1.5">
               <span className="material-symbols-outlined text-[14px] mt-0.5">warning</span>

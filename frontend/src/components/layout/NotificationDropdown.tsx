@@ -1,35 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiClient } from "@/lib/apiClient";
+import { notificationService } from "@/lib";
+import type { NotificationDto } from "@/types";
 import { useSignalR } from "@/hooks/useSignalR";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 // Notification types for different roles
 export type UserRole = "admin" | "mentor" | "student" | "evaluator" | "department-head";
-
-interface NotificationItem {
-  id: string;
-  userId: string;
-  title: string;
-  content: string;
-  type: "Info" | "Warning" | "Success" | "Error";
-  category: string;
-  targetUrl: string | null;
-  isRead: boolean;
-  readAt: string | null;
-  createdAt: string;
-}
-
-interface NotificationListResponse {
-  items: NotificationItem[];
-  totalCount: number;
-  unreadCount: number;
-}
-
-interface UnreadCountResponse {
-  unreadCount: number;
-}
 
 interface NotificationDropdownProps {
   role?: UserRole;
@@ -50,7 +28,7 @@ function relativeTime(iso: string): string {
   return `${days} ngày trước`;
 }
 
-type NotiType = NotificationItem["type"];
+type NotiType = NotificationDto["type"];
 
 const typeColors: Record<NotiType, { bg: string; icon: string }> = {
   Info: { bg: "bg-blue-50", icon: "text-blue-600" },
@@ -78,7 +56,7 @@ function categoryIcon(category: string): string {
 
 export function NotificationDropdown({ isNavy = false }: NotificationDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +68,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
   // ── Fetch unread count (badge) on mount ──────────────────────────────────
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const res = await apiClient.get<UnreadCountResponse>("/api/notifications/unread-count");
+      const res = await notificationService.getUnreadCount();
       setUnreadCount(Number(res.unreadCount ?? 0));
     } catch {
       // silently ignore badge errors
@@ -103,7 +81,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
 
   // ── SignalR real-time notifications ─────────────────────────────────────
   const handleReceiveNotification = useCallback((raw: unknown) => {
-    const n = raw as NotificationItem;
+    const n = raw as NotificationDto;
     if (!n?.id) return;
     setNotifications((prev) => [n, ...prev.filter((x) => x.id !== n.id)]);
     setUnreadCount((prev) => prev + 1);
@@ -120,7 +98,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<NotificationListResponse>("/api/notifications?limit=20");
+      const res = await notificationService.getNotifications(20);
       setNotifications(res.items ?? []);
       setUnreadCount(Number(res.unreadCount ?? 0));
     } catch (err: unknown) {
@@ -157,7 +135,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     window.dispatchEvent(new Event("notificationRead"));
 
     try {
-      await apiClient.put(`/api/notifications/${id}/read`, {});
+      await notificationService.markRead(id);
     } catch {
       // optimistic update — revert if it fails
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: false } : n)));
@@ -174,7 +152,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     setUnreadCount(0);
     window.dispatchEvent(new Event("notificationRead"));
     try {
-      await apiClient.put("/api/notifications/read-all", {});
+      await notificationService.markAllRead();
     } catch {
       // silently ignore — badge will self-correct on next poll
     }

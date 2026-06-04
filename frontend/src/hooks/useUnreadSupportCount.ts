@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient } from "@/lib/common/apiClient";
 
 export function useUnreadSupportCount() {
   const [count, setCount] = useState<number>(0);

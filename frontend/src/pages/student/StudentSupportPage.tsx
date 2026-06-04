@@ -3,8 +3,8 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { CreateTicketModal } from "@/components/support/CreateTicketModal";
-import { apiClient } from "@/lib/apiClient";
-import { TicketListDto, TicketDto, TicketStatsDto } from "@/types/support.types";
+import { supportService } from "@/lib";
+import { TicketListDto, TicketResponse, TicketStatsResponse } from "@/types";
 
 const container = {
   hidden: { opacity: 0 },
@@ -72,8 +72,8 @@ export function StudentSupportPage() {
   const { showError } = useSystemError();
   const [tickets, setTickets] = useState<TicketListDto[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [ticketDetail, setTicketDetail] = useState<TicketDto | null>(null);
-  const [stats, setStats] = useState<TicketStatsDto | null>(null);
+  const [ticketDetail, setTicketDetail] = useState<TicketResponse | null>(null);
+  const [stats, setStats] = useState<TicketStatsResponse | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -86,8 +86,8 @@ export function StudentSupportPage() {
     try {
       setIsLoading(true);
       const [ticketsData, statsData] = await Promise.all([
-        apiClient.get<TicketListDto[]>("/api/supports"),
-        apiClient.get<TicketStatsDto>("/api/supports/stats"),
+        supportService.getTickets(),
+        supportService.getStats(),
       ]);
       setTickets(ticketsData);
       setStats(statsData);
@@ -105,7 +105,7 @@ export function StudentSupportPage() {
   const fetchTicketDetail = useCallback(async (id: string) => {
     try {
       setIsDetailLoading(true);
-      const data = await apiClient.get<TicketDto>(`/api/supports/${id}`);
+      const data = await supportService.getTicket(id);
       setTicketDetail(data);
     } catch {
       setTicketDetail(null);
@@ -132,9 +132,7 @@ export function StudentSupportPage() {
     if (!newMessage.trim() || !selectedTicketId) return;
     setIsSending(true);
     try {
-      await apiClient.post(`/api/supports/${selectedTicketId}/reply`, {
-        content: newMessage.trim(),
-      });
+      await supportService.reply(selectedTicketId, newMessage.trim());
       setNewMessage("");
       await fetchTicketDetail(selectedTicketId);
     } catch {

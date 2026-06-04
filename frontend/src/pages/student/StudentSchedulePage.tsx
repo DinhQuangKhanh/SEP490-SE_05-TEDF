@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout";
-import { studentGroupService, type StudentGroupDto } from "@/lib/studentGroupService";
+import { studentGroupService } from "@/lib/group/studentGroupService";
+import type { StudentGroupDto } from "@/types";
 
 const container = {
   hidden: { opacity: 0 },

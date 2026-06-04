@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { apiClient } from "@/lib/apiClient";
+import { evaluatorService } from "@/lib";
+import type { EvaluatorFilterOptionsResponse, EvaluatorProjectItemDto, EvaluatorProjectsResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 
 const container = {
@@ -14,37 +15,6 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-interface FilterOptionDto {
-  value: number;
-  label: string;
-}
-
-interface FilterOptionsResponse {
-  semesters: FilterOptionDto[];
-  majors: FilterOptionDto[];
-}
-
-interface EvaluatorProjectItemDto {
-  assignmentId: string;
-  projectId: string;
-  projectCode: string;
-  projectNameVi: string;
-  majorName: string;
-  studentName: string;
-  studentAvatar: string | null;
-  mentorName: string;
-  submittedAt: string | null;
-  assignedAt: string;
-  individualResult: string;
-  isUrgent: boolean;
-}
-
-interface EvaluatorProjectsDto {
-  items: EvaluatorProjectItemDto[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-}
 
 const RESULT_DISPLAY: Record<string, { label: string; colors: string; animate: boolean }> = {
   Pending: { label: "Chờ duyệt", colors: "bg-blue-50 text-blue-600 border-blue-100", animate: true },
@@ -79,14 +49,14 @@ export function EvaluatorProjectsPage() {
   const result = searchParams.get("result") || "";
   const page = parseInt(searchParams.get("page") || "1", 10);
 
-  const [data, setData] = useState<EvaluatorProjectsDto | null>(null);
-  const [filterOptions, setFilterOptions] = useState<FilterOptionsResponse>({ semesters: [], majors: [] });
+  const [data, setData] = useState<EvaluatorProjectsResponse | null>(null);
+  const [filterOptions, setFilterOptions] = useState<EvaluatorFilterOptionsResponse>({ semesters: [], majors: [] });
   const [loading, setLoading] = useState(true);
 
   // Fetch filter options once on mount
   useEffect(() => {
-    apiClient
-      .get<FilterOptionsResponse>("/api/evaluator/filter-options")
+    evaluatorService
+      .getFilterOptions()
       .then(setFilterOptions)
       .catch((err) => showError(err.message));
   }, [showError]);
@@ -109,17 +79,16 @@ export function EvaluatorProjectsPage() {
   useEffect(() => {
     const timeout = setTimeout(
       () => {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("pageSize", String(PAGE_SIZE));
-        if (search) params.set("search", search);
-        if (semesterId) params.set("semesterId", semesterId);
-        if (majorId) params.set("majorId", majorId);
-        if (result) params.set("result", result);
-
         setLoading(true);
-        apiClient
-          .get<EvaluatorProjectsDto>(`/api/evaluator/projects?${params}`)
+        evaluatorService
+          .getProjects({
+            page,
+            pageSize: PAGE_SIZE,
+            search: search || undefined,
+            semesterId: semesterId ? Number(semesterId) : undefined,
+            majorId: majorId ? Number(majorId) : undefined,
+            result: result || undefined,
+          })
           .then(setData)
           .catch((err) => showError(err.message))
           .finally(() => setLoading(false));

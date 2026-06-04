@@ -7,13 +7,18 @@ import {
   sourceTypeLabel,
   statusConfig,
   evaluationStatusConfig,
-  type MentorTopicItem,
-  type MentorTopicsResponse,
-  type SemesterOption,
-  type UpdatePoolTopicPayload,
-} from "@/lib/mentorTopicService";
-import { topicPoolService, type TopicDetail, type TopicDocument } from "@/lib/topicPoolService";
-import { directTopicService } from "@/lib/directTopicService";
+} from "@/lib/directTopic/mentorTopicService";
+import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
+import { semesterService } from "@/lib/semester/semesterService";
+import type {
+  MentorTopicItem,
+  MentorTopicsResponse,
+  SemesterOption,
+  TopicDetail,
+  TopicDocument,
+  UpdatePoolTopicRequest,
+} from "@/types";
 
 // ── Animation variants ───────────────────────────────────────────────────────
 
@@ -83,8 +88,8 @@ export function MentorTopicsPage() {
 
   // Load semesters once
   useEffect(() => {
-    mentorTopicService
-      .getSemesters()
+    semesterService
+      .getSemesterOptions()
       .then((list) => {
         // Sort by startDate desc
         const sorted = list.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
@@ -377,9 +382,16 @@ function TopicDetailModal({
 
   // Edit/resubmit state for pool topics with NeedsModification
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<UpdatePoolTopicPayload>({
-    nameVi: "", nameEn: "", nameAbbr: "", description: "", objectives: "",
-    scope: "", technologies: "", expectedResults: "", maxStudents: 1,
+  const [editForm, setEditForm] = useState<UpdatePoolTopicRequest>({
+    nameVi: "",
+    nameEn: "",
+    nameAbbr: "",
+    description: "",
+    objectives: "",
+    scope: "",
+    technologies: "",
+    expectedResults: "",
+    maxStudents: 1,
   });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -400,10 +412,15 @@ function TopicDetailModal({
           // Pre-populate edit form for pool topics
           if (topic.sourceType === 0) {
             setEditForm({
-              nameVi: d.nameVi, nameEn: d.nameEn, nameAbbr: d.nameAbbr,
-              description: d.description, objectives: d.objectives,
-              scope: d.scope ?? "", technologies: d.technologies ?? "",
-              expectedResults: d.expectedResults ?? "", maxStudents: d.maxStudents,
+              nameVi: d.nameVi,
+              nameEn: d.nameEn,
+              nameAbbr: d.nameAbbr,
+              description: d.description,
+              objectives: d.objectives,
+              scope: d.scope ?? "",
+              technologies: d.technologies ?? "",
+              expectedResults: d.expectedResults ?? "",
+              maxStudents: d.maxStudents,
             });
           }
         }
@@ -477,53 +494,108 @@ function TopicDetailModal({
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tên tiếng Việt *</label>
-                    <input type="text" value={editForm.nameVi} onChange={(e) => setEditForm({ ...editForm, nameVi: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      Tên tiếng Việt *
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.nameVi}
+                      onChange={(e) => setEditForm({ ...editForm, nameVi: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tên tiếng Anh *</label>
-                    <input type="text" value={editForm.nameEn} onChange={(e) => setEditForm({ ...editForm, nameEn: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      Tên tiếng Anh *
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.nameEn}
+                      onChange={(e) => setEditForm({ ...editForm, nameEn: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tên viết tắt *</label>
-                    <input type="text" value={editForm.nameAbbr} onChange={(e) => setEditForm({ ...editForm, nameAbbr: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      Tên viết tắt *
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.nameAbbr}
+                      onChange={(e) => setEditForm({ ...editForm, nameAbbr: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">SV tối đa *</label>
-                    <input type="number" min={1} max={5} value={editForm.maxStudents}
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      SV tối đa *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={editForm.maxStudents}
                       onChange={(e) => setEditForm({ ...editForm, maxStudents: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mô tả *</label>
-                  <textarea rows={3} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Mô tả *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mục tiêu *</label>
-                  <textarea rows={3} value={editForm.objectives} onChange={(e) => setEditForm({ ...editForm, objectives: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Mục tiêu *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editForm.objectives}
+                    onChange={(e) => setEditForm({ ...editForm, objectives: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Phạm vi</label>
-                  <textarea rows={2} value={editForm.scope ?? ""} onChange={(e) => setEditForm({ ...editForm, scope: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Phạm vi
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.scope ?? ""}
+                    onChange={(e) => setEditForm({ ...editForm, scope: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Công nghệ sử dụng</label>
-                  <textarea rows={2} value={editForm.technologies ?? ""} onChange={(e) => setEditForm({ ...editForm, technologies: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Công nghệ sử dụng
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.technologies ?? ""}
+                    onChange={(e) => setEditForm({ ...editForm, technologies: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Kết quả mong đợi</label>
-                  <textarea rows={2} value={editForm.expectedResults ?? ""} onChange={(e) => setEditForm({ ...editForm, expectedResults: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Kết quả mong đợi
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.expectedResults ?? ""}
+                    onChange={(e) => setEditForm({ ...editForm, expectedResults: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                  />
                 </div>
               </div>
             ) : (
@@ -626,7 +698,7 @@ function TopicDetailModal({
                     setReviewLoading(true);
                     setReviewError(null);
                     try {
-                      await directTopicService.mentorReviewTopic(topic.id, { action: "approve" });
+                      await proposedTopicService.mentorReviewProposedTopic(topic.id, { action: "approve" });
                       onReviewed();
                     } catch (err) {
                       setReviewError(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
@@ -668,7 +740,7 @@ function TopicDetailModal({
                     setReviewLoading(true);
                     setReviewError(null);
                     try {
-                      await directTopicService.mentorReviewTopic(topic.id, {
+                      await proposedTopicService.mentorReviewProposedTopic(topic.id, {
                         action: "requestModification",
                         feedback: feedback.trim() || undefined,
                       });
@@ -722,7 +794,9 @@ function TopicDetailModal({
                 disabled={editLoading}
                 className="flex-1 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                {editLoading && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />}
+                {editLoading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                )}
                 <span className="material-symbols-outlined text-lg">save</span>
                 Lưu thay đổi
               </button>
@@ -733,10 +807,15 @@ function TopicDetailModal({
                   // Reset form to current detail
                   if (detail) {
                     setEditForm({
-                      nameVi: detail.nameVi, nameEn: detail.nameEn, nameAbbr: detail.nameAbbr,
-                      description: detail.description, objectives: detail.objectives,
-                      scope: detail.scope ?? "", technologies: detail.technologies ?? "",
-                      expectedResults: detail.expectedResults ?? "", maxStudents: detail.maxStudents,
+                      nameVi: detail.nameVi,
+                      nameEn: detail.nameEn,
+                      nameAbbr: detail.nameAbbr,
+                      description: detail.description,
+                      objectives: detail.objectives,
+                      scope: detail.scope ?? "",
+                      technologies: detail.technologies ?? "",
+                      expectedResults: detail.expectedResults ?? "",
+                      maxStudents: detail.maxStudents,
                     });
                   }
                 }}
@@ -775,7 +854,9 @@ function TopicDetailModal({
                   disabled={resubmitLoading}
                   className="flex-1 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {resubmitLoading && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />}
+                  {resubmitLoading && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  )}
                   <span className="material-symbols-outlined text-lg">send</span>
                   Gửi lại thẩm định
                 </button>

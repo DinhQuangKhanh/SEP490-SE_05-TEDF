@@ -6,7 +6,8 @@ import { NotificationDropdown } from '@/components/layout'
 import { SemesterTimeline } from '@/components/shared/SemesterTimeline'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { dashboardService, type MentorDashboardData, type RecentProject } from '@/lib/dashboardService'
+import { dashboardService } from "@/lib";
+import type { MentorDashboardData, RecentProject } from "@/types";
 
 // ── Animation variants ──────────────────────────────────────────────────────
 

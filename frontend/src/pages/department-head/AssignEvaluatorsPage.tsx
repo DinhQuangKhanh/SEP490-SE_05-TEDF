@@ -1,13 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
-import {
-  departmentHeadService,
-  groupProjects,
-  type DepartmentProject,
-  type DepartmentEvaluator,
-  type GroupedProjects,
-} from "@/lib/departmentHeadService";
+import { departmentHeadService } from "@/lib/departmentHead/departmentHeadService";
+import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
 // ── Tab config ───────────────────────────────────────────────────────────────
 
@@ -168,7 +163,7 @@ export function AssignEvaluatorsPage() {
   const filteredData = useMemo(
     () => getTabData(activeTab).filter((p) => matchesSearch(p, debouncedSearch)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, debouncedSearch, grouped]
+    [activeTab, debouncedSearch, grouped],
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
@@ -201,7 +196,7 @@ export function AssignEvaluatorsPage() {
             {search && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600"
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
@@ -210,31 +205,25 @@ export function AssignEvaluatorsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="border-b border-slate-200 px-4">
+        <div className="overflow-hidden bg-white border rounded-xl border-slate-200">
+          <div className="px-4 border-b border-slate-200">
             <div className="flex gap-1">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? "text-primary"
-                      : "text-gray-500 hover:text-gray-700"
+                    activeTab === tab.key ? "text-primary" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  <span
-                    className={`material-symbols-outlined text-[18px] ${activeTab === tab.key ? "fill-1" : ""}`}
-                  >
+                  <span className={`material-symbols-outlined text-[18px] ${activeTab === tab.key ? "fill-1" : ""}`}>
                     {tab.icon}
                   </span>
                   {tab.label}
                   {getTabCount(tab.key) > 0 && (
                     <span
                       className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                        activeTab === tab.key
-                          ? "bg-primary/10 text-primary"
-                          : "bg-slate-100 text-slate-500"
+                        activeTab === tab.key ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {getTabCount(tab.key)}
@@ -258,7 +247,10 @@ export function AssignEvaluatorsPage() {
               <p className="text-sm text-slate-500">
                 Tìm thấy <span className="font-semibold text-slate-700">{filteredData.length}</span> kết quả
                 {debouncedSearch && (
-                  <> cho &ldquo;<span className="font-medium text-slate-700">{debouncedSearch}</span>&rdquo;</>
+                  <>
+                    {" "}
+                    cho &ldquo;<span className="font-medium text-slate-700">{debouncedSearch}</span>&rdquo;
+                  </>
                 )}
               </p>
             </div>
@@ -279,18 +271,12 @@ export function AssignEvaluatorsPage() {
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
                 >
-                  {activeTab === "pending" && (
-                    <PendingTab projects={paginatedData} onAssign={setAssignModal} />
-                  )}
-                  {activeTab === "in-evaluation" && (
-                    <InEvaluationTab projects={paginatedData} />
-                  )}
+                  {activeTab === "pending" && <PendingTab projects={paginatedData} onAssign={setAssignModal} />}
+                  {activeTab === "in-evaluation" && <InEvaluationTab projects={paginatedData} />}
                   {activeTab === "needs-decision" && (
                     <NeedsDecisionTab projects={paginatedData} onDecide={setDecisionModal} />
                   )}
-                  {activeTab === "completed" && (
-                    <CompletedTab projects={paginatedData} />
-                  )}
+                  {activeTab === "completed" && <CompletedTab projects={paginatedData} />}
                 </motion.div>
               </AnimatePresence>
             )}
@@ -298,25 +284,25 @@ export function AssignEvaluatorsPage() {
 
           {/* Pagination */}
           {!loading && !error && filteredData.length > PAGE_SIZE && (
-            <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-white">
-              <span className="text-sm text-slate-500 hidden sm:inline">
+            <div className="flex items-center justify-between p-4 bg-white border-t border-slate-200">
+              <span className="hidden text-sm text-slate-500 sm:inline">
                 Hiển thị{" "}
                 <span className="font-medium text-slate-900">
                   {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filteredData.length)}
                 </span>{" "}
                 trên <span className="font-medium text-slate-900">{filteredData.length}</span> đề tài
               </span>
-              <div className="flex gap-1 w-full sm:w-auto justify-center sm:justify-end">
+              <div className="flex justify-center w-full gap-1 sm:w-auto sm:justify-end">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 text-slate-600 text-sm disabled:opacity-50 transition-colors"
+                  className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
                 >
                   Trước
                 </button>
                 {pageNumbers.map((p, i) =>
                   p === "..." ? (
-                    <span key={`dots-${i}`} className="px-2 py-1 text-slate-400 hidden sm:inline">
+                    <span key={`dots-${i}`} className="hidden px-2 py-1 text-slate-400 sm:inline">
                       ...
                     </span>
                   ) : (
@@ -331,12 +317,12 @@ export function AssignEvaluatorsPage() {
                     >
                       {p}
                     </button>
-                  )
+                  ),
                 )}
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  className="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 text-slate-600 text-sm disabled:opacity-50 transition-colors"
+                  className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
                 >
                   Sau
                 </button>
@@ -387,18 +373,22 @@ function PendingTab({
   projects: DepartmentProject[];
   onAssign: (p: DepartmentProject) => void;
 }) {
-  if (projects.length === 0) return <EmptyState message="Không có đề tài nào chờ phân công" icon="assignment_turned_in" />;
+  if (projects.length === 0)
+    return <EmptyState message="Không có đề tài nào chờ phân công" icon="assignment_turned_in" />;
   return (
     <div className="space-y-3">
       {projects.map((p) => (
-        <div key={p.projectId} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+        <div
+          key={p.projectId}
+          className="flex items-center justify-between p-4 border rounded-lg bg-slate-50 border-slate-100"
+        >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono text-slate-400">{p.projectCode}</span>
+              <span className="font-mono text-xs text-slate-400">{p.projectCode}</span>
               {statusBadge(p.status)}
             </div>
-            <p className="font-semibold text-slate-800 truncate">{p.nameVi}</p>
-            <p className="text-sm text-slate-500 truncate">{p.nameEn}</p>
+            <p className="font-semibold truncate text-slate-800">{p.nameVi}</p>
+            <p className="text-sm truncate text-slate-500">{p.nameEn}</p>
             <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">person</span>
@@ -420,7 +410,7 @@ function PendingTab({
           </div>
           <button
             onClick={() => onAssign(p)}
-            className="ml-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors shrink-0"
+            className="flex items-center gap-2 px-4 py-2 ml-4 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 shrink-0"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
             Phân công
@@ -438,9 +428,9 @@ function InEvaluationTab({ projects }: { projects: DepartmentProject[] }) {
   return (
     <div className="space-y-3">
       {projects.map((p) => (
-        <div key={p.projectId} className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+        <div key={p.projectId} className="p-4 border rounded-lg bg-slate-50 border-slate-100">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-slate-400">{p.projectCode}</span>
+            <span className="font-mono text-xs text-slate-400">{p.projectCode}</span>
             {statusBadge(p.status)}
           </div>
           <p className="font-semibold text-slate-800">{p.nameVi}</p>
@@ -448,15 +438,20 @@ function InEvaluationTab({ projects }: { projects: DepartmentProject[] }) {
             <span>Mentor: {getMentorName(p)}</span>
             <span>{p.majorName}</span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-3">
             {p.evaluators.map((a) => (
-              <div key={a.assignmentId} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
-                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <div
+                key={a.assignmentId}
+                className="flex items-center gap-3 p-3 bg-white border rounded-lg border-slate-200"
+              >
+                <div className="flex items-center justify-center rounded-full size-8 bg-primary/10 shrink-0">
                   <span className="material-symbols-outlined text-primary text-[16px]">person</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{a.evaluatorName}</p>
-                  <p className={`text-xs font-medium ${a.hasSubmitted ? resultColor(a.individualResult) : "text-slate-400"}`}>
+                  <p className="text-sm font-medium truncate text-slate-700">{a.evaluatorName}</p>
+                  <p
+                    className={`text-xs font-medium ${a.hasSubmitted ? resultColor(a.individualResult) : "text-slate-400"}`}
+                  >
                     {a.hasSubmitted ? resultLabel(a.individualResult) : "Chưa thẩm định"}
                   </p>
                 </div>
@@ -487,9 +482,9 @@ function NeedsDecisionTab({
   return (
     <div className="space-y-4">
       {projects.map((p) => (
-        <div key={p.projectId} className="p-4 bg-amber-50/50 rounded-lg border border-amber-200">
+        <div key={p.projectId} className="p-4 border rounded-lg bg-amber-50/50 border-amber-200">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-slate-400">{p.projectCode}</span>
+            <span className="font-mono text-xs text-slate-400">{p.projectCode}</span>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
               Cần quyết định
             </span>
@@ -501,25 +496,27 @@ function NeedsDecisionTab({
           </div>
 
           {/* Evaluator results */}
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-3">
             {p.evaluators.map((a) => (
-              <div key={a.assignmentId} className="p-3 bg-white rounded-lg border border-slate-200">
+              <div key={a.assignmentId} className="p-3 bg-white border rounded-lg border-slate-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <div className="flex items-center justify-center rounded-full size-7 bg-primary/10 shrink-0">
                     <span className="material-symbols-outlined text-primary text-[14px]">person</span>
                   </div>
                   <span className="text-sm font-medium text-slate-700">{a.evaluatorName}</span>
                 </div>
-                <p className={`text-sm font-semibold ${resultColor(a.individualResult)}`}>{resultLabel(a.individualResult)}</p>
-                {a.feedback && <p className="text-xs text-slate-500 mt-1 line-clamp-3">{a.feedback}</p>}
+                <p className={`text-sm font-semibold ${resultColor(a.individualResult)}`}>
+                  {resultLabel(a.individualResult)}
+                </p>
+                {a.feedback && <p className="mt-1 text-xs text-slate-500 line-clamp-3">{a.feedback}</p>}
               </div>
             ))}
           </div>
 
-          <div className="mt-3 flex justify-end">
+          <div className="flex justify-end mt-3">
             <button
               onClick={() => onDecide(p)}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600"
             >
               <span className="material-symbols-outlined text-[18px]">gavel</span>
               Đưa ra quyết định
@@ -534,13 +531,14 @@ function NeedsDecisionTab({
 // ── Tab: Hoàn thành ──────────────────────────────────────────────────────────
 
 function CompletedTab({ projects }: { projects: DepartmentProject[] }) {
-  if (projects.length === 0) return <EmptyState message="Chưa có đề tài nào hoàn thành thẩm định" icon="check_circle" />;
+  if (projects.length === 0)
+    return <EmptyState message="Chưa có đề tài nào hoàn thành thẩm định" icon="check_circle" />;
   return (
     <div className="space-y-3">
       {projects.map((p) => (
-        <div key={p.projectId} className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+        <div key={p.projectId} className="p-4 border rounded-lg bg-slate-50 border-slate-100">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-slate-400">{p.projectCode}</span>
+            <span className="font-mono text-xs text-slate-400">{p.projectCode}</span>
             {statusBadge(p.status)}
           </div>
           <p className="font-semibold text-slate-800">{p.nameVi}</p>
@@ -548,11 +546,16 @@ function CompletedTab({ projects }: { projects: DepartmentProject[] }) {
             <span>Mentor: {getMentorName(p)}</span>
             <span>{p.majorName}</span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-3">
             {p.evaluators.map((a) => (
-              <div key={a.assignmentId} className="flex items-center gap-2 p-2 bg-white rounded border border-slate-200">
+              <div
+                key={a.assignmentId}
+                className="flex items-center gap-2 p-2 bg-white border rounded border-slate-200"
+              >
                 <span className="text-sm text-slate-600">{a.evaluatorName}:</span>
-                <span className={`text-sm font-medium ${resultColor(a.individualResult)}`}>{resultLabel(a.individualResult)}</span>
+                <span className={`text-sm font-medium ${resultColor(a.individualResult)}`}>
+                  {resultLabel(a.individualResult)}
+                </span>
               </div>
             ))}
           </div>
@@ -602,9 +605,7 @@ function AssignEvaluatorModal({
 
   // Filter out mentors and already-assigned evaluators
   const mentorIds = new Set(project.mentors.map((m) => m.mentorId));
-  const available = evaluators.filter(
-    (e) => !mentorIds.has(e.userId) && !existingIds.has(e.userId)
-  );
+  const available = evaluators.filter((e) => !mentorIds.has(e.userId) && !existingIds.has(e.userId));
 
   const selectedEval1 = available.find((e) => e.userId === eval1);
   const selectedEval2 = available.find((e) => e.userId === eval2);
@@ -654,22 +655,22 @@ function AssignEvaluatorModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+        className="w-full max-w-lg bg-white shadow-2xl rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {success ? (
           <div className="p-8 text-center">
-            <div className="size-16 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-4xl text-green-500">check_circle</span>
+            <div className="flex items-center justify-center mx-auto mb-4 rounded-full size-16 bg-green-50">
+              <span className="text-4xl text-green-500 material-symbols-outlined">check_circle</span>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Phân công thành công!</h3>
+            <h3 className="mb-2 text-lg font-bold text-slate-900">Phân công thành công!</h3>
             <p className="text-sm text-slate-500">Evaluator sẽ nhận được thông báo thẩm định đề tài.</p>
           </div>
         ) : (
@@ -678,18 +679,18 @@ function AssignEvaluatorModal({
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Phân công Evaluator</h2>
-                <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+                <button onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
                   <span className="material-symbols-outlined text-slate-400">close</span>
                 </button>
               </div>
-              <p className="text-sm text-slate-500 mt-1">{project.nameVi}</p>
+              <p className="mt-1 text-sm text-slate-500">{project.nameVi}</p>
               <p className="text-xs text-slate-400">Mentor: {getMentorName(project)}</p>
             </div>
 
             {/* Body */}
             <div className="p-6 space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+                <div className="p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">{error}</div>
               )}
 
               {/* Evaluator 1 */}
@@ -698,42 +699,72 @@ function AssignEvaluatorModal({
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Evaluator 1</label>
                   <div className="relative">
                     <input
-                      value={eval1 ? (selectedEval1 ? selectedEval1.fullName : '') : eval1Search}
+                      value={eval1 ? (selectedEval1 ? selectedEval1.fullName : "") : eval1Search}
                       onChange={(e) => {
                         setEval1Search(e.target.value);
                         setEval1Open(true);
-                        if (eval1) { setEval1(""); }
+                        if (eval1) {
+                          setEval1("");
+                        }
                       }}
                       onFocus={() => setEval1Open(true)}
                       placeholder="Nhập tên evaluator để tìm kiếm..."
                       className="w-full px-3 py-2.5 pr-8 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     />
                     {eval1 ? (
-                      <button type="button" onClick={() => { setEval1(""); setEval1Search(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
-                        <span className="material-symbols-outlined text-lg">close</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEval1("");
+                          setEval1Search("");
+                        }}
+                        className="absolute -translate-y-1/2 right-2 top-1/2 text-slate-400 hover:text-red-500"
+                      >
+                        <span className="text-lg material-symbols-outlined">close</span>
                       </button>
                     ) : (
-                      <span className="material-symbols-outlined text-lg text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
+                      <span className="absolute text-lg -translate-y-1/2 pointer-events-none material-symbols-outlined text-slate-400 right-2 top-1/2">
+                        search
+                      </span>
                     )}
                   </div>
-                  {eval1Open && !eval1 && (() => {
-                    const filtered = filterEvaluators(available.filter((e) => e.userId !== eval2), eval1Search);
-                    return filtered.length > 0 ? (
-                      <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {filtered.map((e) => (
-                          <button key={e.userId} type="button" onClick={() => { setEval1(e.userId); setEval1Search(""); setEval1Open(false); }}
-                            className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 last:border-b-0 hover:bg-primary/5 transition-colors">
-                            <div className="font-medium text-slate-900">{e.fullName}</div>
-                            <div className="text-xs text-slate-500">{e.email} · {e.activeAssignmentCount} đề tài đang thẩm định</div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : eval1Search.trim() ? (
-                      <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-sm text-slate-500 text-center">Không tìm thấy</div>
-                    ) : null;
-                  })()}
+                  {eval1Open &&
+                    !eval1 &&
+                    (() => {
+                      const filtered = filterEvaluators(
+                        available.filter((e) => e.userId !== eval2),
+                        eval1Search,
+                      );
+                      return filtered.length > 0 ? (
+                        <div className="absolute z-20 w-full mt-1 overflow-y-auto bg-white border rounded-lg shadow-lg border-slate-200 max-h-48">
+                          {filtered.map((e) => (
+                            <button
+                              key={e.userId}
+                              type="button"
+                              onClick={() => {
+                                setEval1(e.userId);
+                                setEval1Search("");
+                                setEval1Open(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 last:border-b-0 hover:bg-primary/5 transition-colors"
+                            >
+                              <div className="font-medium text-slate-900">{e.fullName}</div>
+                              <div className="text-xs text-slate-500">
+                                {e.email} · {e.activeAssignmentCount} đề tài đang thẩm định
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : eval1Search.trim() ? (
+                        <div className="absolute z-20 w-full p-3 mt-1 text-sm text-center bg-white border rounded-lg shadow-lg border-slate-200 text-slate-500">
+                          Không tìm thấy
+                        </div>
+                      ) : null;
+                    })()}
                   {selectedEval1 && (
-                    <p className="mt-1 text-xs text-slate-500">{selectedEval1.email} · {selectedEval1.activeAssignmentCount} đề tài đang thẩm định</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedEval1.email} · {selectedEval1.activeAssignmentCount} đề tài đang thẩm định
+                    </p>
                   )}
                 </div>
               )}
@@ -745,58 +776,93 @@ function AssignEvaluatorModal({
                 </label>
                 <div className="relative">
                   <input
-                    value={(needsBoth ? eval2 : eval1) ? ((needsBoth ? selectedEval2 : selectedEval1)?.fullName ?? '') : eval2Search}
+                    value={
+                      (needsBoth ? eval2 : eval1)
+                        ? ((needsBoth ? selectedEval2 : selectedEval1)?.fullName ?? "")
+                        : eval2Search
+                    }
                     onChange={(e) => {
                       setEval2Search(e.target.value);
                       setEval2Open(true);
-                      if (needsBoth ? eval2 : eval1) { needsBoth ? setEval2("") : setEval1(""); }
+                      if (needsBoth ? eval2 : eval1) {
+                        needsBoth ? setEval2("") : setEval1("");
+                      }
                     }}
                     onFocus={() => setEval2Open(true)}
                     placeholder="Nhập tên evaluator để tìm kiếm..."
                     className="w-full px-3 py-2.5 pr-8 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                   {(needsBoth ? eval2 : eval1) ? (
-                    <button type="button" onClick={() => { needsBoth ? setEval2("") : setEval1(""); setEval2Search(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
-                      <span className="material-symbols-outlined text-lg">close</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        needsBoth ? setEval2("") : setEval1("");
+                        setEval2Search("");
+                      }}
+                      className="absolute -translate-y-1/2 right-2 top-1/2 text-slate-400 hover:text-red-500"
+                    >
+                      <span className="text-lg material-symbols-outlined">close</span>
                     </button>
                   ) : (
-                    <span className="material-symbols-outlined text-lg text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
+                    <span className="absolute text-lg -translate-y-1/2 pointer-events-none material-symbols-outlined text-slate-400 right-2 top-1/2">
+                      search
+                    </span>
                   )}
                 </div>
-                {eval2Open && !(needsBoth ? eval2 : eval1) && (() => {
-                  const filtered = filterEvaluators(available.filter((e) => (needsBoth ? e.userId !== eval1 : true)), eval2Search);
-                  return filtered.length > 0 ? (
-                    <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {filtered.map((e) => (
-                        <button key={e.userId} type="button" onClick={() => { needsBoth ? setEval2(e.userId) : setEval1(e.userId); setEval2Search(""); setEval2Open(false); }}
-                          className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 last:border-b-0 hover:bg-primary/5 transition-colors">
-                          <div className="font-medium text-slate-900">{e.fullName}</div>
-                          <div className="text-xs text-slate-500">{e.email} · {e.activeAssignmentCount} đề tài đang thẩm định</div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : eval2Search.trim() ? (
-                    <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-sm text-slate-500 text-center">Không tìm thấy</div>
-                  ) : null;
-                })()}
+                {eval2Open &&
+                  !(needsBoth ? eval2 : eval1) &&
+                  (() => {
+                    const filtered = filterEvaluators(
+                      available.filter((e) => (needsBoth ? e.userId !== eval1 : true)),
+                      eval2Search,
+                    );
+                    return filtered.length > 0 ? (
+                      <div className="absolute z-20 w-full mt-1 overflow-y-auto bg-white border rounded-lg shadow-lg border-slate-200 max-h-48">
+                        {filtered.map((e) => (
+                          <button
+                            key={e.userId}
+                            type="button"
+                            onClick={() => {
+                              needsBoth ? setEval2(e.userId) : setEval1(e.userId);
+                              setEval2Search("");
+                              setEval2Open(false);
+                            }}
+                            className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 last:border-b-0 hover:bg-primary/5 transition-colors"
+                          >
+                            <div className="font-medium text-slate-900">{e.fullName}</div>
+                            <div className="text-xs text-slate-500">
+                              {e.email} · {e.activeAssignmentCount} đề tài đang thẩm định
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : eval2Search.trim() ? (
+                      <div className="absolute z-20 w-full p-3 mt-1 text-sm text-center bg-white border rounded-lg shadow-lg border-slate-200 text-slate-500">
+                        Không tìm thấy
+                      </div>
+                    ) : null;
+                  })()}
                 {(needsBoth ? selectedEval2 : selectedEval1) && (
-                  <p className="mt-1 text-xs text-slate-500">{(needsBoth ? selectedEval2 : selectedEval1)!.email} · {(needsBoth ? selectedEval2 : selectedEval1)!.activeAssignmentCount} đề tài đang thẩm định</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {(needsBoth ? selectedEval2 : selectedEval1)!.email} ·{" "}
+                    {(needsBoth ? selectedEval2 : selectedEval1)!.activeAssignmentCount} đề tài đang thẩm định
+                  </p>
                 )}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
               >
                 {submitting ? (
                   <>
@@ -864,22 +930,22 @@ function FinalDecisionModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+        className="w-full max-w-lg bg-white shadow-2xl rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {success ? (
           <div className="p-8 text-center">
-            <div className="size-16 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-4xl text-green-500">check_circle</span>
+            <div className="flex items-center justify-center mx-auto mb-4 rounded-full size-16 bg-green-50">
+              <span className="text-4xl text-green-500 material-symbols-outlined">check_circle</span>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Quyết định đã được gửi!</h3>
+            <h3 className="mb-2 text-lg font-bold text-slate-900">Quyết định đã được gửi!</h3>
             <p className="text-sm text-slate-500">Thông báo sẽ được gửi đến tất cả các bên liên quan.</p>
           </div>
         ) : (
@@ -888,22 +954,24 @@ function FinalDecisionModal({
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Quyết định cuối cùng</h2>
-                <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
+                <button onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
                   <span className="material-symbols-outlined text-slate-400">close</span>
                 </button>
               </div>
-              <p className="text-sm text-slate-500 mt-1">{project.nameVi}</p>
+              <p className="mt-1 text-sm text-slate-500">{project.nameVi}</p>
             </div>
 
             {/* Evaluator results summary */}
             <div className="px-6 pt-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Kết quả thẩm định</p>
+              <p className="mb-2 text-xs font-semibold tracking-wider uppercase text-slate-500">Kết quả thẩm định</p>
               <div className="grid grid-cols-2 gap-3">
                 {project.evaluators.map((a) => (
-                  <div key={a.assignmentId} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div key={a.assignmentId} className="p-3 border rounded-lg bg-slate-50 border-slate-200">
                     <p className="text-sm font-medium text-slate-700">{a.evaluatorName}</p>
-                    <p className={`text-sm font-semibold ${resultColor(a.individualResult)}`}>{resultLabel(a.individualResult)}</p>
-                    {a.feedback && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{a.feedback}</p>}
+                    <p className={`text-sm font-semibold ${resultColor(a.individualResult)}`}>
+                      {resultLabel(a.individualResult)}
+                    </p>
+                    {a.feedback && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{a.feedback}</p>}
                   </div>
                 ))}
               </div>
@@ -912,11 +980,11 @@ function FinalDecisionModal({
             {/* Decision */}
             <div className="p-6 space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+                <div className="p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">{error}</div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Quyết định của bạn</label>
+                <label className="block mb-2 text-sm font-medium text-slate-700">Quyết định của bạn</label>
                 <div className="grid grid-cols-3 gap-2">
                   {decisions.map((d) => (
                     <button
@@ -948,17 +1016,17 @@ function FinalDecisionModal({
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting || result === null}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50"
               >
                 {submitting ? (
                   <>
@@ -985,7 +1053,7 @@ function FinalDecisionModal({
 function EmptyState({ message, icon }: { message: string; icon: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
-      <span className="material-symbols-outlined text-5xl text-slate-300">{icon}</span>
+      <span className="text-5xl material-symbols-outlined text-slate-300">{icon}</span>
       <p className="text-sm font-medium text-slate-400">{message}</p>
     </div>
   );
@@ -994,7 +1062,7 @@ function EmptyState({ message, icon }: { message: string; icon: string }) {
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
-      <span className="material-symbols-outlined text-4xl text-red-400">error</span>
+      <span className="text-4xl text-red-400 material-symbols-outlined">error</span>
       <p className="text-sm text-slate-500">{message}</p>
       <button onClick={onRetry} className="text-sm font-medium text-primary hover:underline">
         Thử lại
@@ -1007,13 +1075,13 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-3">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="p-4 rounded-lg border border-slate-100 animate-pulse">
+        <div key={i} className="p-4 border rounded-lg border-slate-100 animate-pulse">
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-4 w-20 bg-slate-200 rounded" />
-            <div className="h-5 w-24 bg-slate-200 rounded-full" />
+            <div className="w-20 h-4 rounded bg-slate-200" />
+            <div className="w-24 h-5 rounded-full bg-slate-200" />
           </div>
-          <div className="h-5 w-3/4 bg-slate-200 rounded mb-2" />
-          <div className="h-4 w-1/2 bg-slate-200 rounded" />
+          <div className="w-3/4 h-5 mb-2 rounded bg-slate-200" />
+          <div className="w-1/2 h-4 rounded bg-slate-200" />
         </div>
       ))}
     </div>

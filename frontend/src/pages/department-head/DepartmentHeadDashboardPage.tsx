@@ -5,11 +5,8 @@ import { Header } from "@/components/layout";
 import { SemesterTimeline } from "@/components/shared/SemesterTimeline";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import {
-  departmentHeadService,
-  type DepartmentHeadDashboardData,
-  type RecentActivity,
-} from "@/lib/departmentHeadService";
+import { departmentHeadService } from "@/lib/departmentHead/departmentHeadService";
+import type { DepartmentHeadDashboardData, RecentActivity } from "@/types/departmentHead/departmentHead.types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,22 +77,47 @@ export function DepartmentHeadDashboardPage() {
 
   const statCards = [
     { label: "Đề tài bộ môn", value: stats?.totalProjects ?? 0, icon: "topic", gradient: "from-blue-500 to-blue-600" },
-    { label: "Chờ phân công", value: stats?.pendingAssignment ?? 0, icon: "pending_actions", gradient: "from-amber-500 to-orange-500" },
-    { label: "Đang thẩm định", value: stats?.inEvaluation ?? 0, icon: "rate_review", gradient: "from-indigo-500 to-indigo-600" },
-    { label: "Cần quyết định", value: stats?.needsFinalDecision ?? 0, icon: "gavel", gradient: "from-rose-500 to-rose-600" },
-    { label: "Hoàn thành", value: stats?.completed ?? 0, icon: "check_circle", gradient: "from-emerald-500 to-emerald-600" },
+    {
+      label: "Chờ phân công",
+      value: stats?.pendingAssignment ?? 0,
+      icon: "pending_actions",
+      gradient: "from-amber-500 to-orange-500",
+    },
+    {
+      label: "Đang thẩm định",
+      value: stats?.inEvaluation ?? 0,
+      icon: "rate_review",
+      gradient: "from-indigo-500 to-indigo-600",
+    },
+    {
+      label: "Cần quyết định",
+      value: stats?.needsFinalDecision ?? 0,
+      icon: "gavel",
+      gradient: "from-rose-500 to-rose-600",
+    },
+    {
+      label: "Hoàn thành",
+      value: stats?.completed ?? 0,
+      icon: "check_circle",
+      gradient: "from-emerald-500 to-emerald-600",
+    },
   ];
 
   // Donut chart
-  const totalEval = (evalProgress?.approved ?? 0) + (evalProgress?.rejected ?? 0) + (evalProgress?.needsModification ?? 0) + (evalProgress?.pending ?? 0);
-  const segments = totalEval > 0
-    ? [
-        { label: "Đã duyệt", value: evalProgress?.approved ?? 0, color: "#10b981" },
-        { label: "Từ chối", value: evalProgress?.rejected ?? 0, color: "#f43f5e" },
-        { label: "Cần chỉnh sửa", value: evalProgress?.needsModification ?? 0, color: "#f59e0b" },
-        { label: "Đang chờ", value: evalProgress?.pending ?? 0, color: "#94a3b8" },
-      ]
-    : [];
+  const totalEval =
+    (evalProgress?.approved ?? 0) +
+    (evalProgress?.rejected ?? 0) +
+    (evalProgress?.needsModification ?? 0) +
+    (evalProgress?.pending ?? 0);
+  const segments =
+    totalEval > 0
+      ? [
+          { label: "Đã duyệt", value: evalProgress?.approved ?? 0, color: "#10b981" },
+          { label: "Từ chối", value: evalProgress?.rejected ?? 0, color: "#f43f5e" },
+          { label: "Cần chỉnh sửa", value: evalProgress?.needsModification ?? 0, color: "#f59e0b" },
+          { label: "Đang chờ", value: evalProgress?.pending ?? 0, color: "#94a3b8" },
+        ]
+      : [];
 
   const donutGradient = (() => {
     if (totalEval === 0) return "conic-gradient(#e2e8f0 0deg 360deg)";
@@ -118,19 +140,14 @@ export function DepartmentHeadDashboardPage() {
       />
 
       <div className="flex-1 overflow-y-auto">
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="px-8 py-6 space-y-6"
-        >
+        <motion.div variants={container} initial="hidden" animate="show" className="px-8 py-6 space-y-6">
           {/* Welcome */}
           <motion.div variants={item} className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-extrabold text-slate-900">
                 Xin chào, <span className="text-primary">{headName}</span>
               </h1>
-              <p className="text-slate-500 mt-1">
+              <p className="mt-1 text-slate-500">
                 {semester ? `Học kỳ ${semester.semesterName}` : "Quản lý và phân công thẩm định đề tài trong bộ môn"}
                 {stats ? ` · ${stats.totalMentors} giảng viên · ${stats.totalEvaluators} thẩm định viên` : ""}
               </p>
@@ -139,46 +156,49 @@ export function DepartmentHeadDashboardPage() {
 
           {/* Stats Cards */}
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="bg-white p-5 rounded-xl border border-slate-100 animate-pulse h-32">
-                  <div className="h-4 bg-slate-200 rounded w-20 mb-3" />
-                  <div className="h-8 bg-slate-200 rounded w-12" />
+                <div key={i} className="h-32 p-5 bg-white border rounded-xl border-slate-100 animate-pulse">
+                  <div className="w-20 h-4 mb-3 rounded bg-slate-200" />
+                  <div className="w-12 h-8 rounded bg-slate-200" />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
               {statCards.map((stat, idx) => (
                 <motion.div
                   key={stat.label}
                   variants={item}
                   whileHover={{ y: -2, boxShadow: "0 8px 25px -5px rgba(0,0,0,0.1)" }}
-                  className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex items-start justify-between h-32 relative overflow-hidden group cursor-pointer"
-                  onClick={() => idx > 0 ? navigate("/department-head/assign") : undefined}
+                  className="relative flex items-start justify-between h-32 p-5 overflow-hidden bg-white border shadow-sm cursor-pointer rounded-xl border-slate-100 group"
+                  onClick={() => (idx > 0 ? navigate("/department-head/assign") : undefined)}
                 >
                   <div className="z-10">
-                    <p className="text-slate-500 text-sm font-medium">{stat.label}</p>
-                    <h3 className="text-3xl font-bold text-slate-800 mt-2">{String(stat.value).padStart(2, "0")}</h3>
+                    <p className="text-sm font-medium text-slate-500">{stat.label}</p>
+                    <h3 className="mt-2 text-3xl font-bold text-slate-800">{String(stat.value).padStart(2, "0")}</h3>
                   </div>
                   <div className={`bg-gradient-to-br ${stat.gradient} text-white p-2.5 rounded-xl shadow-lg`}>
                     <span className="material-symbols-outlined text-[22px]">{stat.icon}</span>
                   </div>
-                  <div className="absolute -right-6 -bottom-6 bg-gradient-to-br from-blue-50 to-transparent size-28 rounded-full opacity-40 group-hover:scale-125 transition-transform duration-300" />
+                  <div className="absolute transition-transform duration-300 rounded-full -right-6 -bottom-6 bg-gradient-to-br from-blue-50 to-transparent size-28 opacity-40 group-hover:scale-125" />
                 </motion.div>
               ))}
             </div>
           )}
 
           {/* Semester Timeline + Quick Actions — same row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             {/* Semester Timeline */}
             {semester && semester.phases.length > 0 ? (
-              <motion.div variants={item} className="lg:col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+              <motion.div
+                variants={item}
+                className="p-6 bg-white border shadow-sm lg:col-span-2 rounded-xl border-slate-100"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-primary">timeline</span>
-                  <h3 className="text-slate-800 font-bold text-lg">Tiến trình học kỳ</h3>
-                  <span className="text-xs text-slate-400 ml-auto">{semester.semesterName}</span>
+                  <h3 className="text-lg font-bold text-slate-800">Tiến trình học kỳ</h3>
+                  <span className="ml-auto text-xs text-slate-400">{semester.semesterName}</span>
                 </div>
                 <SemesterTimeline phases={semester.phases} />
               </motion.div>
@@ -215,13 +235,17 @@ export function DepartmentHeadDashboardPage() {
                   key={card.title}
                   whileHover={{ y: -2, boxShadow: "0 8px 25px -5px rgba(0,0,0,0.1)" }}
                   onClick={() => navigate(card.path)}
-                  className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer group flex items-center gap-4 hover:border-primary/30 transition-all"
+                  className="flex items-center gap-4 p-4 transition-all bg-white border shadow-sm cursor-pointer rounded-xl border-slate-100 group hover:border-primary/30"
                 >
-                  <div className={`bg-gradient-to-br ${card.gradient} text-white p-2.5 rounded-xl shadow-md group-hover:scale-105 transition-transform`}>
+                  <div
+                    className={`bg-gradient-to-br ${card.gradient} text-white p-2.5 rounded-xl shadow-md group-hover:scale-105 transition-transform`}
+                  >
                     <span className="material-symbols-outlined text-[22px]">{card.icon}</span>
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 text-sm group-hover:text-primary transition-colors">{card.title}</p>
+                    <p className="text-sm font-bold transition-colors text-slate-800 group-hover:text-primary">
+                      {card.title}
+                    </p>
                     <p className="text-xs text-slate-500">{card.desc}</p>
                   </div>
                 </motion.div>
@@ -230,19 +254,16 @@ export function DepartmentHeadDashboardPage() {
           </div>
 
           {/* Middle row: Donut chart + Quick alerts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Donut */}
-            <motion.div variants={item} className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-              <h3 className="text-slate-800 font-bold text-lg mb-5 flex items-center gap-2">
+            <motion.div variants={item} className="p-6 bg-white border shadow-sm rounded-xl border-slate-100">
+              <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
                 <span className="material-symbols-outlined text-primary">pie_chart</span>
                 Tổng quan thẩm định
               </h3>
               <div className="flex items-center gap-6">
-                <div
-                  className="size-36 rounded-full relative shrink-0"
-                  style={{ background: donutGradient }}
-                >
-                  <div className="absolute inset-3 bg-white rounded-full flex flex-col items-center justify-center">
+                <div className="relative rounded-full size-36 shrink-0" style={{ background: donutGradient }}>
+                  <div className="absolute flex flex-col items-center justify-center bg-white rounded-full inset-3">
                     <span className="text-2xl font-bold text-slate-800">{totalEval}</span>
                     <span className="text-[10px] text-slate-500">đề tài</span>
                   </div>
@@ -250,8 +271,8 @@ export function DepartmentHeadDashboardPage() {
                 <div className="space-y-2.5 flex-1">
                   {segments.map((s) => (
                     <div key={s.label} className="flex items-center gap-2 text-sm">
-                      <div className="size-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                      <span className="text-slate-600 flex-1">{s.label}</span>
+                      <div className="rounded-full size-3 shrink-0" style={{ backgroundColor: s.color }} />
+                      <span className="flex-1 text-slate-600">{s.label}</span>
                       <span className="font-bold text-slate-800">{s.value}</span>
                     </div>
                   ))}
@@ -260,15 +281,15 @@ export function DepartmentHeadDashboardPage() {
             </motion.div>
 
             {/* Quick alerts */}
-            <motion.div variants={item} className="lg:col-span-2 space-y-4">
-              <h3 className="text-slate-800 font-bold text-lg flex items-center gap-2">
+            <motion.div variants={item} className="space-y-4 lg:col-span-2">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
                 <span className="material-symbols-outlined text-primary">notifications_active</span>
                 Cần xử lý
               </h3>
 
               {(stats?.needsFinalDecision ?? 0) > 0 && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4">
-                  <div className="size-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-4 p-4 border bg-amber-50 border-amber-200 rounded-xl">
+                  <div className="flex items-center justify-center size-10 bg-amber-100 rounded-xl shrink-0">
                     <span className="material-symbols-outlined text-amber-600">warning</span>
                   </div>
                   <div className="flex-1">
@@ -288,9 +309,9 @@ export function DepartmentHeadDashboardPage() {
               )}
 
               {(stats?.pendingAssignment ?? 0) > 0 && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-4">
-                  <div className="size-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-blue-600">assignment_ind</span>
+                <div className="flex items-center gap-4 p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                  <div className="flex items-center justify-center bg-blue-100 size-10 rounded-xl shrink-0">
+                    <span className="text-blue-600 material-symbols-outlined">assignment_ind</span>
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-blue-800">
@@ -309,8 +330,8 @@ export function DepartmentHeadDashboardPage() {
               )}
 
               {(stats?.needsFinalDecision ?? 0) === 0 && (stats?.pendingAssignment ?? 0) === 0 && !loading && (
-                <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4">
-                  <div className="size-10 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-4 p-6 border bg-emerald-50 border-emerald-200 rounded-xl">
+                  <div className="flex items-center justify-center size-10 bg-emerald-100 rounded-xl shrink-0">
                     <span className="material-symbols-outlined text-emerald-600">check_circle</span>
                   </div>
                   <div>
@@ -323,15 +344,15 @@ export function DepartmentHeadDashboardPage() {
           </div>
 
           {/* Recent Activities */}
-          <motion.div variants={item} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-slate-800 font-bold text-lg flex items-center gap-2">
+          <motion.div variants={item} className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
                 <span className="material-symbols-outlined text-primary">history</span>
                 Hoạt động gần đây
               </h3>
               <button
                 onClick={() => navigate("/department-head/assign")}
-                className="text-primary text-sm font-medium hover:underline flex items-center gap-1"
+                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               >
                 Xem tất cả <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
               </button>
@@ -342,10 +363,10 @@ export function DepartmentHeadDashboardPage() {
                   <div key={i} className="flex items-center gap-4 animate-pulse">
                     <div className="size-10 bg-slate-200 rounded-xl" />
                     <div className="flex-1">
-                      <div className="h-4 bg-slate-200 rounded w-60 mb-2" />
-                      <div className="h-3 bg-slate-200 rounded w-32" />
+                      <div className="h-4 mb-2 rounded bg-slate-200 w-60" />
+                      <div className="w-32 h-3 rounded bg-slate-200" />
                     </div>
-                    <div className="h-4 bg-slate-200 rounded w-20" />
+                    <div className="w-20 h-4 rounded bg-slate-200" />
                   </div>
                 ))}
               </div>
@@ -354,13 +375,15 @@ export function DepartmentHeadDashboardPage() {
                 {data.recentActivities.map((act, idx) => {
                   const ai = activityIcon(act.activityType);
                   return (
-                    <div key={idx} className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
+                    <div key={idx} className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-slate-50/50">
                       <div className={`size-10 ${ai.bg} rounded-xl flex items-center justify-center shrink-0`}>
                         <span className={`material-symbols-outlined text-[20px] ${ai.color}`}>{ai.icon}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{activityLabel(act)}</p>
-                        <p className="text-xs text-slate-500 truncate">{act.projectCode} · {act.projectName}</p>
+                        <p className="text-sm font-medium truncate text-slate-800">{activityLabel(act)}</p>
+                        <p className="text-xs truncate text-slate-500">
+                          {act.projectCode} · {act.projectName}
+                        </p>
                       </div>
                       <span className="text-xs text-slate-400 shrink-0">{relativeTime(act.occurredAt)}</span>
                     </div>
@@ -370,11 +393,10 @@ export function DepartmentHeadDashboardPage() {
             ) : (
               <div className="py-12 text-center">
                 <span className="material-symbols-outlined text-slate-300 text-[48px]">inbox</span>
-                <p className="text-slate-500 mt-2">Chưa có hoạt động nào</p>
+                <p className="mt-2 text-slate-500">Chưa có hoạt động nào</p>
               </div>
             )}
           </motion.div>
-
         </motion.div>
       </div>
     </div>

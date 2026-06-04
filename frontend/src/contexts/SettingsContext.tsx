@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
-import { settingsService } from "@/lib/settingsService";
+import { settingsService } from "@/lib";
 import { useMaintenance } from "./MaintenanceContext";
 
 interface BrandingValue {

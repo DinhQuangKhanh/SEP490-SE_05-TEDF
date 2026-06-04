@@ -3,7 +3,8 @@ import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
 import { SemesterTimeline } from '@/components/shared/SemesterTimeline'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { dashboardService, type AdminDashboardData, type RecentTicket } from '@/lib/dashboardService'
+import { dashboardService } from "@/lib";
+import type { AdminDashboardData, RecentTicket } from "@/types";
 
 const container = {
     hidden: { opacity: 0 },

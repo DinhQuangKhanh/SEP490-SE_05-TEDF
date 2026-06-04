@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { NotificationDropdown } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { studentGroupService, type MentorGroupDto } from "@/lib/studentGroupService";
+import { studentGroupService } from "@/lib/group/studentGroupService";
+import type { MentorGroupDto } from "@/types";
 
 const container = {
   hidden: { opacity: 0 },
@@ -122,7 +123,7 @@ export function MentorGroupsPage() {
                     {!group.projectName && <p className="h-10 mb-4 text-sm italic text-slate-400">Chưa có đề tài</p>}
                     <div className="flex items-center justify-between">
                       <div className="flex -space-x-2 overflow-hidden">
-                        {group.members.slice(0, 3).map((member, i) => (
+                        {group.members.slice(0, 3).map((member) => (
                           <div
                             key={member.studentId}
                             className="flex items-center justify-center inline-block text-xs font-bold rounded-full size-8 ring-2 ring-white bg-slate-200 text-slate-500"

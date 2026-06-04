@@ -2,46 +2,9 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiClient } from "@/lib/apiClient";
+import { evaluatorService } from "@/lib";
+import type { EvaluatorDashboardResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-
-// ── DTOs ─────────────────────────────────────────────────────────────────────
-
-interface EvaluatorStatsDto {
-  totalAssigned: number;
-  pendingCount: number;
-  approvedCount: number;
-  rejectedCount: number;
-  needsModificationCount: number;
-  reviewedCount: number;
-  avgReviewDays: number | null;
-}
-
-interface PendingEvaluationDto {
-  assignmentId: string;
-  projectId: string;
-  projectCode: string;
-  projectNameVi: string;
-  majorName: string;
-  studentName: string;
-  studentAvatar: string | null;
-  assignedAt: string;
-  daysElapsed: number;
-  isUrgent: boolean;
-}
-
-interface RecentReviewedDto {
-  projectId: string;
-  projectNameVi: string;
-  result: string;
-  evaluatedAt: string;
-}
-
-interface EvaluatorDashboardDto {
-  stats: EvaluatorStatsDto;
-  pendingEvaluations: PendingEvaluationDto[];
-  recentReviewed: RecentReviewedDto[];
-}
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
@@ -119,7 +82,9 @@ function DashboardSkeleton() {
       </div>
       {/* Stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => <SkeletonBlock key={i} className="h-28" />)}
+        {[...Array(4)].map((_, i) => (
+          <SkeletonBlock key={i} className="h-28" />
+        ))}
       </div>
       {/* Row 2 */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -141,13 +106,13 @@ export function EvaluatorDashboardPage() {
   const { user } = useAuth();
   const { showError } = useSystemError();
   const navigate = useNavigate();
-  const [data, setData] = useState<EvaluatorDashboardDto | null>(null);
+  const [data, setData] = useState<EvaluatorDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    apiClient
-      .get<EvaluatorDashboardDto>("/api/evaluator/dashboard")
+    evaluatorService
+      .getDashboard()
       .then(setData)
       .catch((err) => showError(err.message))
       .finally(() => setLoading(false));
@@ -174,8 +139,18 @@ export function EvaluatorDashboardPage() {
   // Result distribution (within reviewed only)
   const reviewedTotal = approvedCount + needsModCount + rejectedCount || 1;
   const resultBars = [
-    { key: "Approved", label: "Đã duyệt", count: approvedCount, pct: Math.round((approvedCount / reviewedTotal) * 100) },
-    { key: "NeedsModification", label: "Cần chỉnh sửa", count: needsModCount, pct: Math.round((needsModCount / reviewedTotal) * 100) },
+    {
+      key: "Approved",
+      label: "Đã duyệt",
+      count: approvedCount,
+      pct: Math.round((approvedCount / reviewedTotal) * 100),
+    },
+    {
+      key: "NeedsModification",
+      label: "Cần chỉnh sửa",
+      count: needsModCount,
+      pct: Math.round((needsModCount / reviewedTotal) * 100),
+    },
     { key: "Rejected", label: "Từ chối", count: rejectedCount, pct: Math.round((rejectedCount / reviewedTotal) * 100) },
   ];
 
@@ -188,13 +163,9 @@ export function EvaluatorDashboardPage() {
         className="flex flex-col md:flex-row md:items-end justify-between gap-4"
       >
         <div>
-          <h2 className="text-slate-900 text-2xl font-bold tracking-tight">
-            Xin chào, {user?.name ?? "Giảng viên"}
-          </h2>
+          <h2 className="text-slate-900 text-2xl font-bold tracking-tight">Xin chào, {user?.name ?? "Giảng viên"}</h2>
           <p className="text-slate-500 text-sm mt-0.5">
-            Bạn có{" "}
-            <span className="text-primary font-bold">{pendingCount} đề tài</span>{" "}
-            đang chờ thẩm định
+            Bạn có <span className="text-primary font-bold">{pendingCount} đề tài</span> đang chờ thẩm định
             {urgentItems.length > 0 && (
               <span className="ml-1.5 inline-flex items-center gap-1 text-red-600 font-bold">
                 <span className="size-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
@@ -205,9 +176,7 @@ export function EvaluatorDashboardPage() {
         </div>
         <button
           onClick={() =>
-            firstPending
-              ? navigate(`/evaluator/review/${firstPending.projectId}`)
-              : navigate("/evaluator/projects")
+            firstPending ? navigate(`/evaluator/review/${firstPending.projectId}`) : navigate("/evaluator/projects")
           }
           className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
         >
@@ -224,7 +193,10 @@ export function EvaluatorDashboardPage() {
         className="grid grid-cols-2 xl:grid-cols-4 gap-4"
       >
         {/* Card 1 — Tổng giao */}
-        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng giao</span>
             <div className="p-1.5 rounded-lg bg-primary/10">
@@ -239,7 +211,10 @@ export function EvaluatorDashboardPage() {
         </motion.div>
 
         {/* Card 2 — Đang chờ */}
-        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đang chờ</span>
             <div className="p-1.5 rounded-lg bg-amber-50">
@@ -261,7 +236,10 @@ export function EvaluatorDashboardPage() {
         </motion.div>
 
         {/* Card 3 — Đã thẩm định */}
-        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đã thẩm định</span>
             <div className="p-1.5 rounded-lg bg-green-50">
@@ -281,7 +259,10 @@ export function EvaluatorDashboardPage() {
         </motion.div>
 
         {/* Card 4 — Thời gian TB */}
-        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Thời gian TB</span>
             <div className="p-1.5 rounded-lg bg-slate-100">
@@ -289,9 +270,7 @@ export function EvaluatorDashboardPage() {
             </div>
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-slate-900 leading-none">
-              {avgDays != null ? avgDays : "—"}
-            </span>
+            <span className="text-3xl font-bold text-slate-900 leading-none">{avgDays != null ? avgDays : "—"}</span>
             {avgDays != null && <span className="text-xs text-slate-400 font-medium mb-0.5">ngày</span>}
           </div>
           {avgDays != null ? (
@@ -323,9 +302,7 @@ export function EvaluatorDashboardPage() {
               </div>
               <h3 className="text-slate-900 text-base font-bold">Cần xử lý ngay</h3>
               {pendingCount > 0 && (
-                <span className="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-full">
-                  {pendingCount}
-                </span>
+                <span className="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-full">{pendingCount}</span>
               )}
             </div>
             <div className="flex items-center gap-3">
@@ -358,11 +335,21 @@ export function EvaluatorDashboardPage() {
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-100">
                     <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Đề tài</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Sinh viên</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Chuyên ngành</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Ngày giao</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Thao tác</th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
+                      Sinh viên
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">
+                      Chuyên ngành
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">
+                      Ngày giao
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Trạng thái
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">
+                      Thao tác
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -374,7 +361,9 @@ export function EvaluatorDashboardPage() {
                     >
                       <td className="px-6 py-3.5">
                         <div className="flex flex-col">
-                          <span className="text-slate-900 font-semibold text-sm line-clamp-1">{project.projectNameVi}</span>
+                          <span className="text-slate-900 font-semibold text-sm line-clamp-1">
+                            {project.projectNameVi}
+                          </span>
                           <span className="text-[11px] font-mono text-slate-400 mt-0.5">{project.projectCode}</span>
                         </div>
                       </td>
@@ -413,7 +402,9 @@ export function EvaluatorDashboardPage() {
                               Đang chờ
                             </span>
                           )}
-                          <span className={`text-[11px] font-medium ${project.daysElapsed > 5 ? "text-red-500" : "text-slate-400"}`}>
+                          <span
+                            className={`text-[11px] font-medium ${project.daysElapsed > 5 ? "text-red-500" : "text-slate-400"}`}
+                          >
                             {project.daysElapsed === 0 ? "Hôm nay" : `${project.daysElapsed} ngày`}
                           </span>
                         </div>
@@ -458,12 +449,17 @@ export function EvaluatorDashboardPage() {
                 <svg className="size-full -rotate-90" viewBox="0 0 36 36">
                   <path
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none" stroke="#f1f5f9" strokeWidth="3.5"
+                    fill="none"
+                    stroke="#f1f5f9"
+                    strokeWidth="3.5"
                   />
                   <path
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none" stroke="var(--color-primary, #5564a0)" strokeWidth="3.5"
-                    strokeDasharray={`${reviewedPct}, 100`} strokeLinecap="round"
+                    fill="none"
+                    stroke="var(--color-primary, #5564a0)"
+                    strokeWidth="3.5"
+                    strokeDasharray={`${reviewedPct}, 100`}
+                    strokeLinecap="round"
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
@@ -490,13 +486,15 @@ export function EvaluatorDashboardPage() {
                 </div>
                 <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-[11px] text-slate-400">Thời gian TB</span>
-                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
-                    avgDays != null && avgDays <= 7
-                      ? "text-green-700 bg-green-50"
-                      : avgDays != null
-                      ? "text-amber-700 bg-amber-50"
-                      : "text-slate-500 bg-gray-100"
-                  }`}>
+                  <span
+                    className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                      avgDays != null && avgDays <= 7
+                        ? "text-green-700 bg-green-50"
+                        : avgDays != null
+                          ? "text-amber-700 bg-amber-50"
+                          : "text-slate-500 bg-gray-100"
+                    }`}
+                  >
                     {avgDays != null ? `${avgDays} ngày` : "—"}
                   </span>
                 </div>
@@ -611,9 +609,7 @@ export function EvaluatorDashboardPage() {
           <div className="divide-y divide-gray-100">
             <button
               onClick={() =>
-                firstPending
-                  ? navigate(`/evaluator/review/${firstPending.projectId}`)
-                  : navigate("/evaluator/projects")
+                firstPending ? navigate(`/evaluator/review/${firstPending.projectId}`) : navigate("/evaluator/projects")
               }
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-primary/5 group transition-colors text-left"
             >

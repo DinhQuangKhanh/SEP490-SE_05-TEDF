@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { semesterService } from "@/lib/semesterService";
-import { validatePhases, findCurrentSemester } from "@/lib/semesterValidation";
-import { SemesterDto } from "@/types/admin.types";
+import { semesterService } from "@/lib/semester/semesterService";
+import { majorService } from "@/lib";
+import { validatePhases, findCurrentSemester } from "@/lib/semester/semesterValidation";
+import { SemesterDto } from "@/types";
 
 interface CreateSemesterModalProps {
   isOpen: boolean;
@@ -59,7 +60,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
   const [majors, setMajors] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
-    semesterService
+    majorService
       .getMajors()
       .then((res) => setMajors(res))
       .catch((err) => console.error("Could not fetch majors", err));

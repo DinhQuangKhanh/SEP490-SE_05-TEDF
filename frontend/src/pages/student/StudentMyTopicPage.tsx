@@ -2,14 +2,15 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
-import { apiClient } from "@/lib/apiClient";
-import { studentGroupService, type StudentGroupDto } from "@/lib/studentGroupService";
-import { topicPoolService, type TopicDetail, type TopicDocument } from "@/lib/topicPoolService";
-import { directTopicService } from "@/lib/directTopicService";
+import { notificationService } from "@/lib";
+import { studentGroupService } from "@/lib/group/studentGroupService";
+import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import { proposedTopicService } from "@/lib/directTopic/proposedTopicService";
+import type { StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { CreateDirectTopicForm } from "@/components/student/CreateDirectTopicForm";
-import { EditDirectTopicForm } from "@/components/student/EditDirectTopicForm";
+import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
+import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
 
 const container = {
   hidden: { opacity: 0 },
@@ -260,9 +261,7 @@ export function StudentMyTopicPage() {
         try {
           const [docs, notifs] = await Promise.all([
             topicPoolService.getTopicDocuments(projectId),
-            apiClient.get<{
-              items: Array<{ type: string; content: string; category: string; isRead: boolean; createdAt: string }>;
-            }>("/api/notifications?limit=5"),
+            notificationService.getNotifications(5),
           ]);
           setDocuments(docs);
 
@@ -334,7 +333,7 @@ export function StudentMyTopicPage() {
           /* Has group but no project */
           showCreateForm ? (
             <div className="max-w-3xl mx-auto">
-              <CreateDirectTopicForm
+              <CreateProposedTopicForm
                 groupId={myGroup.groupId}
                 onCreated={() => {
                   setShowCreateForm(false);
@@ -425,7 +424,7 @@ export function StudentMyTopicPage() {
                                 if (!myGroup.projectId) return;
                                 setSubmittingToMentor(true);
                                 try {
-                                  await directTopicService.submitToMentor(myGroup.groupId, myGroup.projectId);
+                                  await proposedTopicService.submitToMentor(myGroup.groupId, myGroup.projectId);
                                   // Reload group data
                                   const group = await studentGroupService.getMyGroup();
                                   setMyGroup(group);
@@ -799,7 +798,7 @@ export function StudentMyTopicPage() {
       {showEditForm && myGroup?.projectId && topicDetail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <EditDirectTopicForm
+            <EditProposedTopicForm
               projectId={myGroup.projectId}
               initialData={{
                 nameVi: topicDetail.nameVi,

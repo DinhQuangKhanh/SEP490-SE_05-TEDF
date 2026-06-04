@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import {
-  activityLogService,
-  type GroupedActivityLogItem,
-  type GroupedActivityLogResponse,
-  type ErrorDetailItem,
-  type SeveritySummary,
-  type ErrorLogDetail,
-} from "@/lib/activityLogService";
+import { activityLogService } from "@/lib/admin/activityLogService";
+import type {
+  ErrorDetailItem,
+  ErrorLogDetail,
+  GroupedActivityLogItem,
+  GroupedActivityLogResponse,
+  SeveritySummary,
+} from "@/types";
 
 const container = {
   hidden: { opacity: 0 },
@@ -30,19 +30,24 @@ const roleTabs = [
   { key: "student", label: "Sinh viên", icon: "person" },
 ];
 
-const severityOptions = [
-  { key: "", label: "Tất cả" },
-  { key: "info", label: "Info" },
-  { key: "warning", label: "Warning" },
-  { key: "error", label: "Error" },
-  { key: "critical", label: "Critical" },
-];
 
 const severityConfig: Record<string, { bg: string; text: string; border: string; icon: string; cardBg: string }> = {
   info: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "info", cardBg: "bg-blue-50/80" },
-  warning: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", icon: "warning", cardBg: "bg-amber-50/80" },
+  warning: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200",
+    icon: "warning",
+    cardBg: "bg-amber-50/80",
+  },
   error: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", icon: "error", cardBg: "bg-red-50/80" },
-  critical: { bg: "bg-red-100", text: "text-red-900", border: "border-red-300", icon: "emergency", cardBg: "bg-red-100/80" },
+  critical: {
+    bg: "bg-red-100",
+    text: "text-red-900",
+    border: "border-red-300",
+    icon: "emergency",
+    cardBg: "bg-red-100/80",
+  },
 };
 
 const roleColors: Record<string, string> = {
@@ -96,11 +101,7 @@ export function ActivityLogsPage() {
           page,
           pageSize: PAGE_SIZE,
         }),
-        activityLogService.getSeveritySummary(
-          activeRole || undefined,
-          fromDate || undefined,
-          toDate || undefined,
-        ),
+        activityLogService.getSeveritySummary(activeRole || undefined, fromDate || undefined, toDate || undefined),
       ]);
       setData(result);
       setSeveritySummary(summary);
@@ -284,7 +285,11 @@ export function ActivityLogsPage() {
                     </tr>
                   ) : data && data.items.length > 0 ? (
                     data.items.map((log, idx) => (
-                      <GroupedLogRow key={`${log.userId}-${log.action}-${idx}`} log={log} onClick={() => setSelectedLog(log)} />
+                      <GroupedLogRow
+                        key={`${log.userId}-${log.action}-${idx}`}
+                        log={log}
+                        onClick={() => setSelectedLog(log)}
+                      />
                     ))
                   ) : (
                     <tr>
@@ -304,11 +309,10 @@ export function ActivityLogsPage() {
             {data && data.totalPages > 1 && (
               <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-white shrink-0">
                 <span className="text-sm text-slate-500 hidden sm:inline">
-                  Trang{" "}
-                  <span className="font-medium text-slate-900">{page}</span>
+                  Trang <span className="font-medium text-slate-900">{page}</span>
                   {" / "}
-                  <span className="font-medium text-slate-900">{totalPages}</span>
-                  {" "}({data.totalGroups.toLocaleString()} nhóm)
+                  <span className="font-medium text-slate-900">{totalPages}</span> ({data.totalGroups.toLocaleString()}{" "}
+                  nhóm)
                 </span>
                 <div className="flex gap-1 w-full sm:w-auto justify-center sm:justify-end">
                   <button
@@ -479,9 +483,7 @@ function GroupedLogRow({ log, onClick }: { log: GroupedActivityLogItem; onClick:
         </span>
       </td>
       {/* Latest Timestamp */}
-      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
-        {formatTimestamp(log.latestTimestamp)}
-      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{formatTimestamp(log.latestTimestamp)}</td>
     </motion.tr>
   );
 }
@@ -490,7 +492,9 @@ function MiniSeverityBadge({ severity, count }: { severity: string; count: numbe
   const cfg = severityConfig[severity];
   if (!cfg) return null;
   return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} ${cfg.border} border`}>
+    <span
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} ${cfg.border} border`}
+    >
       <span className="material-symbols-outlined text-[12px]">{cfg.icon}</span>
       {count}
     </span>
@@ -503,7 +507,6 @@ function DetailModal({
   loadingErrors,
   errorLogDetail,
   loadingErrorLog,
-  onViewErrorLog,
   onCloseErrorLog,
   onClose,
 }: {
@@ -561,7 +564,9 @@ function DetailModal({
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-500">Tổng số lần:</span>
             <span className="font-bold text-slate-800 text-lg">{log.totalCount}</span>
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColors[log.activeRole] ?? roleColors.student}`}>
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize ${roleColors[log.activeRole] ?? roleColors.student}`}
+            >
               {log.activeRole}
             </span>
           </div>
@@ -644,9 +649,7 @@ function DetailModal({
           )}
 
           {/* Error Log Detail Panel */}
-          {errorLogDetail && (
-            <ErrorLogDetailPanel detail={errorLogDetail} onClose={onCloseErrorLog} />
-          )}
+          {errorLogDetail && <ErrorLogDetailPanel detail={errorLogDetail} onClose={onCloseErrorLog} />}
           {loadingErrorLog && !errorLogDetail && (
             <div className="flex items-center justify-center py-6 text-slate-400">
               <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>
@@ -682,7 +685,9 @@ function ErrorLogDetailPanel({ detail, onClose }: { detail: ErrorLogDetail; onCl
           </div>
           <div>
             <span className="text-slate-500">Severity:</span>
-            <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${severityConfig[detail.severity]?.bg ?? ""} ${severityConfig[detail.severity]?.text ?? ""}`}>
+            <span
+              className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${severityConfig[detail.severity]?.bg ?? ""} ${severityConfig[detail.severity]?.text ?? ""}`}
+            >
               {detail.severity}
             </span>
           </div>
@@ -726,7 +731,9 @@ function ErrorLogDetailPanel({ detail, onClose }: { detail: ErrorLogDetail; onCl
         {/* Inner exceptions */}
         {detail.innerExceptions.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-600 mb-1">Inner Exceptions ({detail.innerExceptions.length}):</p>
+            <p className="text-xs font-semibold text-slate-600 mb-1">
+              Inner Exceptions ({detail.innerExceptions.length}):
+            </p>
             <div className="space-y-2">
               {detail.innerExceptions.map((ie, i) => (
                 <div key={i} className="bg-white border border-slate-200 rounded p-3">

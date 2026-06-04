@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/apiClient";
+import { topicPoolService } from "@/lib/topicPool/topicPoolService";
+import type { TopicDetail, TopicInPoolItem, TopicPoolDto, TopicPoolStatisticsDto } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationDropdown } from "@/components/layout";
 import {
@@ -11,84 +12,7 @@ import {
   MAX_ATTACHMENTS,
   MAX_FILE_SIZE_BYTES,
   MAX_TOTAL_SIZE_BYTES,
-} from "@/lib/fileUploadUtils";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface TopicPoolDto {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  majorId: number;
-  statusName: string;
-  maxActiveTopicsPerMentor: number;
-  expirationSemesters: number;
-}
-
-interface TopicPoolStatisticsDto {
-  poolId: string;
-  poolCode: string;
-  poolName: string;
-  totalMentors: number;
-  totalTopicsCount: number;
-  activeTopicsCount: number;
-  registeredTopicsCount: number;
-  expiredTopicsCount: number;
-}
-
-interface TopicInPoolItemDto {
-  id: string;
-  code: string;
-  nameVi: string;
-  nameEn: string;
-  description: string | null;
-  technologies: string | null;
-  majorId: number;
-  majorName: string;
-  majorCode: string;
-  poolStatus: number;
-  poolStatusName: string;
-  maxStudents: number;
-  mentorName: string;
-  mentorId: string;
-  createdAt: string;
-}
-
-interface GetTopicsInPoolResult {
-  items: TopicInPoolItemDto[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-interface MentorSummaryDto {
-  mentorId: string;
-  fullName: string;
-}
-
-interface TopicDetailDto {
-  id: string;
-  code: string;
-  nameVi: string;
-  nameEn: string;
-  nameAbbr: string;
-  description: string;
-  objectives: string;
-  scope: string | null;
-  technologies: string | null;
-  expectedResults: string | null;
-  majorId: number;
-  majorName: string;
-  majorCode: string;
-  poolStatus: number;
-  poolStatusName: string;
-  maxStudents: number;
-  mentors: MentorSummaryDto[];
-  createdAt: string;
-  updatedAt: string | null;
-}
+} from "@/lib/common/fileUploadUtils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -169,7 +93,7 @@ function ProposeTopicModal({ poolId, onClose, onSuccess }: ProposeTopicModalProp
       formData.append("maxStudents", form.maxStudents.toString());
       attachments.forEach((f) => formData.append("attachments", f));
 
-      await apiClient.postForm(`/api/topic-pools/${poolId}/propose`, formData);
+      await topicPoolService.proposeTopic(poolId, formData);
       onSuccess();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Đề xuất thất bại");
@@ -407,13 +331,13 @@ interface TopicDetailModalProps {
 }
 
 function TopicDetailModal({ topicId, onClose }: TopicDetailModalProps) {
-  const [detail, setDetail] = useState<TopicDetailDto | null>(null);
+  const [detail, setDetail] = useState<TopicDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiClient
-      .get<TopicDetailDto>(`/api/topics/${topicId}`)
+    topicPoolService
+      .getTopicDetail(topicId)
       .then(setDetail)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -560,7 +484,7 @@ export function TopicPoolDetailPage() {
 
   const [pool, setPool] = useState<TopicPoolDto | null>(null);
   const [stats, setStats] = useState<TopicPoolStatisticsDto | null>(null);
-  const [topics, setTopics] = useState<TopicInPoolItemDto[]>([]);
+  const [topics, setTopics] = useState<TopicInPoolItem[]>([]);
   const [topicsMeta, setTopicsMeta] = useState({ totalCount: 0, page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [topicsLoading, setTopicsLoading] = useState(false);
@@ -581,10 +505,7 @@ export function TopicPoolDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([
-      apiClient.get<TopicPoolDto>(`/api/topic-pools/${id}`),
-      apiClient.get<TopicPoolStatisticsDto>(`/api/topic-pools/${id}/statistics`),
-    ])
+    Promise.all([topicPoolService.getTopicPoolById(id), topicPoolService.getTopicPoolStatistics(id)])
       .then(([poolData, statsData]) => {
         setPool(poolData);
         setStats(statsData);
@@ -597,17 +518,15 @@ export function TopicPoolDetailPage() {
   useEffect(() => {
     if (!pool) return;
     setTopicsLoading(true);
-    const params = new URLSearchParams({
-      MajorId: pool.majorId.toString(),
-      Page: page.toString(),
-      PageSize: "10",
-      SortBy: sortBy,
-    });
-    if (search.trim()) params.set("Search", search.trim());
-    if (statusFilter) params.set("PoolStatus", statusFilter);
-
-    apiClient
-      .get<GetTopicsInPoolResult>(`/api/topics?${params}`)
+    topicPoolService
+      .getTopics({
+        majorId: pool.majorId,
+        page,
+        pageSize: 10,
+        sortBy,
+        search: search.trim() || undefined,
+        poolStatus: statusFilter ? Number(statusFilter) : undefined,
+      })
       .then((data) => {
         setTopics(data.items);
         setTopicsMeta({ totalCount: data.totalCount, page: data.page, totalPages: data.totalPages });

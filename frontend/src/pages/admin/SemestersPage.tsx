@@ -4,8 +4,8 @@ import { vi } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { CreateSemesterModal } from "@/components/admin/CreateSemesterModal";
 import { EditSemesterModal } from "@/components/admin/EditSemesterModal";
-import { semesterService } from "@/lib/semesterService";
-import { SemesterDto, SemesterPhaseDto } from "@/types/admin.types";
+import { semesterService } from "@/lib/semester/semesterService";
+import { SemesterDto, SemesterPhaseDto } from "@/types";
 
 // ---- Helpers ----
 function formatDate(iso: string) {

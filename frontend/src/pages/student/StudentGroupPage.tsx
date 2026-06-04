@@ -3,15 +3,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { SuccessModal } from "@/components/common/SuccessModal";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import {
-  studentGroupService,
-  StudentGroupDto,
-  OpenGroupDto,
+import { studentGroupService } from "@/lib/group/studentGroupService";
+import type {
+  AvailableStudentDto,
   InvitationDto,
   JoinRequestDto,
+  OpenGroupDto,
   PendingJoinRequestDto,
-  AvailableStudentDto,
-} from "@/lib/studentGroupService";
+  StudentGroupDto,
+} from "@/types";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -42,9 +42,7 @@ export function StudentGroupPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
-                activeTab === tab.key
-                  ? "text-primary"
-                  : "text-gray-500 hover:text-gray-700"
+                activeTab === tab.key ? "text-primary" : "text-gray-500 hover:text-gray-700"
               }`}
             >
               <span className={`material-symbols-outlined text-[18px] ${activeTab === tab.key ? "fill-1" : ""}`}>
@@ -125,9 +123,7 @@ function MyGroupContent() {
   const filteredStudents = useMemo(() => {
     const q = studentSearch.trim().toLowerCase();
     const list = q
-      ? invitableStudents.filter(
-          (s) => s.studentCode.toLowerCase().includes(q) || s.fullName.toLowerCase().includes(q),
-        )
+      ? invitableStudents.filter((s) => s.studentCode.toLowerCase().includes(q) || s.fullName.toLowerCase().includes(q))
       : invitableStudents;
     return list.slice(0, 50);
   }, [invitableStudents, studentSearch]);
@@ -535,9 +531,7 @@ function OpenGroupsContent() {
     if (!searchQuery.trim()) return openGroups;
     const q = searchQuery.toLowerCase().trim();
     return openGroups.filter(
-      (g) =>
-        (g.groupName || "").toLowerCase().includes(q) ||
-        g.groupCode.toLowerCase().includes(q),
+      (g) => (g.groupName || "").toLowerCase().includes(q) || g.groupCode.toLowerCase().includes(q),
     );
   }, [openGroups, searchQuery]);
 
@@ -622,11 +616,7 @@ function OpenGroupsContent() {
             </button>
           )}
         </div>
-        {searchQuery && (
-          <p className="text-sm text-gray-500 mt-2">
-            Tìm thấy {filteredGroups.length} nhóm
-          </p>
-        )}
+        {searchQuery && <p className="text-sm text-gray-500 mt-2">Tìm thấy {filteredGroups.length} nhóm</p>}
       </div>
 
       {filteredGroups.length === 0 ? (
@@ -714,9 +704,7 @@ function OpenGroupsContent() {
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`w-10 h-10 rounded-lg text-sm font-medium transition ${
-                    currentPage === page
-                      ? "bg-primary text-white"
-                      : "border border-gray-300 hover:bg-gray-50"
+                    currentPage === page ? "bg-primary text-white" : "border border-gray-300 hover:bg-gray-50"
                   }`}
                 >
                   {page}
@@ -736,11 +724,16 @@ function OpenGroupsContent() {
 
       {/* Group Detail Modal */}
       {showDetailModal && selectedGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowDetailModal(false)}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowDetailModal(false)}
+        >
           <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h3 className="text-xl font-bold text-gray-800">{selectedGroup.groupName || selectedGroup.groupCode}</h3>
+                <h3 className="text-xl font-bold text-gray-800">
+                  {selectedGroup.groupName || selectedGroup.groupCode}
+                </h3>
                 <p className="text-sm text-gray-500">Mã nhóm: {selectedGroup.groupCode}</p>
               </div>
               <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -937,7 +930,9 @@ function InvitationsContent() {
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <div className="text-5xl mb-4">
-            <span className="material-symbols-outlined text-gray-300" style={{ fontSize: 64 }}>mail</span>
+            <span className="material-symbols-outlined text-gray-300" style={{ fontSize: 64 }}>
+              mail
+            </span>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Không có lời mời nào</h2>
           <p className="text-gray-500">Bạn sẽ nhận được lời mời khi các nhóm khác mời bạn tham gia.</p>
@@ -1038,8 +1033,7 @@ function InvitationsContent() {
                           </h3>
                           <p className="text-sm text-gray-600">Mã nhóm: {invitation.groupCode}</p>
                           <p className="text-sm text-gray-500 mt-2">
-                            Từ: {invitation.inviterName} •{" "}
-                            {new Date(invitation.createdAt).toLocaleDateString("vi-VN")}
+                            Từ: {invitation.inviterName} • {new Date(invitation.createdAt).toLocaleDateString("vi-VN")}
                           </p>
                         </div>
                         <span

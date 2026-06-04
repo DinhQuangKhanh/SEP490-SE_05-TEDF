@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { apiClient } from "@/lib/apiClient";
+import { evaluatorService } from "@/lib";
+import type { EvaluatorHistoryResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 
 const container = {
@@ -13,32 +14,6 @@ const item = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0 },
 };
-
-interface EvaluatorHistoryStatsDto {
-  totalReviewed: number;
-  approvedCount: number;
-  needsModificationCount: number;
-  rejectedCount: number;
-}
-
-interface EvaluatorHistoryItemDto {
-  projectId: string;
-  projectCode: string;
-  projectNameVi: string;
-  studentName: string;
-  studentAvatar: string | null;
-  evaluatedAt: string;
-  result: string;
-  feedback: string | null;
-}
-
-interface EvaluatorHistoryDto {
-  stats: EvaluatorHistoryStatsDto;
-  items: EvaluatorHistoryItemDto[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-}
 
 const PAGE_SIZE = 10;
 
@@ -59,23 +34,22 @@ export function EvaluatorHistoryPage() {
   const [result, setResult] = useState("");
   const [page, setPage] = useState(1);
 
-  const [data, setData] = useState<EvaluatorHistoryDto | null>(null);
+  const [data, setData] = useState<EvaluatorHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const { showError } = useSystemError();
 
   useEffect(() => {
     const timeout = setTimeout(
       () => {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("pageSize", String(PAGE_SIZE));
-        if (search) params.set("search", search);
-        if (dateRange) params.set("dateRange", dateRange);
-        if (result) params.set("result", result);
-
         setLoading(true);
-        apiClient
-          .get<EvaluatorHistoryDto>(`/api/evaluator/history?${params}`)
+        evaluatorService
+          .getHistory({
+            page,
+            pageSize: PAGE_SIZE,
+            search: search || undefined,
+            dateRange: dateRange || undefined,
+            result: result || undefined,
+          })
           .then(setData)
           .catch((err) => showError(err.message))
           .finally(() => setLoading(false));
