@@ -6,6 +6,7 @@ using TEDF.Application.Features.Notifications.Queries.GetUserNotifications;
 using TEDF.Application.Features.Notifications.DTOs;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 using Microsoft.AspNetCore.Mvc;
+using TEDF.Domain.Enums.Notification;
 
 namespace TEDF.API.Endpoints.Notifications;
 
@@ -46,7 +47,7 @@ public sealed class NotificationsEndpoints : IEndpoint
     }
 
     private static async Task<IResult> GetUnreadCount(
-        [FromQuery] Domain.Enums.Notification.NotificationCategory? category,
+        [FromQuery] NotificationCategory? category,
         ISender sender,
         CancellationToken ct = default)
     {
