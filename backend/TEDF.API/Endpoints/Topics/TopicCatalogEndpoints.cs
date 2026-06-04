@@ -1,9 +1,14 @@
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using TEDF.Application.Common;
+using TEDF.Application.Features.Mentor.DTOs;
+using TEDF.Application.Features.Mentor.Queries.GetMentorTopics;
 using TEDF.Application.Features.Topics.DTOs;
 using TEDF.Application.Features.Topics.Queries.GetTopicsInPool;
 using TEDF.Application.Features.Topics.Queries.GetTopicDetail;
-using TEDF.Application.Features.Topics.Services;
+using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
+using TEDF.Application.Common.Interfaces;
 
 namespace TEDF.API.Endpoints.Topics;
 
@@ -27,6 +32,13 @@ public sealed class TopicCatalogEndpoints : IEndpoint
             .WithTags("Topics")
             .WithName("GetTopicDocuments")
             .Produces(200).Produces(401);
+
+        // Topics owned by the current mentor (moved from the Mentor role folder).
+        // Literal "mentor" never matches the {topicId:guid} route, so there is no conflict.
+        group.MapGet("/mentor", GetMentorTopics)
+            .RequireAuthorization(PolicyNames.RequireMentor)
+            .WithTags("Topics").WithName("GetMentorTopics")
+            .Produces<ApiResponse<GetMentorTopicsResult>>().Produces(401);
     }
 
     private static async Task<IResult> GetTopicsInPool(
@@ -42,6 +54,20 @@ public sealed class TopicCatalogEndpoints : IEndpoint
         var result = await sender.Send(
             new GetTopicsInPoolQuery(majorId, search, poolStatus, sortBy, page, pageSize), ct);
         return Ok(result);
+    }
+
+    private static async Task<IResult> GetMentorTopics(
+        [FromQuery] int? semesterId,
+        [FromQuery] string? search,
+        [FromQuery] int page,
+        [FromQuery] int pageSize,
+        ISender sender,
+        CancellationToken ct)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 50) pageSize = 50;
+        return Ok(await sender.Send(new GetMentorTopicsQuery(semesterId, search, page, pageSize), ct));
     }
 
     private static async Task<IResult> GetTopicDetail(ISender sender, Guid topicId, CancellationToken ct = default)

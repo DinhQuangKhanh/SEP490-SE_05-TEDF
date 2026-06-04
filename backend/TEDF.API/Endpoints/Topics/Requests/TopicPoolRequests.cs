@@ -16,3 +16,15 @@ public sealed class ProposeTopicRequest
 
 public sealed record TopicRegistrationRequest(Guid ProjectId, string? Note);
 public sealed record RejectTopicRegistrationRequest(string Reason);
+
+/// <summary>Mentor editing a pool topic (PUT /api/topic-pools/topics/{id}/update).</summary>
+public sealed record MentorUpdatePoolTopicRequest(
+    string NameVi,
+    string NameEn,
+    string NameAbbr,
+    string Description,
+    string Objectives,
+    string? Scope,
+    string? Technologies,
+    string? ExpectedResults,
+    int MaxStudents);

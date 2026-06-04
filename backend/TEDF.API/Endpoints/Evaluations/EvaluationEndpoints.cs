@@ -2,10 +2,12 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.API.Endpoints.Evaluations.Requests;
 using TEDF.Application.Common;
+using TEDF.Application.Features.Departments.Commands.AssignEvaluator;
+using TEDF.Application.Features.Departments.Commands.SubmitFinalDecision;
+using TEDF.Application.Features.Departments.Queries.GetDepartmentEvaluators;
 using TEDF.Application.Features.Evaluations.Commands.SubmitEvaluation;
 using TEDF.Application.Features.Evaluations.DTOs;
 using TEDF.Application.Features.Evaluations.Queries.CheckTitleSimilarity;
-using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorDashboard;
 using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorFilterOptions;
 using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorHistory;
 using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorProjects;
@@ -19,19 +21,23 @@ public sealed class EvaluationEndpoints : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        var evaluatorGroup = app.MapGroup("/api/evaluations").RequireAuthorization(PolicyNames.RequireEvaluator);
+        // Mixed audience: evaluator self-service + department-head evaluation management.
+        // Policy is applied per route rather than on the group. (Dashboard lives in Dashboard/.)
+        var group = app.MapGroup("/api/evaluations").RequireAuthorization();
 
-        evaluatorGroup.MapGet("/dashboard", GetEvaluatorDashboard).WithTags("Evaluations").WithName("GetEvaluatorDashboard").Produces<ApiResponse<EvaluatorDashboardDto>>().Produces(401);
-        evaluatorGroup.MapGet("/filter-options", GetEvaluatorFilterOptions).WithTags("Evaluations").WithName("GetEvaluatorFilterOptions").Produces<ApiResponse<EvaluatorFilterOptionsDto>>().Produces(401);
-        evaluatorGroup.MapGet("/history", GetEvaluatorHistory).WithTags("Evaluations").WithName("GetEvaluatorHistory").Produces<ApiResponse<EvaluatorHistoryDto>>().Produces(401);
-        evaluatorGroup.MapGet("/projects", GetEvaluatorProjects).WithTags("Evaluations").WithName("GetEvaluatorProjects").Produces<ApiResponse<EvaluatorProjectsDto>>().Produces(401);
-        evaluatorGroup.MapGet("/projects/{projectId:guid}/review", GetProjectForReview).WithTags("Evaluations").WithName("GetProjectForReview").Produces<ApiResponse<ProjectReviewDetailDto>>().Produces(401).Produces(404);
-        evaluatorGroup.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarTitleDto>>>().Produces(404);
-        evaluatorGroup.MapPost("/projects/{projectId:guid}/evaluate", SubmitEvaluation).WithTags("Evaluations").WithName("SubmitEvaluation").Produces<ApiResponse<string>>().Produces(400).Produces(401);
+        // ── Evaluator self-service ────────────────────────────────────────────
+        group.MapGet("/filter-options", GetEvaluatorFilterOptions).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorFilterOptions").Produces<ApiResponse<EvaluatorFilterOptionsDto>>().Produces(401);
+        group.MapGet("/history", GetEvaluatorHistory).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorHistory").Produces<ApiResponse<EvaluatorHistoryDto>>().Produces(401);
+        group.MapGet("/projects", GetEvaluatorProjects).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorProjects").Produces<ApiResponse<EvaluatorProjectsDto>>().Produces(401);
+        group.MapGet("/projects/{projectId:guid}/review", GetProjectForReview).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetProjectForReview").Produces<ApiResponse<ProjectReviewDetailDto>>().Produces(401).Produces(404);
+        group.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarTitleDto>>>().Produces(404);
+        group.MapPost("/projects/{projectId:guid}/evaluate", SubmitEvaluation).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("SubmitEvaluation").Produces<ApiResponse<string>>().Produces(400).Produces(401);
+
+        // ── Department-head evaluation management (moved from the DepartmentHead role folder) ──
+        group.MapGet("/evaluators", GetDepartmentEvaluators).RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment).WithTags("Evaluations").WithName("GetDepartmentEvaluators").Produces(200).Produces(401).Produces(403);
+        group.MapPost("/assign-evaluator", AssignEvaluator).RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment).WithTags("Evaluations").WithName("AssignEvaluator").Produces(204).Produces(400).Produces(401).Produces(403).Produces(404);
+        group.MapPost("/projects/{projectId:guid}/final-decision", SubmitFinalDecision).RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment).WithTags("Evaluations").WithName("SubmitFinalDecision").Produces(204).Produces(400).Produces(401).Produces(403);
     }
-
-    private static async Task<IResult> GetEvaluatorDashboard(ISender sender, CancellationToken ct)
-        => Ok(await sender.Send(new GetEvaluatorDashboardQuery(), ct));
 
     private static async Task<IResult> GetEvaluatorFilterOptions(ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetEvaluatorFilterOptionsQuery(), ct));
@@ -52,5 +58,20 @@ public sealed class EvaluationEndpoints : IEndpoint
     {
         await sender.Send(new SubmitEvaluationCommand(projectId, body.Result, body.Feedback), ct);
         return Ok("Thẩm định đã được gửi thành công.");
+    }
+
+    private static async Task<IResult> GetDepartmentEvaluators(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetDepartmentEvaluatorsQuery(), ct));
+
+    private static async Task<IResult> AssignEvaluator([FromBody] AssignEvaluatorRequest request, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new AssignEvaluatorCommand(request.ProjectId, request.EvaluatorId, request.EvaluatorOrder), ct);
+        return NoContent("Gán người thẩm định thành công.");
+    }
+
+    private static async Task<IResult> SubmitFinalDecision(Guid projectId, [FromBody] SubmitFinalDecisionRequest request, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new SubmitFinalDecisionCommand(projectId, request.Result, request.Notes), ct);
+        return NoContent("Quyết định cuối cùng đã được gửi thành công.");
     }
 }

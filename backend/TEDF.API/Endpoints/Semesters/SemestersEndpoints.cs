@@ -28,7 +28,7 @@ public sealed class SemestersEndpoints : IEndpoint
         adminGroup.MapDelete("/{id:int}", DeleteSemester).WithTags("Semesters").WithName("DeleteSemester").Produces(204).Produces(400).Produces(401).Produces(404);
         adminGroup.MapPost("/{id:int}/eligible-students/import", ImportEligibleStudents).DisableAntiforgery().WithTags("Semesters").WithName("ImportEligibleStudents").Produces(200).Produces(400).Produces(401);
 
-        app.MapGet("/api/semesters", GetSemestersPublic).RequireAuthorization().WithTags("Semesters").WithName("GetSemestersPublic").Produces(200).Produces(401);
+        app.MapGet("/api/semesters/public", GetSemestersPublic).RequireAuthorization().WithTags("Semesters").WithName("GetSemestersPublic").Produces(200).Produces(401);
     }
 
     private static async Task<IResult> GetAllSemesters([FromQuery] string? status, ISender sender, CancellationToken ct)

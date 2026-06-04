@@ -8,6 +8,7 @@ using TEDF.Application.Features.StudentGroups.Commands.RespondInvitation;
 using TEDF.Application.Features.StudentGroups.Commands.RespondJoinRequest;
 using TEDF.Application.Features.StudentGroups.Queries.GetGroupJoinRequests;
 using TEDF.Application.Features.StudentGroups.Queries.GetInvitableStudents;
+using TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
 using TEDF.Application.Features.StudentGroups.Queries.GetMyInvitations;
 using TEDF.Application.Features.StudentGroups.Queries.GetMyPendingJoinRequest;
 using TEDF.Application.Features.StudentGroups.Queries.GetOpenGroups;
@@ -38,6 +39,10 @@ public sealed class StudentGroupEndpoints : IEndpoint
         group.MapPut("/{groupId:guid}/invitations/{invitationId:int}/reject", RejectInvitation).WithTags("Groups").WithName("RejectInvitation").Produces(204).Produces(401);
         group.MapPut("/{groupId:guid}/join-requests/{requestId:int}/approve", ApproveJoinRequest).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("ApproveJoinRequest").Produces(204).Produces(401);
         group.MapPut("/{groupId:guid}/join-requests/{requestId:int}/reject", RejectJoinRequest).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("RejectJoinRequest").Produces(204).Produces(401);
+
+        group.MapGet("/mentor", GetMentorGroups).RequireAuthorization(PolicyNames.RequireMentor).WithTags("Groups").WithName("GetMentorGroups").Produces(200).Produces(401);
+
+
     }
 
     private static async Task<IResult> GetStudentGroup(ISender sender, CancellationToken ct)
@@ -99,4 +104,7 @@ public sealed class StudentGroupEndpoints : IEndpoint
         await sender.Send(new RespondJoinRequestCommand(groupId, requestId, Approve: false), ct);
         return NoContent("Từ chối yêu cầu tham gia thành công.");
     }
+
+    private static async Task<IResult> GetMentorGroups(int? semesterId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetMentorGroupsQuery(semesterId), ct));
 }

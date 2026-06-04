@@ -4,6 +4,8 @@ using TEDF.Application.Features.TopicPools.Commands.ConfirmRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
+using TEDF.Application.Features.Mentor.Commands.MentorResubmitPoolTopic;
+using TEDF.Application.Features.Mentor.Commands.MentorUpdatePoolTopic;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -68,6 +70,17 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .WithTags("TopicPools")
             .WithName("RejectTopicRegistration")
             .Produces(204).Produces(400).Produces(401).Produces(404);
+
+        // Mentor edits to a pool topic (moved from the Mentor role folder).
+        pool.MapPut("/topics/{projectId:guid}/update", MentorUpdatePoolTopic)
+            .RequireAuthorization(PolicyNames.MentorOfProject)
+            .WithTags("TopicPools").WithName("MentorUpdatePoolTopic")
+            .Produces(204).Produces(400).Produces(401).Produces(404);
+
+        pool.MapPut("/topics/{projectId:guid}/resubmit", MentorResubmitPoolTopic)
+            .RequireAuthorization(PolicyNames.MentorOfProject)
+            .WithTags("TopicPools").WithName("MentorResubmitPoolTopic")
+            .Produces(200).Produces(400).Produces(401).Produces(404);
     }
 
     private static async Task<IResult> GetTopicPools(ISender sender, int? majorId = null, CancellationToken ct = default)
@@ -125,5 +138,21 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     {
         await sender.Send(new RejectTopicRegistrationCommand(id, body.Reason), ct);
         return NoContent("Từ chối yêu cầu thành công.");
+    }
+
+    private static async Task<IResult> MentorUpdatePoolTopic(
+        Guid projectId, [FromBody] MentorUpdatePoolTopicRequest request, ISender sender, CancellationToken ct)
+    {
+        var command = new MentorUpdatePoolTopicCommand(
+            projectId, request.NameVi, request.NameEn, request.NameAbbr, request.Description,
+            request.Objectives, request.Scope, request.Technologies, request.ExpectedResults, request.MaxStudents);
+        await sender.Send(command, ct);
+        return NoContent("Cập nhật đề tài thành công.");
+    }
+
+    private static async Task<IResult> MentorResubmitPoolTopic(Guid projectId, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new MentorResubmitPoolTopicCommand(projectId), ct);
+        return Ok("Đã gửi đề tài đi thẩm định thành công.");
     }
 }
