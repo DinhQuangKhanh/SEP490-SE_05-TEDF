@@ -63,16 +63,32 @@ builder.Services.AddCors(options =>
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>()?
         .Where(origin => !string.IsNullOrWhiteSpace(origin))
-        .ToArray();
+        .Select(origin => origin.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray()!;
 
-    var allowedOrigins = (configuredOrigins is { Length: > 0 })
-        ? configuredOrigins
-        : new[] { "http://localhost:3000", "http://localhost:5173", "https://localhost:5173" };
+    var allowedOrigins = configuredOrigins;
 
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-            .AllowAnyMethod()
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins);
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            // Dev fallback: allow localhost/127.0.0.1 from any port to avoid silent CORS blocks
+            policy.SetIsOriginAllowed(origin =>
+            {
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                    return false;
+
+                return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                    || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+            });
+        }
+
+        policy.AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
     });
@@ -128,18 +144,18 @@ if (app.Environment.IsDevelopment())
 // Must be first: extract real client IP from X-Forwarded-For before any middleware reads it
 app.UseForwardedHeaders();
 
+// HTTPS Redirection
+app.UseHttpsRedirection();
+
 // Infrastructure middleware (Correlation ID, Request Logging, Exception Handling, Performance Monitoring)
 app.UseInfrastructure();
-
-// Apply request timeout and rate limit middleware before mapping endpoints.
-app.UseRequestTimeouts();
-app.UseRateLimiter();
 
 // CORS
 app.UseCors("AllowFrontend");
 
-// HTTPS Redirection
-app.UseHttpsRedirection();
+// Apply request timeout and rate limit middleware before mapping endpoints.
+app.UseRequestTimeouts();
+app.UseRateLimiter();
 
 // Authentication & Authorization
 app.UseAuthentication();
