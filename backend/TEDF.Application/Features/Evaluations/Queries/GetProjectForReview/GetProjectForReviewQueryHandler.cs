@@ -20,6 +20,7 @@ public class GetProjectForReviewQueryHandler : IQueryHandler<GetProjectForReview
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        return await _queryService.GetProjectForReviewAsync(request.ProjectId, _currentUser.UserId.Value, cancellationToken);
+        var projectsForReview = await _queryService.GetProjectForReviewAsync(request.ProjectId, _currentUser.UserId.Value, cancellationToken) ?? throw new UnauthorizedAccessException("Bạn không có quyền truy cập đề tài này hoặc đề tài không tồn tại.");
+        return projectsForReview;
     }
 }

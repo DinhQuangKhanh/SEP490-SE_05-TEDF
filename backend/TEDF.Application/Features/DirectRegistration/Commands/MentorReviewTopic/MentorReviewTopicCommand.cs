@@ -1,8 +1,8 @@
 using TEDF.Application.Common.Abstractions;
 
-namespace TEDF.Application.Features.DirectRegistration.Commands.MentorReviewTopic;
+namespace TEDF.Application.Features.DirectRegistration.Commands.MentorReviewProposedTopic;
 
-public record MentorReviewTopicCommand(
+public record MentorReviewProposedTopicCommand(
     Guid ProjectId,
     string Action,
     string? Feedback

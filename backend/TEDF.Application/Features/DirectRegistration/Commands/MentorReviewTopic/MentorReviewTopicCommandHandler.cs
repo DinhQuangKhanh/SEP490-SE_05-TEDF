@@ -5,15 +5,15 @@ using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserServi
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
 
-namespace TEDF.Application.Features.DirectRegistration.Commands.MentorReviewTopic;
+namespace TEDF.Application.Features.DirectRegistration.Commands.MentorReviewProposedTopic;
 
-public class MentorReviewTopicCommandHandler : ICommandHandler<MentorReviewTopicCommand>
+public class MentorReviewProposedTopicCommandHandler : ICommandHandler<MentorReviewProposedTopicCommand>
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
 
-    public MentorReviewTopicCommandHandler(
+    public MentorReviewProposedTopicCommandHandler(
         IProjectRepository projectRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser)
@@ -23,7 +23,7 @@ public class MentorReviewTopicCommandHandler : ICommandHandler<MentorReviewTopic
         _currentUser = currentUser;
     }
 
-    public async Task<Unit> Handle(MentorReviewTopicCommand request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(MentorReviewProposedTopicCommand request, CancellationToken cancellationToken)
     {
         var userId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException("User is not authenticated.");

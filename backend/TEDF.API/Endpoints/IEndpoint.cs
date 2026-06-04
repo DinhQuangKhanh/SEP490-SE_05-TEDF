@@ -1,7 +1,6 @@
-﻿namespace TEDF.API.Endpoints
+namespace TEDF.API.Endpoints;
+
+public interface IEndpoint
 {
-    public interface IEndpoint
-    {
-        void MapEndpoint(IEndpointRouteBuilder app);
-    }
+    void MapEndpoint(IEndpointRouteBuilder app);
 }
