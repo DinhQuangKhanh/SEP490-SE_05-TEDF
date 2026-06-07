@@ -258,7 +258,7 @@ export function LoginPage() {
             support@university.edu.vn
           </a>
         </p>
-        <p className="text-slate-400 text-[10px] mt-2">© 2024 University Graduation Project Management System</p>
+        <p className="text-slate-400 text-[10px] mt-2">© 2026 University Graduation Project Management System</p>
       </motion.footer>
     </div>
   );
