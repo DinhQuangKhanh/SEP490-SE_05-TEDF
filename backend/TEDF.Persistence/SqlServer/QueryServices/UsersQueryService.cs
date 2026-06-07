@@ -1,0 +1,59 @@
+using TEDF.Application.Common.Interfaces;
+using TEDF.Application.Features.Users.DTOs;
+using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Entities;
+
+namespace TEDF.Persistence.SqlServer.QueryServices;
+
+/// <summary>
+/// Read-side service for the Users feature. See <see cref="IUsersQueryService"/>.
+/// </summary>
+public class UsersQueryService : IUsersQueryService
+{
+    private readonly IUserRepository _userRepository;
+    private readonly IDepartmentRepository _departmentRepository;
+
+    public UsersQueryService(IUserRepository userRepository, IDepartmentRepository departmentRepository)
+    {
+        _userRepository = userRepository;
+        _departmentRepository = departmentRepository;
+    }
+
+    public async Task<GetUsersQueryResult> GetUsersAsync(
+        string? role,
+        string? search,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 20 : pageSize;
+
+        var (users, totalCount) = await _userRepository.GetPagedAsync(role, search, page, pageSize, cancellationToken);
+
+        // Load all departments to build a name lookup (small table, safe to load all).
+        var departments = await _departmentRepository.GetAllAsync(cancellationToken);
+        var deptMap = departments.ToDictionary(d => d.Id, d => d.Name);
+
+        var items = users.Select(u => new UserListItemDto(
+            u.Id,
+            u.FullName,
+            u.Email.Value,
+            u.AvatarUrl,
+            u.StudentCode,
+            u.EmployeeCode,
+            u.AcademicTitle,
+            u.DepartmentId,
+            u.DepartmentId.HasValue && deptMap.TryGetValue(u.DepartmentId.Value, out var deptName)
+                ? deptName
+                : null,
+            u.Status.ToString(),
+            u.GetActiveRoles().ToList(),
+            u.CreatedAt
+        )).ToList();
+
+        var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+        return new GetUsersQueryResult(items, totalCount, page, pageSize, totalPages);
+    }
+}

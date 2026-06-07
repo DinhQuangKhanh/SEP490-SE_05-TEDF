@@ -12,11 +12,11 @@ namespace TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 public class RejectTopicRegistrationCommandHandler
     : ICommandHandler<RejectTopicRegistrationCommand>
 {
-    private readonly ITopicPoolDomainService _domainService;
+    private readonly ITopicPoolsDomainService _domainService;
     private readonly ICurrentUserService _currentUser;
 
     public RejectTopicRegistrationCommandHandler(
-        ITopicPoolDomainService domainService,
+        ITopicPoolsDomainService domainService,
         ICurrentUserService currentUser)
     {
         _domainService = domainService;

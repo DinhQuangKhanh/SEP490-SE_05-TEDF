@@ -6,11 +6,11 @@ namespace TEDF.Application.Features.StudentGroups.Queries.GetOpenGroups;
 
 public class GetOpenGroupsQueryHandler : IQueryHandler<GetOpenGroupsQuery, List<OpenGroupDto>>
 {
-    private readonly IStudentGroupQueryService _queryService;
+    private readonly IStudentGroupsQueryService _queryService;
     private readonly ICurrentUserService _currentUserService;
 
     public GetOpenGroupsQueryHandler(
-        IStudentGroupQueryService queryService,
+        IStudentGroupsQueryService queryService,
         ICurrentUserService currentUserService)
     {
         _queryService = queryService;

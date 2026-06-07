@@ -6,11 +6,11 @@ namespace TEDF.Application.Features.Evaluations.Queries.GetEvaluatorHistory;
 
 public class GetEvaluatorHistoryQueryHandler : IQueryHandler<GetEvaluatorHistoryQuery, EvaluatorHistoryDto>
 {
-    private readonly IEvaluatorQueryService _queryService;
+    private readonly IEvaluationsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
     public GetEvaluatorHistoryQueryHandler(
-        IEvaluatorQueryService queryService,
+        IEvaluationsQueryService queryService,
         ICurrentUserService currentUser)
     {
         _queryService = queryService;

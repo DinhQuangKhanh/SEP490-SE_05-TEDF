@@ -1,74 +1,23 @@
 using TEDF.Application.Common.Abstractions;
-using TEDF.Domain.Aggregates.SemesterAggregate;
-using TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects;
-using TEDF.Domain.Common.Exceptions;
-using TEDF.Domain.Common.Interfaces;
-using TEDF.Domain.Enums.Semester;
+using TEDF.Domain.Services;
 
 namespace TEDF.Application.Features.Semesters.Commands.CreateSemester;
 
-/// <summary>
-/// Handles the CreateSemesterCommand.
-/// 1. Validates semester code uniqueness.
-/// 2. Creates the Semester aggregate with phases.
-/// 3. Persists via UnitOfWork.
-/// </summary>
+/// <summary>Creates a semester by delegating to <see cref="ISemestersDomainService"/>.</summary>
 public class CreateSemesterCommandHandler : ICommandHandler<CreateSemesterCommand, int>
 {
-    private readonly ISemesterRepository _semesterRepository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly ISemestersDomainService _semesters;
 
-    public CreateSemesterCommandHandler(ISemesterRepository semesterRepository, IUnitOfWork unitOfWork)
-    {
-        _semesterRepository = semesterRepository;
-        _unitOfWork = unitOfWork;
-    }
+    public CreateSemesterCommandHandler(ISemestersDomainService semesters) => _semesters = semesters;
 
-    public async Task<int> Handle(CreateSemesterCommand request, CancellationToken cancellationToken)
-    {
-        // 1. Validate code uniqueness
-        var code = SemesterCode.Create(request.Code);
-        if (await _semesterRepository.ExistsCodeAsync(code, cancellationToken))
-            throw new BusinessRuleValidationException($"Semester code '{request.Code}' already exists.");
-
-        // 2. Validate no overlapping semesters
-        if (await _semesterRepository.HasOverlappingAsync(request.StartDate, request.EndDate, cancellationToken: cancellationToken))
-            throw new BusinessRuleValidationException("Khoảng thời gian học kỳ bị trùng lặp với một học kỳ khác đã tồn tại.");
-
-        // 3. Create semester aggregate
-        var nextId = await _semesterRepository.GetNextIdAsync(cancellationToken);
-        var academicYear = AcademicYear.Create(request.AcademicYearStart);
-
-        var semester = Semester.Create(
-            nextId,
+    public Task<int> Handle(CreateSemesterCommand request, CancellationToken cancellationToken)
+        => _semesters.CreateAsync(
             request.Name,
-            code,
+            request.Code,
             request.StartDate,
             request.EndDate,
-            academicYear,
-            request.Description);
-
-        // 3. Add phases.
-        // Registration & Evaluation happen during the currently-active semester (topics for the new
-        // semester are registered/vetted while the current one runs), so they must fall within it.
-        // Implementation & Defense are validated against the new semester by the aggregate.
-        var currentSemester = await _semesterRepository.GetActiveAsync(cancellationToken);
-
-        foreach (var phaseDto in request.Phases)
-        {
-            if (!Enum.TryParse<SemesterPhaseType>(phaseDto.Type, true, out var phaseType))
-                throw new BusinessRuleValidationException($"Invalid phase type '{phaseDto.Type}'.");
-
-            CurrentSemesterPhaseGuard.EnsureWithinCurrentSemester(
-                currentSemester, phaseType, phaseDto.Name, phaseDto.StartDate, phaseDto.EndDate);
-
-            semester.AddPhase(phaseDto.Name, phaseType, phaseDto.StartDate, phaseDto.EndDate);
-        }
-
-        // 4. Persist
-        await _semesterRepository.AddAsync(semester, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return semester.Id;
-    }
+            request.AcademicYearStart,
+            request.Description,
+            request.Phases.Select(p => new NewSemesterPhase(p.Name, p.Type, p.StartDate, p.EndDate)).ToList(),
+            cancellationToken);
 }

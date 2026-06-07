@@ -1,0 +1,70 @@
+using TEDF.Application.Features.StudentGroups.DTOs;
+
+namespace TEDF.Application.Common.Interfaces;
+
+/// <summary>
+/// Read-only query service for complex StudentGroup queries that span multiple aggregates.
+/// Implemented in the Persistence layer with direct DbContext access for optimal performance.
+/// </summary>
+public interface IStudentGroupsQueryService
+{
+    /// <summary>
+    /// Gets all groups that a mentor is guiding in a specific semester.
+    /// If semesterId is null, uses the currently active semester.
+    /// </summary>
+    Task<List<MentorGroupDto>> GetMentorGroupsAsync(
+        Guid mentorId,
+        int? semesterId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the student's current thesis group. The semester is resolved from the student's own
+    /// active group: it is whichever current-or-upcoming semester that group belongs to (groups
+    /// are registered during the previous semester and remain valid once that semester begins).
+    /// Returns null if the student has no active group in a current or upcoming semester.
+    /// </summary>
+    Task<StudentGroupDto?> GetStudentGroupAsync(
+        Guid studentId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all open groups (active, not full, accepting requests) in the next semester.
+    /// Excludes groups that the student is already a member of.
+    /// If semesterId is null, automatically resolves the next semester.
+    /// </summary>
+    Task<List<OpenGroupDto>> GetOpenGroupsAsync(
+        Guid studentId,
+        int? semesterId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets pending invitations for a student.
+    /// </summary>
+    Task<List<InvitationDto>> GetStudentInvitationsAsync(
+        Guid studentId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets pending join requests for a group.
+    /// </summary>
+    Task<List<JoinRequestDto>> GetGroupJoinRequestsAsync(
+        Guid groupId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the current student's pending join request in a semester.
+    /// If semesterId is null, uses the currently active semester.
+    /// </summary>
+    Task<PendingJoinRequestDto?> GetStudentPendingJoinRequestAsync(
+        Guid studentId,
+        int? semesterId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets students who can be invited to the given group: active students who are not already an
+    /// active member of any active group in that group's semester. Ordered by student code.
+    /// </summary>
+    Task<List<AvailableStudentDto>> GetInvitableStudentsAsync(
+        Guid groupId,
+        CancellationToken cancellationToken = default);
+}

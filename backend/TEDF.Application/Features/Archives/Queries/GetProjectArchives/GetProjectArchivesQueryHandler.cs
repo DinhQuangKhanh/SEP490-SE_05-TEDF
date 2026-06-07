@@ -1,28 +1,15 @@
 using TEDF.Application.Common.Abstractions;
+using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Archives.DTOs;
-using TEDF.Domain.Entities;
 
 namespace TEDF.Application.Features.Archives.Queries.GetProjectArchives;
 
 public class GetProjectArchivesQueryHandler : IQueryHandler<GetProjectArchivesQuery, List<ArchiveGroupDto>>
 {
-    private readonly IProjectArchiveRepository _repository;
+    private readonly IArchivesQueryService _archives;
 
-    public GetProjectArchivesQueryHandler(IProjectArchiveRepository repository)
-    {
-        _repository = repository;
-    }
+    public GetProjectArchivesQueryHandler(IArchivesQueryService archives) => _archives = archives;
 
-    public async Task<List<ArchiveGroupDto>> Handle(GetProjectArchivesQuery request, CancellationToken cancellationToken)
-    {
-        var archives = await _repository.GetAllAsync(cancellationToken);
-        return archives
-            .GroupBy(a => a.AcademicYear)
-            .Select(g => new ArchiveGroupDto(
-                g.Key,
-                g.Count(),
-                g.Sum(a => a.FileSizeBytes ?? 0)))
-            .OrderByDescending(g => g.AcademicYear)
-            .ToList();
-    }
+    public Task<List<ArchiveGroupDto>> Handle(GetProjectArchivesQuery request, CancellationToken cancellationToken)
+        => _archives.GetArchivesAsync(cancellationToken);
 }

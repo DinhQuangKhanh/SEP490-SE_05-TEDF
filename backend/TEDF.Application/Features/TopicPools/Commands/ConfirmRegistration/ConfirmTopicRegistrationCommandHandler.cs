@@ -12,11 +12,11 @@ namespace TEDF.Application.Features.TopicPools.Commands.ConfirmRegistration;
 public class ConfirmTopicRegistrationCommandHandler
     : ICommandHandler<ConfirmTopicRegistrationCommand>
 {
-    private readonly ITopicPoolDomainService _domainService;
+    private readonly ITopicPoolsDomainService _domainService;
     private readonly ICurrentUserService _currentUser;
 
     public ConfirmTopicRegistrationCommandHandler(
-        ITopicPoolDomainService domainService,
+        ITopicPoolsDomainService domainService,
         ICurrentUserService currentUser)
     {
         _domainService = domainService;

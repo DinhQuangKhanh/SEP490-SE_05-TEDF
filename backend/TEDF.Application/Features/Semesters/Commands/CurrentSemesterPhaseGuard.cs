@@ -9,7 +9,7 @@ namespace TEDF.Application.Features.Semesters.Commands;
 /// new/edited semester must fall within the currently-active semester (topics are registered and
 /// vetted during the current semester for the upcoming one).
 /// </summary>
-internal static class CurrentSemesterPhaseGuard
+public static class CurrentSemesterPhaseGuard
 {
     /// <summary>
     /// No-op when there is no active semester (e.g. the first-ever semester) — the Semester

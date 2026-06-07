@@ -1,40 +1,19 @@
-using TEDF.Application.Common.Abstractions;
 using MediatR;
-using TEDF.Domain.Aggregates.SemesterAggregate;
-using TEDF.Domain.Common.Exceptions;
-using TEDF.Domain.Common.Interfaces;
-using TEDF.Domain.Enums.Semester;
+using TEDF.Application.Common.Abstractions;
+using TEDF.Domain.Services;
 
 namespace TEDF.Application.Features.Semesters.Commands.DeleteSemester;
 
-/// <summary>
-/// Handles the DeleteSemesterCommand to remove an upcoming semester.
-/// </summary>
+/// <summary>Deletes an upcoming semester by delegating to <see cref="ISemestersDomainService"/>.</summary>
 public class DeleteSemesterCommandHandler : ICommandHandler<DeleteSemesterCommand>
 {
-    private readonly ISemesterRepository _semesterRepository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly ISemestersDomainService _semesters;
 
-    public DeleteSemesterCommandHandler(
-        ISemesterRepository semesterRepository,
-        IUnitOfWork unitOfWork)
-    {
-        _semesterRepository = semesterRepository;
-        _unitOfWork = unitOfWork;
-    }
+    public DeleteSemesterCommandHandler(ISemestersDomainService semesters) => _semesters = semesters;
 
     public async Task<Unit> Handle(DeleteSemesterCommand request, CancellationToken cancellationToken)
     {
-        var semester = await _semesterRepository.GetByIdAsync(request.Id, cancellationToken)
-            ?? throw new EntityNotFoundException(nameof(Semester), request.Id);
-
-        if (semester.Status != SemesterStatus.Upcoming)
-        {
-            throw new BusinessRuleValidationException("Only upcoming semesters can be deleted.");
-        }
-
-        _semesterRepository.Remove(semester);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _semesters.DeleteAsync(request.Id, cancellationToken);
         return Unit.Value;
     }
 }

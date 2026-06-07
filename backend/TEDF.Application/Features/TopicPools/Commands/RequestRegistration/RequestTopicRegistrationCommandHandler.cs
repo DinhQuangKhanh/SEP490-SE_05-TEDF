@@ -7,16 +7,16 @@ namespace TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
 
 /// <summary>
 /// Handles RequestTopicRegistrationCommand.
-/// Delegates business logic to ITopicPoolDomainService and returns the new registration ID.
+/// Delegates business logic to ITopicPoolsDomainService and returns the new registration ID.
 /// </summary>
 public class RequestTopicRegistrationCommandHandler
     : ICommandHandler<RequestTopicRegistrationCommand, Guid>
 {
-    private readonly ITopicPoolDomainService _domainService;
+    private readonly ITopicPoolsDomainService _domainService;
     private readonly ICurrentUserService _currentUser;
 
     public RequestTopicRegistrationCommandHandler(
-        ITopicPoolDomainService domainService,
+        ITopicPoolsDomainService domainService,
         ICurrentUserService currentUser)
     {
         _domainService = domainService;

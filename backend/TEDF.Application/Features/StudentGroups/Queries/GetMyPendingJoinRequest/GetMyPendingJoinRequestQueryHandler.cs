@@ -6,11 +6,11 @@ namespace TEDF.Application.Features.StudentGroups.Queries.GetMyPendingJoinReques
 
 public class GetMyPendingJoinRequestQueryHandler : IQueryHandler<GetMyPendingJoinRequestQuery, PendingJoinRequestDto?>
 {
-    private readonly IStudentGroupQueryService _queryService;
+    private readonly IStudentGroupsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
     public GetMyPendingJoinRequestQueryHandler(
-        IStudentGroupQueryService queryService,
+        IStudentGroupsQueryService queryService,
         ICurrentUserService currentUser)
     {
         _queryService = queryService;

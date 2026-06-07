@@ -6,11 +6,11 @@ namespace TEDF.Application.Features.StudentGroups.Queries.GetMyInvitations;
 
 public class GetMyInvitationsQueryHandler : IQueryHandler<GetMyInvitationsQuery, List<InvitationDto>>
 {
-    private readonly IStudentGroupQueryService _queryService;
+    private readonly IStudentGroupsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
     public GetMyInvitationsQueryHandler(
-        IStudentGroupQueryService queryService,
+        IStudentGroupsQueryService queryService,
         ICurrentUserService currentUser)
     {
         _queryService = queryService;

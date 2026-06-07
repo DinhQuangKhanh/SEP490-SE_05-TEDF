@@ -6,16 +6,10 @@ namespace TEDF.Application.Features.Dashboard.Queries.GetAdminDashboard;
 
 public class GetAdminDashboardQueryHandler : IQueryHandler<GetAdminDashboardQuery, AdminDashboardDto>
 {
-    private readonly IAdminDashboardQueryService _queryService;
+    private readonly IDashboardQueryService _dashboard;
 
-    public GetAdminDashboardQueryHandler(IAdminDashboardQueryService queryService)
-    {
-        _queryService = queryService;
-    }
+    public GetAdminDashboardQueryHandler(IDashboardQueryService dashboard) => _dashboard = dashboard;
 
-    public async Task<AdminDashboardDto> Handle(
-        GetAdminDashboardQuery request, CancellationToken cancellationToken)
-    {
-        return await _queryService.GetDashboardAsync(cancellationToken);
-    }
+    public Task<AdminDashboardDto> Handle(GetAdminDashboardQuery request, CancellationToken cancellationToken)
+        => _dashboard.GetAdminDashboardAsync(cancellationToken);
 }

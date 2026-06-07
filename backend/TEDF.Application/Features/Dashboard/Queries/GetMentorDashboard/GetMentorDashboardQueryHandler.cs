@@ -6,24 +6,20 @@ namespace TEDF.Application.Features.Dashboard.Queries.GetMentorDashboard;
 
 public class GetMentorDashboardQueryHandler : IQueryHandler<GetMentorDashboardQuery, MentorDashboardDto>
 {
-    private readonly IMentorDashboardQueryService _queryService;
+    private readonly IDashboardQueryService _dashboard;
     private readonly ICurrentUserService _currentUser;
 
-    public GetMentorDashboardQueryHandler(
-        IMentorDashboardQueryService queryService,
-        ICurrentUserService currentUser)
+    public GetMentorDashboardQueryHandler(IDashboardQueryService dashboard, ICurrentUserService currentUser)
     {
-        _queryService = queryService;
+        _dashboard = dashboard;
         _currentUser = currentUser;
     }
 
-    public async Task<MentorDashboardDto> Handle(
-        GetMentorDashboardQuery request, CancellationToken cancellationToken)
+    public Task<MentorDashboardDto> Handle(GetMentorDashboardQuery request, CancellationToken cancellationToken)
     {
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        return await _queryService.GetDashboardAsync(
-            _currentUser.UserId.Value, cancellationToken);
+        return _dashboard.GetMentorDashboardAsync(_currentUser.UserId.Value, cancellationToken);
     }
 }

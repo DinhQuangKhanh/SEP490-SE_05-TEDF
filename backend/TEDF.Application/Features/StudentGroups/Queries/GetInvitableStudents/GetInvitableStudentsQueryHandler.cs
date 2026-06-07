@@ -6,9 +6,9 @@ namespace TEDF.Application.Features.StudentGroups.Queries.GetInvitableStudents;
 
 public class GetInvitableStudentsQueryHandler : IQueryHandler<GetInvitableStudentsQuery, List<AvailableStudentDto>>
 {
-    private readonly IStudentGroupQueryService _queryService;
+    private readonly IStudentGroupsQueryService _queryService;
 
-    public GetInvitableStudentsQueryHandler(IStudentGroupQueryService queryService)
+    public GetInvitableStudentsQueryHandler(IStudentGroupsQueryService queryService)
     {
         _queryService = queryService;
     }

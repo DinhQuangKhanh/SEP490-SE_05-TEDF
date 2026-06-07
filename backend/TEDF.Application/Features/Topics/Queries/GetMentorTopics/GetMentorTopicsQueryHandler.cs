@@ -7,11 +7,11 @@ namespace TEDF.Application.Features.Topics.Queries.GetMentorTopics;
 public class GetMentorTopicsQueryHandler
     : IQueryHandler<GetMentorTopicsQuery, GetMentorTopicsResult>
 {
-    private readonly ITopicQueryService _queryService;
+    private readonly ITopicsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
     public GetMentorTopicsQueryHandler(
-        ITopicQueryService queryService,
+        ITopicsQueryService queryService,
         ICurrentUserService currentUser)
     {
         _queryService = queryService;

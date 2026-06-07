@@ -1,36 +1,27 @@
 using MediatR;
 using TEDF.Application.Common.Abstractions;
-using TEDF.Application.Common.Interfaces;
+using TEDF.Domain.Services;
+using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserService;
 
 namespace TEDF.Application.Features.Notifications.Commands.MarkAsRead;
 
-/// <summary>
-/// Handles MarkNotificationAsReadCommand by marking the specified notification
-/// as read via INotificationService.
-/// </summary>
-public class MarkNotificationAsReadCommandHandler
-    : ICommandHandler<MarkNotificationAsReadCommand>
+public class MarkNotificationAsReadCommandHandler : ICommandHandler<MarkNotificationAsReadCommand>
 {
-    private readonly INotificationService _notificationService;
+    private readonly INotificationsDomainService _notifications;
     private readonly ICurrentUserService _currentUser;
 
-    public MarkNotificationAsReadCommandHandler(
-        INotificationService notificationService,
-        ICurrentUserService currentUser)
+    public MarkNotificationAsReadCommandHandler(INotificationsDomainService notifications, ICurrentUserService currentUser)
     {
-        _notificationService = notificationService;
+        _notifications = notifications;
         _currentUser = currentUser;
     }
 
-    public async Task<Unit> Handle(
-        MarkNotificationAsReadCommand request,
-        CancellationToken cancellationToken)
+    public async Task<Unit> Handle(MarkNotificationAsReadCommand request, CancellationToken cancellationToken)
     {
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        await _notificationService.MarkAsReadAsync(request.NotificationId, cancellationToken);
-
+        await _notifications.MarkAsReadAsync(request.NotificationId, cancellationToken);
         return Unit.Value;
     }
 }

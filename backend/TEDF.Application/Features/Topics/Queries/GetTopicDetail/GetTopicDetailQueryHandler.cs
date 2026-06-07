@@ -6,9 +6,9 @@ namespace TEDF.Application.Features.Topics.Queries.GetTopicDetail;
 
 public class GetTopicDetailQueryHandler : IQueryHandler<GetTopicDetailQuery, TopicDetailDto?>
 {
-    private readonly ITopicQueryService _queryService;
+    private readonly ITopicsQueryService _queryService;
 
-    public GetTopicDetailQueryHandler(ITopicQueryService queryService)
+    public GetTopicDetailQueryHandler(ITopicsQueryService queryService)
     {
         _queryService = queryService;
     }

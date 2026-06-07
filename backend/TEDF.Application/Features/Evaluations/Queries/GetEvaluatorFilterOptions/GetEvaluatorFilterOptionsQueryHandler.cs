@@ -7,9 +7,9 @@ namespace TEDF.Application.Features.Evaluations.Queries.GetEvaluatorFilterOption
 public class GetEvaluatorFilterOptionsQueryHandler
     : IQueryHandler<GetEvaluatorFilterOptionsQuery, EvaluatorFilterOptionsDto>
 {
-    private readonly IEvaluatorQueryService _queryService;
+    private readonly IEvaluationsQueryService _queryService;
 
-    public GetEvaluatorFilterOptionsQueryHandler(IEvaluatorQueryService queryService)
+    public GetEvaluatorFilterOptionsQueryHandler(IEvaluationsQueryService queryService)
     {
         _queryService = queryService;
     }

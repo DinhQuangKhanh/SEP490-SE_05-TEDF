@@ -6,11 +6,11 @@ namespace TEDF.Application.Features.Evaluations.Queries.GetEvaluatorProjects;
 
 public class GetEvaluatorProjectsQueryHandler : IQueryHandler<GetEvaluatorProjectsQuery, EvaluatorProjectsDto>
 {
-    private readonly IEvaluatorQueryService _queryService;
+    private readonly IEvaluationsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
     public GetEvaluatorProjectsQueryHandler(
-        IEvaluatorQueryService queryService,
+        IEvaluationsQueryService queryService,
         ICurrentUserService currentUser)
     {
         _queryService = queryService;

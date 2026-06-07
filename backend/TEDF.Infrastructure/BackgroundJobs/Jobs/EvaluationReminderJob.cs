@@ -6,12 +6,12 @@ namespace TEDF.Infrastructure.BackgroundJobs.Jobs
 {
     public class EvaluationReminderJob
     {
-        private readonly IEvaluationDomainService _evaluationService;
+        private readonly IEvaluationsDomainService _evaluationService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<EvaluationReminderJob> _logger;
 
         public EvaluationReminderJob(
-            IEvaluationDomainService evaluationService,
+            IEvaluationsDomainService evaluationService,
             INotificationService notificationService,
             ILogger<EvaluationReminderJob> logger)
         {

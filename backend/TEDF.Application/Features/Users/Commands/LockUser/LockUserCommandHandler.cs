@@ -1,30 +1,19 @@
 using MediatR;
 using TEDF.Application.Common.Abstractions;
-using TEDF.Application.Common.Interfaces;
-using TEDF.Domain.Aggregates.UserAggregate;
-using TEDF.Domain.Common.Exceptions;
-using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Services;
 using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserService;
 
 namespace TEDF.Application.Features.Users.Commands.LockUser;
 
 public class LockUserCommandHandler : ICommandHandler<LockUserCommand>
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IAuthAccountService _authAccount;
+    private readonly IUsersDomainService _users;
     private readonly ICurrentUserService _currentUser;
-    private readonly IUnitOfWork _unitOfWork;
 
-    public LockUserCommandHandler(
-        IUserRepository userRepository,
-        IAuthAccountService authAccount,
-        ICurrentUserService currentUser,
-        IUnitOfWork unitOfWork)
+    public LockUserCommandHandler(IUsersDomainService users, ICurrentUserService currentUser)
     {
-        _userRepository = userRepository;
-        _authAccount = authAccount;
+        _users = users;
         _currentUser = currentUser;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<Unit> Handle(LockUserCommand request, CancellationToken cancellationToken)
@@ -32,22 +21,7 @@ public class LockUserCommandHandler : ICommandHandler<LockUserCommand>
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        // Prevent admin from locking themselves
-        if (_currentUser.UserId == request.UserId)
-            throw new BusinessRuleValidationException("Cannot lock your own account.");
-
-        var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-            ?? throw new EntityNotFoundException(nameof(User), request.UserId);
-
-        user.Lock();
-        await _userRepository.UpdateAsync(user, cancellationToken);
-
-        // Disable auth account before committing DB changes
-        // If this fails, DB transaction won't commit
-        await _authAccount.DisableAccountAsync(user.FirebaseUid, cancellationToken);
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
+        await _users.LockAsync(request.UserId, _currentUser.UserId.Value, cancellationToken);
         return Unit.Value;
     }
 }

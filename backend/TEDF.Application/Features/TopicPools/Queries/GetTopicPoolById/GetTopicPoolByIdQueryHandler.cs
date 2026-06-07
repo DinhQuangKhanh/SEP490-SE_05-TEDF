@@ -6,9 +6,9 @@ namespace TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 
 public class GetTopicPoolByIdQueryHandler : IQueryHandler<GetTopicPoolByIdQuery, TopicPoolDto>
 {
-    private readonly ITopicPoolQueryService _queryService;
+    private readonly ITopicPoolsQueryService _queryService;
 
-    public GetTopicPoolByIdQueryHandler(ITopicPoolQueryService queryService)
+    public GetTopicPoolByIdQueryHandler(ITopicPoolsQueryService queryService)
     {
         _queryService = queryService;
     }

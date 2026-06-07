@@ -77,7 +77,7 @@ public sealed class TopicCatalogEndpoints : IEndpoint
 
     private static async Task<IResult> GetTopicDocuments(
         Guid topicId,
-        ITopicQueryService queryService,
+        ITopicsQueryService queryService,
         CancellationToken ct)
     {
         var documents = await queryService.GetTopicDocumentsAsync(topicId, ct);

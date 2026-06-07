@@ -1,23 +1,15 @@
 using TEDF.Application.Common.Abstractions;
+using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Settings.DTOs;
-using TEDF.Domain.Entities;
 
 namespace TEDF.Application.Features.Settings.Queries.GetSystemSettings;
 
 public class GetSystemSettingsQueryHandler : IQueryHandler<GetSystemSettingsQuery, List<SystemSettingDto>>
 {
-    private readonly ISystemConfigurationRepository _repository;
+    private readonly ISettingsQueryService _settings;
 
-    public GetSystemSettingsQueryHandler(ISystemConfigurationRepository repository)
-    {
-        _repository = repository;
-    }
+    public GetSystemSettingsQueryHandler(ISettingsQueryService settings) => _settings = settings;
 
-    public async Task<List<SystemSettingDto>> Handle(GetSystemSettingsQuery request, CancellationToken cancellationToken)
-    {
-        var all = await _repository.GetAllAsync(cancellationToken);
-        return all
-            .Select(c => new SystemSettingDto(c.Key, c.Value, c.DataType.ToString(), c.Description, c.Category))
-            .ToList();
-    }
+    public Task<List<SystemSettingDto>> Handle(GetSystemSettingsQuery request, CancellationToken cancellationToken)
+        => _settings.GetSystemSettingsAsync(cancellationToken);
 }

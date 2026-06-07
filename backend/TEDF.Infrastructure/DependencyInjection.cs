@@ -150,15 +150,20 @@ namespace TEDF.Infrastructure
             services.AddScoped<IAuthAccountService, FirebaseAuthService>();
 
             // Domain Services
-            services.AddScoped<IProjectDomainService, ProjectDomainService>();
-            services.AddScoped<IEvaluationDomainService, EvaluationDomainService>();
-            services.AddScoped<ITopicPoolDomainService, TopicPoolDomainService>();
-            services.AddScoped<ISemesterDomainService, SemesterDomainService>();
-            services.AddScoped<IGroupDomainService, GroupDomainService>();
-
-            // Query Services (note: IStudentGroupQueryService is registered in Persistence layer)
-            services.AddScoped<ITopicPoolQueryService, TopicPoolQueryService>();
-            services.AddScoped<IEvaluatorQueryService, EvaluatorQueryService>();
+            services.AddScoped<IProjectsDomainService, ProjectsDomainService>();
+            services.AddScoped<IEvaluationsDomainService, EvaluationsDomainService>();
+            services.AddScoped<ITopicPoolsDomainService, TopicPoolsDomainService>();
+            services.AddScoped<ISemestersDomainService, SemestersDomainService>();
+            services.AddScoped<IStudentGroupsDomainService, StudentGroupsDomainService>();
+            services.AddScoped<IUsersDomainService, UsersDomainService>();
+            services.AddScoped<ISettingsDomainService, SettingsDomainService>();
+            services.AddScoped<ISupportsDomainService, SupportsDomainService>();
+            services.AddScoped<IArchivesDomainService, ArchivesDomainService>();
+            services.AddScoped<ITopicsDomainService, TopicsDomainService>();
+            services.AddScoped<IDirectTopicsDomainService, DirectTopicsDomainService>();
+            services.AddScoped<IDashboardDomainService, DashboardDomainService>();
+            services.AddScoped<INotificationsDomainService, NotificationsDomainService>();
+            services.AddScoped<IAuthenticationsDomainService, AuthenticationsDomainService>();
 
             // Evaluation Services
             services.AddScoped<ITitleSimilarityService, TitleSimilarityService>();

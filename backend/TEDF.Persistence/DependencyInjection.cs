@@ -91,13 +91,20 @@ namespace TEDF.Persistence
             services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 
             // Add Query Services
-            services.AddScoped<IStudentGroupQueryService, StudentGroupQueryService>();
-            services.AddScoped<IEvaluatorQueryService, EvaluatorQueryService>();
-            services.AddScoped<ITopicPoolQueryService, TopicPoolQueryService>();
-            services.AddScoped<ITopicQueryService, TopicQueryService>();
-            services.AddScoped<IAdminDashboardQueryService, AdminDashboardQueryService>();
-            services.AddScoped<IMentorDashboardQueryService, MentorDashboardQueryService>();
-            services.AddScoped<IDepartmentHeadQueryService, DepartmentHeadQueryService>();
+            services.AddScoped<IStudentGroupsQueryService, StudentGroupsQueryService>();
+            services.AddScoped<IEvaluationsQueryService, EvaluationsQueryService>();
+            services.AddScoped<ITopicPoolsQueryService, TopicPoolsQueryService>();
+            services.AddScoped<ITopicsQueryService, TopicsQueryService>();
+            services.AddScoped<IDashboardQueryService, DashboardQueryService>();
+            services.AddScoped<IProjectsQueryService, ProjectsQueryService>();
+            services.AddScoped<IUsersQueryService, UsersQueryService>();
+            services.AddScoped<ISemestersQueryService, SemestersQueryService>();
+            services.AddScoped<ISettingsQueryService, SettingsQueryService>();
+            services.AddScoped<ISupportsQueryService, SupportsQueryService>();
+            services.AddScoped<IArchivesQueryService, ArchivesQueryService>();
+            services.AddScoped<IDirectTopicsQueryService, DirectTopicsQueryService>();
+            services.AddScoped<INotificationsQueryService, NotificationsQueryService>();
+            services.AddScoped<IAuthenticationsQueryService, AuthenticationsQueryService>();
 
             // Add MongoDB Repositories
             services.AddScoped<IEvaluationLogRepository, EvaluationLogRepository>();

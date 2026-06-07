@@ -6,10 +6,10 @@ namespace TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
 
 public class GetMentorGroupsQueryHandler : IQueryHandler<GetMentorGroupsQuery, List<MentorGroupDto>>
 {
-    private readonly IStudentGroupQueryService _queryService;
+    private readonly IStudentGroupsQueryService _queryService;
     private readonly ICurrentUserService _currentUser;
 
-    public GetMentorGroupsQueryHandler(IStudentGroupQueryService queryService, ICurrentUserService currentUser)
+    public GetMentorGroupsQueryHandler(IStudentGroupsQueryService queryService, ICurrentUserService currentUser)
     {
         _queryService = queryService;
         _currentUser = currentUser;

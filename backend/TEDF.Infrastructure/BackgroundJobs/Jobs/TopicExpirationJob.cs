@@ -6,14 +6,14 @@ namespace TEDF.Infrastructure.BackgroundJobs.Jobs
 {
     public class TopicExpirationJob
     {
-        private readonly ITopicPoolDomainService _topicPoolService;
-        private readonly ISemesterDomainService _semesterService;
+        private readonly ITopicPoolsDomainService _topicPoolService;
+        private readonly ISemestersDomainService _semesterService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<TopicExpirationJob> _logger;
 
         public TopicExpirationJob(
-            ITopicPoolDomainService topicPoolService,
-            ISemesterDomainService semesterService,
+            ITopicPoolsDomainService topicPoolService,
+            ISemestersDomainService semesterService,
             INotificationService notificationService,
             ILogger<TopicExpirationJob> logger)
         {
