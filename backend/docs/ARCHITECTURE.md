@@ -119,7 +119,12 @@ Request ─► LoggingBehavior
 - `ICacheInvalidatingCommand` (and `<TResponse>`) — exposes `CachePrefixesToInvalidate`; the invalidation behavior clears those prefixes from L1 + L2 after the command succeeds.
 - `ICachedQuery<TResponse>` — exposes `CacheKey` (supports a `{userId}` placeholder; return `null` to skip caching, e.g. search), with per-query `L1Expiration` (default 2 min) and `L2Expiration` (default 15 min).
 
-**Feature layout** — `Features/<Context>/` contains `Commands/<Name>/{Command,Handler,Validator}`, `Queries/<Name>/{Query,Handler}`, and `DTOs/`. Reads frequently bypass repositories in favor of read-optimized **query services** (`I*QueryService`, implemented in Persistence).
+**Feature layout** — `Features/<Context>/` contains `Commands/<Name>/{Command,Handler,Validator}`, `Queries/<Name>/{Query,Handler}`, and `DTOs/`. `Application/Features` is **feature-based** (no `Mentor`/`Departments` folders — those were dissolved into `Topics`/`Projects`/`Evaluations`/`Users`/etc.).
+
+**Per-feature service pairing (enforced).** Every feature has exactly two services — a `<Feature>DomainService` (writes) and a `<Feature>QueryService` (reads):
+
+- **`CommandHandler`s inject only `I<Feature>DomainService`**; **`QueryHandler`s inject only `I<Feature>QueryService`** (plus cross-cutting services such as `ICurrentUserService`). Handlers stay thin — they read the caller, then delegate to one service method.
+- Handlers **no longer touch `IUnitOfWork`, repositories, or `AppDbContext` directly**. The domain service owns the unit of work (calls `SaveChangesAsync`) and any transactional side-effects (auth provider, email, file storage, background jobs, domain events); the query service issues read-optimized projections.
 
 > Note: Infrastructure registers MediatR on **its own** assembly separately (so domain-event handlers are discovered); Application registers only Application handlers.
 
@@ -130,7 +135,7 @@ Request ─► LoggingBehavior
 - **Primitives** (`Common/Primitives`): `Entity<TId>`, `AggregateRoot<TId> : Entity<TId>, IHasDomainEvents`, `ValueObject`, `AuditableEntity`, plus marker interfaces `IIdentifiable`, `ISoftDeletable`.
 - **Aggregates** (`Aggregates/<X>Aggregate/`): 9 roots, each owning its entities, value objects, domain `Events/`, and business `Rules/`.
 - **Business rules**: implement `IBusinessRule` (`Message`, `Code` defaulting to the class name, `IsBroken()`). Aggregates enforce them via `CheckRule(rule)` / `CheckRules(...)`, which throw `BusinessRuleValidationException` on the first broken rule — keeping invariants inside the domain.
-- **Domain services** (`IProjectDomainService`, `IEvaluationDomainService`, `ITopicPoolDomainService`, `ISemesterDomainService`, `IGroupDomainService`) hold cross-aggregate logic; implemented in Infrastructure.
+- **Domain services** — one per feature (`I<Feature>DomainService`, e.g. `IUsersDomainService`, `IEvaluationsDomainService`, `ITopicPoolsDomainService`, `IStudentGroupsDomainService`, …; interfaces in `Domain/Services`, implementations in `Infrastructure/Services/DomainServices`). They own each feature's write use-cases (load → mutate aggregates → `SaveChangesAsync`) plus any cross-aggregate logic; command handlers depend on these only. (The earlier aggregate-named services — `IProjectDomainService`, `IEvaluationDomainService`, `IGroupDomainService`, … — were renamed/merged into the per-feature set.)
 - **Specifications** encapsulate reusable query predicates.
 
 ---
@@ -171,7 +176,7 @@ Dispatch happens only on the **async** save path (the project always saves via `
   - `SoftDeleteInterceptor` — converts deletes to an `IsDeleted` flag (no hard deletes).
   - `DomainEventInterceptor` — dispatches domain events (see §6).
 - `IUnitOfWork` → `UnitOfWork`; one repository per aggregate (`IUserRepository`, `IProjectRepository`, `ITopicPoolRepository`, `IGroupRepository`, `ISemesterRepository`, `IEvaluationSubmissionRepository`, `ISupportTicketRepository`, `ITopicRegistrationRepository`, `IDepartmentRepository`, `IMajorReadRepository`, `IProjectEvaluatorAssignmentRepository`).
-- **Query services** (read-optimized, bypass aggregates): student-group, evaluator, topic-pool, topic, and admin/mentor/department-head dashboards.
+- **Query services** — one per feature (`I<Feature>QueryService`, interfaces in `Application/Common/Interfaces`, implementations here in `Persistence/SqlServer/QueryServices`): read-optimized DTO projections that bypass aggregates; query handlers depend on these only. The earlier role/aggregate-named services (`AdminDashboard`/`MentorDashboard`/`DepartmentHead`/`Evaluator`/`Topic`/`TopicPool`/`StudentGroup`) were consolidated into the per-feature `DashboardQueryService` (all four role dashboards), `EvaluationsQueryService`, `ProjectsQueryService`, `TopicsQueryService`, `TopicPoolsQueryService`, `StudentGroupsQueryService`, ….
 
 **MongoDB (`TEDFLogs`)** — write-heavy / append-mostly data: `IMongoClient` (singleton) + `MongoDbContext`; documents for `Conversation`, `Message`, `Notification`, `EvaluationLog`, `ProjectModificationHistory`, `QuarantinedAttachment`, `RequestLog`, `SystemAuditLog`, `UserActivityLog`, `ErrorLog`. Serializers configured once via `MongoSerializerConfiguration`; indexes created on startup via `MongoIndexConfiguration`.
 

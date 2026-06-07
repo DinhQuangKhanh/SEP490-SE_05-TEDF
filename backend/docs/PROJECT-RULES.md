@@ -27,9 +27,10 @@ These rules describe conventions the codebase already follows — match them rat
 - Model requests as **`record`s** implementing the marker abstractions in `Application/Common/Abstractions`:
   - State changes → `ICommand` / `ICommand<TResponse>` (handler: `ICommandHandler<,>`).
   - Reads → `IQuery<TResponse>` (handler: `IQueryHandler<,>`).
-- Handlers use **constructor injection** of the interfaces they need; keep one handler per request, no cross-handler calls (send another MediatR request instead).
+- Handlers use **constructor injection**; keep one handler per request, no cross-handler calls (send another MediatR request instead).
+- **Per-feature service pairing (enforced):** every feature has a `<Feature>DomainService` (writes) + `<Feature>QueryService` (reads). **A `CommandHandler` injects only its `I<Feature>DomainService`; a `QueryHandler` injects only its `I<Feature>QueryService`** (plus cross-cutting services such as `ICurrentUserService`). Handlers stay thin — read the caller, delegate to one service method. **No `IUnitOfWork`, `*Repository`, or `AppDbContext` in a handler** — those live behind the feature service.
 - Validation lives in a sibling **`AbstractValidator<TCommand>`** (FluentValidation); it is auto-registered and runs in `ValidationBehavior` **before** the handler. Don't re-validate input shape inside the handler — handlers enforce _business_ preconditions, validators enforce _input_ shape.
-- **Reads may bypass aggregates** via read-optimized **query services** (`I*QueryService`) or repository paged queries; writes must go through aggregates (§5).
+- **Reads go through the feature's `I<Feature>QueryService`** (read-optimized DTO projections that bypass aggregates, implemented in Persistence); writes go through the feature's `I<Feature>DomainService` → aggregates (§5).
 
 ## 4. Caching (opt-in)
 
@@ -43,14 +44,14 @@ These rules describe conventions the codebase already follows — match them rat
 - **Business rules** implement `IBusinessRule` (`Message`, `IsBroken()`); enforce them inside aggregate methods via `CheckRule(rule)` / `CheckRules(...)`, which throw `BusinessRuleValidationException`. Don't scatter rule checks across handlers.
 - Use **value objects** (`ProjectName`, `GroupCode`, `Email`, …) for typed, validated values; access the primitive via `.Value`.
 - Aggregates signal side effects with **domain events** via `RaiseDomainEvent(...)` — never call infrastructure (email, SignalR, logging) from inside the Domain.
-- Domain services (`I*DomainService`) hold cross-aggregate logic; their interfaces live in Domain, implementations in Infrastructure.
+- **Domain services are per-feature** (`I<Feature>DomainService`): interfaces in `Domain/Services`, implementations in `Infrastructure/Services/DomainServices`. Each owns its feature's write use-cases plus any cross-aggregate logic; a command handler delegates to exactly one of its methods. (Read-only features keep a near-empty placeholder for the convention.)
 
 ## 6. Persistence & the Write Path
 
 - **One repository per aggregate root**; load with member-aware methods when you need children (`GetWithMembersAsync`). Query services are read-only projections.
-- **Persist via `IUnitOfWork.SaveChangesAsync`**, not `DbContext.SaveChanges`. A single handler = a single unit of work; call save once.
+- **Persist via `IUnitOfWork.SaveChangesAsync`**, not `DbContext.SaveChanges`. The **domain service owns the unit of work** — it calls save once per use-case; handlers don't inject `IUnitOfWork`.
 - **Soft delete is the default** (`SoftDeleteInterceptor`); never hard-delete. Auditing (`CreatedAt/By`, `UpdatedAt`) is applied automatically by `AuditableEntityInterceptor` — don't set these by hand.
-- **Translate persistence faults into domain/Application exceptions.** Catch a unique-index `DbUpdateException` and rethrow a `ConcurrencyException` (see `CreateGroupCommandHandler` translating `IX_Groups_Code`); don't let raw EF exceptions escape to the API.
+- **Translate persistence faults into domain/Application exceptions.** Catch a unique-index `DbUpdateException` and rethrow a `ConcurrencyException` (see `StudentGroupsDomainService.CreateGroupAsync` translating `IX_Groups_Code`); don't let raw EF exceptions escape to the API.
 - EF mappings go in `SqlServer/Configurations` (Fluent API). After changing the model, add a migration:
   ```powershell
   dotnet ef migrations add <Name> --project TEDF.Persistence --startup-project TEDF.API
