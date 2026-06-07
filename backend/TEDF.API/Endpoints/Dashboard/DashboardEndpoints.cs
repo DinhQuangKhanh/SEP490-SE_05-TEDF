@@ -4,8 +4,7 @@ using TEDF.Application.Features.Dashboard.DTOs;
 using TEDF.Application.Features.Dashboard.Queries.GetAdminDashboard;
 using TEDF.Application.Features.Dashboard.Queries.GetDepartmentHeadDashboard;
 using TEDF.Application.Features.Dashboard.Queries.GetMentorDashboard;
-using TEDF.Application.Features.Evaluations.DTOs;
-using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorDashboard;
+using TEDF.Application.Features.Dashboard.Queries.GetEvaluatorDashboard;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 

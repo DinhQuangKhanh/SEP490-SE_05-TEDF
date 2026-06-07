@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Dashboard.DTOs;
-using TEDF.Application.Features.Departments.DTOs;
+using TEDF.Application.Features.Projects.DTOs;
 using TEDF.Domain.Constants;
 using TEDF.Domain.Enums.Evaluation;
 using TEDF.Domain.Enums.Project;

@@ -1,8 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.Application.Common;
-using TEDF.Application.Features.Mentor.DTOs;
-using TEDF.Application.Features.Mentor.Queries.GetMentorTopics;
+using TEDF.Application.Features.Topics.Queries.GetMentorTopics;
 using TEDF.Application.Features.Topics.DTOs;
 using TEDF.Application.Features.Topics.Queries.GetTopicsInPool;
 using TEDF.Application.Features.Topics.Queries.GetTopicDetail;

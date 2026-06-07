@@ -1,5 +1,5 @@
 using MediatR;
-using TEDF.Application.Features.Departments.Queries.GetDepartmentProjects;
+using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;

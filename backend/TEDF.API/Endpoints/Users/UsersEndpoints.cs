@@ -1,6 +1,6 @@
 using MediatR;
 using TEDF.API.Endpoints.Users.Requests;
-using TEDF.Application.Features.Departments.Commands.AssignDepartmentHead;
+using TEDF.Application.Features.Users.Commands.AssignDepartmentHead;
 using TEDF.Application.Features.Users.Commands.LockUser;
 using TEDF.Application.Features.Users.Commands.UnlockUser;
 using TEDF.Application.Features.Users.Queries.GetUsers;

@@ -1,5 +1,5 @@
 using TEDF.Application.Features.Dashboard.DTOs;
-using TEDF.Application.Features.Departments.DTOs;
+using TEDF.Application.Features.Projects.DTOs;
 
 namespace TEDF.Application.Common.Interfaces;
 

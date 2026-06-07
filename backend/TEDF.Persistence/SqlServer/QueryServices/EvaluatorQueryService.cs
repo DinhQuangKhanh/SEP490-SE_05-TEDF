@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
+using TEDF.Application.Features.Dashboard.DTOs;
 using TEDF.Application.Features.Evaluations.DTOs;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Evaluation;

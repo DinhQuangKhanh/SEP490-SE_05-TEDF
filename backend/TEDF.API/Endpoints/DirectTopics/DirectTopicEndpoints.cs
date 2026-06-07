@@ -1,11 +1,11 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.API.Endpoints.DirectTopics.Requests;
-using TEDF.Application.Features.DirectRegistration.Commands.CreateDirectTopic;
-using TEDF.Application.Features.DirectRegistration.Commands.SubmitToMentor;
-using TEDF.Application.Features.DirectRegistration.Commands.UpdateDirectTopic;
-using TEDF.Application.Features.DirectRegistration.Commands.MentorReviewProposedTopic;
-using TEDF.Application.Features.DirectRegistration.Queries.GetAvailableMentors;
+using TEDF.Application.Features.DirectTopics.Commands.CreateDirectTopic;
+using TEDF.Application.Features.DirectTopics.Commands.MentorReviewTopic;
+using TEDF.Application.Features.DirectTopics.Commands.SubmitToMentor;
+using TEDF.Application.Features.DirectTopics.Commands.UpdateDirectTopic;
+using TEDF.Application.Features.DirectTopics.Queries.GetAvailableMentors;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 

@@ -4,8 +4,6 @@ using TEDF.Application.Features.TopicPools.Commands.ConfirmRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
-using TEDF.Application.Features.Mentor.Commands.MentorResubmitPoolTopic;
-using TEDF.Application.Features.Mentor.Commands.MentorUpdatePoolTopic;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -16,6 +14,8 @@ using static TEDF.API.Extensions.ApiResponseExtensions;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.API.Common.Security.Abstractions;
 using TEDF.Application.Common.Interfaces;
+using TEDF.Application.Features.TopicPools.Commands.MentorResubmitPoolTopic;
+using TEDF.Application.Features.TopicPools.Commands.MentorUpdatePoolTopic;
 
 namespace TEDF.API.Endpoints.Topics;
 

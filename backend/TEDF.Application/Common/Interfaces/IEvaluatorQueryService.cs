@@ -1,3 +1,4 @@
+using TEDF.Application.Features.Dashboard.DTOs;
 using TEDF.Application.Features.Evaluations.DTOs;
 
 namespace TEDF.Application.Common.Interfaces;
