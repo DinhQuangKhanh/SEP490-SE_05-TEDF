@@ -1,0 +1,124 @@
+# TEDF Backend — Project Status
+
+Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context and by cross-cutting concern. Status is inferred from the source — whether an Application feature has handlers, whether endpoints are mapped, and whether jobs/handlers contain real logic vs. `TODO` stubs.
+
+**Last updated:** 2026-06-04
+
+> Living document. Update a row when a feature gains endpoints, a job is implemented, or a stub is filled in.
+
+## Legend
+
+| Symbol | Meaning                                                                      |
+| ------ | ---------------------------------------------------------------------------- |
+| ✅     | Done — Application handlers + mapped endpoints, functional                   |
+| 🚧     | Partial — built at one layer but not fully wired, or a stub with real intent |
+| 📋     | Scaffolded — folder exists but empty / no implementation                     |
+| ❌     | Not started                                                                  |
+
+## Summary
+
+- **Core lifecycle is live:** topic pools, direct registration, evaluations, student groups, semesters, supports, notifications, dashboards, and admin/department-head/mentor management are implemented end to end (Application + endpoints).
+- **Admin system settings are now live:** the `SystemConfiguration` store is wired (`ISystemSettingsService` + cache), with admin settings CRUD, public branding (color/header/logo), logo upload, test email, **backend-enforced maintenance mode**, and the **Project Archives** feature. Registration rules (max group members, allow direct registration) are enforced from settings.
+- **Auth, caching (L1/L2), domain events, SignalR, and most Hangfire scheduling** are wired.
+- **Endpoint reorganization (done):** `Endpoints/` is now **feature-based**, not role-based — the `Mentor`, `DepartmentHead`, `Admin`, and `Departments` folders are gone. Folders: `ActivityLogs`, `Archives`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (`TopicCatalogEndpoints` + `TopicPoolsEndpoints`), `Users`. Role actions were distributed into their features: all dashboards → `/api/dashboard/*` (`Dashboard`); dept-head evaluator management → `/api/evaluations/*` (`Evaluations`); admin + dept-head project lists → `/api/projects` (`Projects`); assign-department-head → `/api/users/departments/{id}/head` (`Users`); mentor topic list → `/api/topics/mentor`, mentor topic update/resubmit → `/api/topic-pools/topics/{id}/…`, mentor groups → `/api/groups/mentor`. Prefix renames also stand (`/api/student-groups`→`/api/groups`, `/api/supports`→`/api/support-tickets`, `/api/evaluator`→`/api/evaluations`, `/api/admin/*`→`/api/*`). The frontend `src/lib`/`src/types` mirror these feature folders. See `../../docs/API_SPEC.md`.
+- **Service-layer reorganization (done):** every feature now has a paired `<Feature>DomainService` (writes, in `Infrastructure/Services/DomainServices`) + `<Feature>QueryService` (reads, in `Persistence/SqlServer/QueryServices`) — 14 of each. **Command handlers inject only their `I<Feature>DomainService`; query handlers inject only their `I<Feature>QueryService`** (no `IUnitOfWork`/`*Repository`/`AppDbContext` left in any handler); the domain service owns the unit of work. The old aggregate/role-named services were renamed or merged (`Evaluation`/`Group`/`Project`/`Semester`/`TopicPool` → feature names; `Admin`/`Mentor`/`DepartmentHead`/`Evaluator` dashboards/query services consolidated into `DashboardQueryService`, `EvaluationsQueryService`, `ProjectsQueryService`), and DI was consolidated (14 + 14 registrations, duplicates removed). `Application/Features` is likewise fully feature-based — the `Mentor` and `Departments` folders were dissolved (into `Topics`/`Projects`/`Evaluations`/`Users`); `Infrastructure/EventHandlers` regrouped into per-context subfolders (`Project`, `Support`, …).
+- **Not built / in progress:** Reports (PDF/Excel), real-time Chat feature, and Meetings — their folders are scaffolded but empty. Several reminder jobs and a few TopicPool notification handlers are `TODO` stubs. Redis health check is a stub.
+
+---
+
+## By Bounded Context
+
+Endpoint counts are HTTP endpoints under `TEDF.API/Endpoints/`; "App files" is the rough size of the Application feature (`Features/<Context>`). **`Application/Features` and `Endpoints/` are both fully feature-based** — the old `Mentor` and `Departments` contexts no longer exist as folders in either layer; their commands/queries were absorbed into the feature folders noted below.
+
+| Context            | App files | Endpoints                | Status | Notes                                                                                                 |
+| ------------------ | --------- | ------------------------ | ------ | ----------------------------------------------------------------------------------------------------- |
+| TopicPools         | 19        | 10 (`TopicPools`)        | ✅     | Pool CRUD, registration, approval lifecycle + mentor topic update/resubmit (`/api/topic-pools/topics/{id}/…`) |
+| Evaluations        | 19        | 9 (`Evaluations`)        | ✅     | Evaluator self-service (6) + dept-head management — evaluators, assign-evaluator, final-decision (3)   |
+| StudentGroups      | 37        | 13 (`Groups`)            | ✅     | Create/invite/join + invitable-students picker (`/api/groups`)                                        |
+| Supports           | 20        | 6 (`SupportTickets`)     | ✅     | Support tickets (stats, list, detail, create, reply, status) (`/api/support-tickets`)                 |
+| Semesters          | 15        | 8 (`Semesters`)          | ✅     | Semester + phase lifecycle (`/api/semesters`, dropped `/api/admin` prefix)                            |
+| DirectRegistration | 14        | 5 (`DirectTopics`)       | ✅     | Student-initiated topic flow + mentor review (`/api/direct-topics`)                                   |
+| Departments        | — (dissolved) | — (distributed)      | ✅     | Commands/queries absorbed into `Projects` (dept projects), `Evaluations` (evaluators/assign/final-decision), `Users` (assign-head); `Majors` separate |
+| Dashboard          | 9         | 4 (`Dashboard`)          | ✅     | All per-role dashboards unified: `/api/dashboard/{admin,mentor,department-head,evaluator}`             |
+| Notifications      | 9         | 4 (`Notifications`)      | ✅     | Notification management (+ SignalR)                                                                   |
+| Mentor             | — (dissolved) | — (distributed)      | ✅     | Commands/queries absorbed into `Topics` (mentor topics), `TopicPools` (topic update/resubmit), `Dashboard` (mentor dashboard), `Groups` (mentor groups) |
+| Topics             | 7         | 4 (`Topics`)             | ✅     | Topic catalog: list, mentor topics (`/api/topics/mentor`), detail, documents                          |
+| Projects           | 3         | 2 (`Projects`)           | ✅     | Admin project list (`/api/projects`) + dept-head department projects (`/api/projects/department`)     |
+| Users              | 7         | 4 (`Users`)              | ✅     | List + lock/unlock + assign-department-head (`/api/users`, `/api/users/departments/{id}/head`)        |
+| ActivityLogs       | —         | 5 (`ActivityLogs`)       | ✅     | Activity/error logs (`/api/activity-logs`, was under `Admin`)                                         |
+| Settings           | 13        | 5 (`Settings`)           | ✅     | `SystemConfiguration` store + cache; admin GET/PUT settings, public branding, logo upload, test email |
+| Archives           | 3         | 2 (`Archives`)           | ✅     | Project archive list (by year) + download; `ProjectArchive` + `FileSizeBytes` (was scaffolded)        |
+| Reports            | 0         | 0 (`Reports`)            | 📋     | Empty feature + empty endpoint folder; PDF/Excel reporting not built                                  |
+| Chats              | 0         | 0 (`Chats`)              | 🚧     | No feature/endpoints, but `ChatHub` + Conversation/Message repos + Mongo docs exist                   |
+| Meetings           | 0         | 0 (`Meetings`)           | 📋     | Empty feature + empty endpoint folder                                                                 |
+| Authentications    | 0         | 0 (`Authentications`)    | ✅     | Intentionally empty — auth is Firebase + JWT middleware, no app-layer feature                         |
+
+---
+
+## Cross-Cutting Infrastructure
+
+| Concern                          | Status | Notes                                                                                                       |
+| -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Firebase auth + JWT bearer       | ✅     | Token validation, Firebase UID → DB user claim resolution, role claims                                      |
+| Authorization handlers           | ✅     | Permission, ProjectOwner, GroupMember, GroupLeader, MentorOfProject, DepartmentHeadOfDepartment             |
+| CQRS pipeline (MediatR)          | ✅     | Logging → Caching → CacheInvalidation → Validation behaviors                                                |
+| Hybrid caching (L1 + L2)         | ✅     | Memory + Redis with cross-instance L1 invalidation; memory-only fallback when no Redis                      |
+| Domain events                    | ✅     | Dispatched after `SaveChangesAsync` via `DomainEventInterceptor`                                            |
+| SignalR                          | ✅     | `NotificationHub` (`/hubs/notifications`), `ChatHub` (`/hubs/chat`) mapped                                  |
+| Real-time notifications          | ✅     | `RealtimeNotificationService` + MongoDB persistence                                                         |
+| Real-time chat                   | 🚧     | Hub + repositories + documents exist; no feature/endpoints to drive it                                      |
+| Email (SMTP)                     | ✅     | `SmtpEmailService` (MailKit) + HTML templates                                                               |
+| File storage                     | ✅     | `FirebaseStorageService`                                                                                    |
+| Excel export                     | 🚧     | `ExcelService` registered; no Reports feature/endpoints consuming it yet                                    |
+| PDF reports                      | ❌     | Not implemented                                                                                             |
+| Attachment malware scan (ClamAV) | ✅     | Scan workflow + quarantine; degrades gracefully to "unavailable" if ClamAV unreachable                      |
+| Upload hardening                 | ✅     | 25 MB limit, request timeout, sliding-window rate limiter on propose-topic upload                           |
+| System settings store            | ✅     | `SystemConfiguration` + `ISystemSettingsService` (cached); admin CRUD + anonymous public-settings endpoint  |
+| Branding (system-wide)           | ✅     | Primary color / header name / logo stored server-side and applied for all users at startup                  |
+| Maintenance mode                 | ✅     | `MaintenanceModeMiddleware` returns 503 to non-admins when enabled (allowlists auth/public-settings/health) |
+| Logging / audit (MongoDB)        | ✅     | Request, activity, system audit, error logs                                                                 |
+| Health checks                    | 🚧     | `sqlserver` + `mongodb` registered; **Redis health check is a `TODO` stub**                                 |
+
+---
+
+## Hangfire Jobs
+
+| Job                            | Status | Notes                                            |
+| ------------------------------ | ------ | ------------------------------------------------ |
+| TopicExpirationJob             | ✅     | Auto-closes expired pool topics                  |
+| SemesterPhaseTransitionJob     | ✅     | Advances semester phases by date                 |
+| GroupJoinRequestExpirationJob  | ✅     | Expires stale join requests                      |
+| QuarantineRetryJob (API layer) | ✅     | Re-scans quarantined attachments every 30 min    |
+| EvaluationReminderJob          | 🚧     | Registered & scheduled, body is a `TODO` stub    |
+| DefenseScheduleReminderJob     | 🚧     | Stub — depends on the (unbuilt) defense feature  |
+| MeetingReminderJob             | 🚧     | Stub — depends on the (unbuilt) meetings feature |
+| DataCleanupJob                 | 🚧     | Stub — log/temp-file cleanup not implemented     |
+
+---
+
+## Domain Event Handlers
+
+Most handlers (Project, Group, Evaluation, Semester, User) are implemented. Known stubs in `Infrastructure/EventHandlers/TopicPool/`:
+
+- `PoolTopicExpiredEventHandler` — `TODO: Notify mentor about expired topic`
+- `TopicRegistrationRequestedEventHandler` — `TODO: Notify mentor about pending registration`
+- `TopicRegistrationConfirmedEventHandler` — `TODO: Notify group about confirmation`
+- `TopicRegistrationRejectedEventHandler` — `TODO: Notify group about rejection`
+
+These handlers are wired into the event pipeline but currently no-op on the notification side.
+
+`EvaluatorSubmittedResultEventHandler` now respects the `EmailOnEvaluationResult` system setting (admin Notifications toggle) before sending the finalized-result notification. The `NotifyMentorOnRegistration` toggle is stored but not yet enforced (its target handler is one of the TopicPool stubs above).
+
+---
+
+## Known Gaps / Follow-ups
+
+- **Reports (PDF/Excel)** — no feature or endpoints; `ExcelService` exists but is unused. PDF generation not started.
+- **Real-time chat** — hub, repositories, and Mongo documents exist, but no `Chats` Application feature or endpoints to expose conversations/messages.
+- **Meetings** — feature and endpoint folders are empty; `MeetingReminderJob` is stubbed pending this.
+- **Defense schedule** — no aggregate/feature wired; `DefenseScheduleReminderJob` is stubbed.
+- **Reminder jobs** (`EvaluationReminderJob`, `DataCleanupJob`) are scheduled but empty — they run on cron but do nothing yet.
+- **TopicPool notification handlers** (4 above) need their notification bodies implemented.
+- **Redis health check** is a `TODO`; only SQL Server and MongoDB are health-checked.
+- **Settings stored but not yet enforced:** `RequireOutlineApproval`, `MaxTopicsPerMentor`, and `NotifyMentorOnRegistration` are persisted and editable in admin settings but not wired into the corresponding flows/handlers yet.
+- **Endpoint reorganization (in progress):** the `Endpoints/` domain-folder rename + one-class-per-group template (§9 of PROJECT-RULES) is mostly done, but the **Mentor area** (`/api/mentor/*` — dashboard, topics list, topic update/resubmit, mentor's groups), **admin project listing**, **assign-department-head**, and **topic-document upload** were deleted without replacements and need re-migrating. The frontend `lib/common/routes.ts` still references several previous route prefixes until synced.

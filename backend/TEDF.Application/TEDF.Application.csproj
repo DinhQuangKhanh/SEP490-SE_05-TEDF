@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.23" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TEDF.Domain\TEDF.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Authentications\Commands\" />
+    <Folder Include="Features\Authentications\DTOs\" />
+    <Folder Include="Features\Authentications\EventHandlers\" />
+    <Folder Include="Features\Authentications\Queries\" />
+    <Folder Include="Features\Evaluations\DTOs\" />
+    <Folder Include="Features\Notifications\Commands\" />
+    <Folder Include="Features\Notifications\DTOs\" />
+    <Folder Include="Features\Notifications\Queries\" />
+    <Folder Include="Features\Semesters\Commands\" />
+    <Folder Include="Features\Semesters\DTOs\" />
+    <Folder Include="Features\Semesters\Queries\" />
+    <Folder Include="Features\StudentGroups\Commands\" />
+    <Folder Include="Features\Projects\Commands\" />
+    <Folder Include="Features\Supports\Commands\" />
+    <Folder Include="Features\Supports\DTOs\" />
+    <Folder Include="Features\Supports\Queries\" />
+    <Folder Include="Features\TopicPools\Queries\" />
+    <Folder Include="Features\Users\DTOs\" />
+    <Folder Include="Features\Users\EventHandlers\" />
+    <Folder Include="Features\Users\Queries\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,19 @@
+// Barrel — feature services for `@/lib`. Folders mirror the backend feature set (+ common infra).
+export * from "./common/fileUploadUtils";
+export { activityLogService } from "./activityLogs/activityLogService";
+export { archiveService } from "./archives/archiveService";
+export { dashboardService } from "./dashboard/dashboardService";
+export { proposedTopicService } from "./directTopics/proposedTopicService";
+export { evaluatorService } from "./evaluations/evaluatorService";
+export { studentGroupService } from "./groups/studentGroupService";
+export { majorService } from "./majors/majorService";
+export { notificationService } from "./notifications/notificationService";
+export { projectService } from "./projects/projectService";
+export { semesterService } from "./semesters/semesterService";
+export * from "./semesters/semesterValidation";
+export { settingsService } from "./settings/settingsService";
+export { supportService } from "./supportTickets/supportService";
+export { topicService } from "./topics/topicService";
+export * from "./topics/topicStatus";
+export { topicPoolService } from "./topicPools/topicPoolService";
+export { userService } from "./users/userService";

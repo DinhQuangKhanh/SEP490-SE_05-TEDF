@@ -1,0 +1,66 @@
+import {
+  AvailableStudentDto,
+  InvitationDto,
+  JoinRequestDto,
+  MentorGroupDto,
+  OpenGroupDto,
+  PendingJoinRequestDto,
+  StudentGroupDto,
+} from "@/types";
+import { apiClient } from "../common/apiClient";
+import { routes } from "../common/routes";
+
+export const studentGroupService = {
+  getMentorGroups: (semesterId?: number) =>
+    apiClient.get<MentorGroupDto[]>(`${routes.mentor.studentGroups}${semesterId ? `?semesterId=${semesterId}` : ""}`),
+
+  getMyGroup: (semesterId?: number) =>
+    apiClient.get<StudentGroupDto | null>(
+      `${routes.studentGroups.myGroup}${semesterId ? `?semesterId=${semesterId}` : ""}`,
+    ),
+
+  getOpenGroups: (semesterId?: number) =>
+    apiClient.get<OpenGroupDto[]>(`${routes.studentGroups.open}${semesterId ? `?semesterId=${semesterId}` : ""}`),
+
+  getMyInvitations: () => apiClient.get<InvitationDto[]>(routes.studentGroups.myInvitations),
+
+  getJoinRequests: (groupId: string) => apiClient.get<JoinRequestDto[]>(routes.studentGroups.joinRequests(groupId)),
+
+  getInvitableStudents: (groupId: string) =>
+    apiClient.get<AvailableStudentDto[]>(routes.studentGroups.invitableStudents(groupId)),
+
+  getMyPendingJoinRequest: (semesterId?: number) =>
+    apiClient.get<PendingJoinRequestDto | null>(
+      `${routes.studentGroups.myPendingJoinRequest}${semesterId ? `?semesterId=${semesterId}` : ""}`,
+    ),
+
+  createGroup: (name?: string) => apiClient.post<{ id: string }>(routes.studentGroups.base, { name }),
+
+  inviteMember: (groupId: string, studentCode: string, message?: string) =>
+    apiClient.post<{ id: number }>(routes.studentGroups.invitations(groupId), {
+      studentCode,
+      message,
+    }),
+
+  acceptInvitation: (groupId: string, invitationId: number) =>
+    apiClient.put<void>(`${routes.studentGroups.invitations(groupId)}/${invitationId}/accept`),
+
+  rejectInvitation: (groupId: string, invitationId: number) =>
+    apiClient.put<void>(`${routes.studentGroups.invitations(groupId)}/${invitationId}/reject`),
+
+  requestJoin: (groupId: string, message?: string) =>
+    apiClient.post<{ id: number }>(routes.studentGroups.joinRequests(groupId), { message }),
+
+  approveJoinRequest: (groupId: string, requestId: number) =>
+    apiClient.put<void>(`${routes.studentGroups.joinRequests(groupId)}/${requestId}/approve`),
+
+  rejectJoinRequest: (groupId: string, requestId: number) =>
+    apiClient.put<void>(`${routes.studentGroups.joinRequests(groupId)}/${requestId}/reject`),
+
+  /** Group leader registers the group for a topic from the pool. */
+  registerTopic: (params: { projectId: string; groupId: string; note?: string }) =>
+    apiClient.post(routes.studentTopics.registerTopic(params.groupId), {
+      projectId: params.projectId,
+      note: params.note,
+    }),
+};

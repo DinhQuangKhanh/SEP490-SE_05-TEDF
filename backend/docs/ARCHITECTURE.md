@@ -1,0 +1,299 @@
+# TEDF Backend — Architecture
+
+Architecture reference for the TEDF API (`backend/`, solution `TEDF.sln`). Built with **Clean Architecture + DDD + CQRS** on .NET 8 / ASP.NET Core Minimal API. This document focuses on _how the backend is wired_; for system-wide diagrams (domain model, DB tables, deployment) see the root [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
+---
+
+## Table of Contents
+
+- [TEDF Backend — Architecture](#tedf-backend--architecture)
+  - [Table of Contents](#table-of-contents)
+  - [1. Layers \& Dependency Rule](#1-layers--dependency-rule)
+  - [2. Composition Root (`Program.cs`)](#2-composition-root-programcs)
+  - [3. HTTP Request Pipeline](#3-http-request-pipeline)
+  - [4. CQRS \& the MediatR Pipeline](#4-cqrs--the-mediatr-pipeline)
+  - [5. Domain Layer](#5-domain-layer)
+  - [6. Domain Events](#6-domain-events)
+  - [7. Persistence](#7-persistence)
+  - [8. Caching](#8-caching)
+  - [9. Authentication \& Authorization](#9-authentication--authorization)
+  - [10. Real-time, Background Jobs \& Cross-cutting Services](#10-real-time-background-jobs--cross-cutting-services)
+  - [11. API Endpoints](#11-api-endpoints)
+  - [12. Error Handling \& Response Envelope](#12-error-handling--response-envelope)
+
+---
+
+## 1. Layers & Dependency Rule
+
+Five projects; dependencies point **inward** only. The Domain has zero external dependencies and defines the interfaces that outer layers implement.
+
+```
+        ┌──────────────────────────────────────────────┐
+        │  TEDF.API  (Presentation)                    │  Minimal API endpoints, Program.cs
+        └───────────────┬──────────────────────────────┘
+                        │ depends on
+   ┌────────────────────┼─────────────────────────────────┐
+   ▼                    ▼                                   ▼
+┌────────────────┐  ┌────────────────┐            ┌──────────────────┐
+│ TEDF.Persistence│  │ TEDF.Infrastructure│        │  TEDF.Application │
+│ EF Core, Mongo │  │ Auth, SignalR, …  │ ───────► │  CQRS / MediatR   │
+└───────┬────────┘  └────────┬─────────┘            └─────────┬────────┘
+        │                    │                                │
+        └────────────────────┴───────────► TEDF.Domain ◄──────┘
+                                            (no external deps)
+```
+
+| Project               | Responsibility                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEDF.Domain`         | Aggregates, entities, value objects, enums, domain events, business `Rules`, domain services, and **interfaces** (repository contracts, `IUnitOfWork`, `ICurrentUserService`, …).        |
+| `TEDF.Application`    | CQRS use-cases: `Features/<Context>/{Commands,Queries,DTOs}`, MediatR handlers, FluentValidation validators, pipeline behaviors, and the `Common/Interfaces` service contracts it needs. |
+| `TEDF.Persistence`    | EF Core `AppDbContext` (SQL Server), repositories, interceptors, query services, MongoDB documents/repositories, migrations, seeds.                                                      |
+| `TEDF.Infrastructure` | Firebase auth, authorization handlers, SignalR hubs, Hangfire jobs, hybrid caching, domain-event handlers, email, file storage, health checks, middleware.                               |
+| `TEDF.API`            | Composition root + Minimal API endpoints + Swagger.                                                                                                                                      |
+
+Each outer layer exposes a single `AddXxx` DI extension (`AddApplicationServices`, `AddPersistence`, `AddInfrastructure`) consumed by `Program.cs`.
+
+---
+
+## 2. Composition Root (`Program.cs`)
+
+`Program.cs` is the only place layers are composed. In order, it:
+
+1. **Loads env vars** from `.env` files (`DotEnvLoader.LoadForCurrentEnvironment`) before building configuration.
+2. Registers **Swagger** with a JWT Bearer security definition.
+3. Configures **CORS** policy `AllowFrontend` from `Cors:AllowedOrigins` (falls back to localhost dev origins), `AllowCredentials`.
+4. Sets **upload limits & throttling** for the propose-topic upload path: `FormOptions.MultipartBodyLengthLimit` = 25 MB, a 60 s request-timeout policy, and a sliding-window **rate limiter** (`ProposeTopicUploadPolicy`, 5/min keyed by DB user id or IP) returning the `ApiResponse` envelope on rejection.
+5. Registers **attachment malware scanning** (ClamAV) services and jobs (`IMalwareScanner`, `IAttachmentScanWorkflow`, `AttachmentScanJob`, `QuarantineRetryJob`).
+6. Calls the three layer registrations: `AddApplicationServices()` → `AddPersistence(config)` → `AddInfrastructure(config)`.
+7. Configures **ForwardedHeaders** so the real client IP is read behind a reverse proxy.
+8. In **Development**, applies migrations + seeds via `InitializeDatabaseAsync()`, and enables Swagger UI.
+
+---
+
+## 3. HTTP Request Pipeline
+
+Middleware order (from `Program.cs` + `UseInfrastructure`):
+
+```
+ForwardedHeaders            # real client IP (must be first)
+└─ UseInfrastructure:
+     CorrelationIdMiddleware         # X-Correlation-Id for tracing
+     RequestLoggingMiddleware        # structured request logs (Serilog)
+     ExceptionHandlingMiddleware     # maps exceptions → ApiResponse + status
+     PerformanceMonitoringMiddleware # flags slow requests
+     UseHangfireDashboard("/hangfire", admin-only)
+     RecurringJobsConfiguration.ConfigureRecurringJobs()
+RequestTimeouts
+RateLimiter
+CORS ("AllowFrontend")
+HttpsRedirection
+Authentication  →  Authorization
+MapHealthChecks("/health")
+MapHub<NotificationHub>("/hubs/notifications")
+MapHub<ChatHub>("/hubs/chat")
+MapEndpoints()                      # all IEndpoint groups, reflection-registered
+RecurringJob "quarantine-retry"     # API-layer job, every 30 min
+```
+
+Hosted endpoints: Swagger `/swagger` (dev), Health `/health`, Hangfire `/hangfire` (Admin only), SignalR `/hubs/*`, REST under `/api/*`.
+
+---
+
+## 4. CQRS & the MediatR Pipeline
+
+Every use-case is a MediatR request. `AddApplicationServices` scans the Application assembly for handlers and validators and registers the behavior chain **in execution order**:
+
+```
+Request ─► LoggingBehavior
+        ─► CachingBehavior                    (queries: ICachedQuery — short-circuits on hit)
+        ─► CacheInvalidationBehavior          (commands: ICacheInvalidatingCommand)
+        ─► CacheInvalidationWithResultBehavior (commands with a result)
+        ─► ValidationBehavior                 (FluentValidation)
+        ─► Handler
+```
+
+**Abstractions** (`Application/Common/Abstractions`):
+
+- `ICommand` / `ICommand<TResponse>` — state-changing intents (over `IRequest`).
+- `IQuery<TResponse>` / `IQueryHandler` — reads.
+- `ICacheInvalidatingCommand` (and `<TResponse>`) — exposes `CachePrefixesToInvalidate`; the invalidation behavior clears those prefixes from L1 + L2 after the command succeeds.
+- `ICachedQuery<TResponse>` — exposes `CacheKey` (supports a `{userId}` placeholder; return `null` to skip caching, e.g. search), with per-query `L1Expiration` (default 2 min) and `L2Expiration` (default 15 min).
+
+**Feature layout** — `Features/<Context>/` contains `Commands/<Name>/{Command,Handler,Validator}`, `Queries/<Name>/{Query,Handler}`, and `DTOs/`. `Application/Features` is **feature-based** (no `Mentor`/`Departments` folders — those were dissolved into `Topics`/`Projects`/`Evaluations`/`Users`/etc.).
+
+**Per-feature service pairing (enforced).** Every feature has exactly two services — a `<Feature>DomainService` (writes) and a `<Feature>QueryService` (reads):
+
+- **`CommandHandler`s inject only `I<Feature>DomainService`**; **`QueryHandler`s inject only `I<Feature>QueryService`** (plus cross-cutting services such as `ICurrentUserService`). Handlers stay thin — they read the caller, then delegate to one service method.
+- Handlers **no longer touch `IUnitOfWork`, repositories, or `AppDbContext` directly**. The domain service owns the unit of work (calls `SaveChangesAsync`) and any transactional side-effects (auth provider, email, file storage, background jobs, domain events); the query service issues read-optimized projections.
+
+> Note: Infrastructure registers MediatR on **its own** assembly separately (so domain-event handlers are discovered); Application registers only Application handlers.
+
+---
+
+## 5. Domain Layer
+
+- **Primitives** (`Common/Primitives`): `Entity<TId>`, `AggregateRoot<TId> : Entity<TId>, IHasDomainEvents`, `ValueObject`, `AuditableEntity`, plus marker interfaces `IIdentifiable`, `ISoftDeletable`.
+- **Aggregates** (`Aggregates/<X>Aggregate/`): 9 roots, each owning its entities, value objects, domain `Events/`, and business `Rules/`.
+- **Business rules**: implement `IBusinessRule` (`Message`, `Code` defaulting to the class name, `IsBroken()`). Aggregates enforce them via `CheckRule(rule)` / `CheckRules(...)`, which throw `BusinessRuleValidationException` on the first broken rule — keeping invariants inside the domain.
+- **Domain services** — one per feature (`I<Feature>DomainService`, e.g. `IUsersDomainService`, `IEvaluationsDomainService`, `ITopicPoolsDomainService`, `IStudentGroupsDomainService`, …; interfaces in `Domain/Services`, implementations in `Infrastructure/Services/DomainServices`). They own each feature's write use-cases (load → mutate aggregates → `SaveChangesAsync`) plus any cross-aggregate logic; command handlers depend on these only. (The earlier aggregate-named services — `IProjectDomainService`, `IEvaluationDomainService`, `IGroupDomainService`, … — were renamed/merged into the per-feature set.)
+- **Specifications** encapsulate reusable query predicates.
+
+---
+
+## 6. Domain Events
+
+Aggregates call `RaiseDomainEvent(...)`; events are collected on the aggregate and dispatched **after** the transaction commits.
+
+```
+Aggregate.RaiseDomainEvent(e)
+        │
+UnitOfWork.SaveChangesAsync()
+        │
+DomainEventInterceptor.SavedChangesAsync()   # EF Core SaveChangesInterceptor
+        │  • snapshots events from tracked IHasDomainEvents
+        │  • clears them (prevents re-dispatch)
+        │  • publishes each via MediatR IPublisher
+        ▼
+Domain event handlers (TEDF.Infrastructure/EventHandlers/<X>/)
+        • send notifications (SignalR + MongoDB), emails
+        • write logs, invalidate caches
+        • may trigger further SaveChanges
+```
+
+Dispatch happens only on the **async** save path (the project always saves via `UnitOfWork` async) to avoid sync-over-async deadlocks.
+
+---
+
+## 7. Persistence
+
+`AddPersistence` wires both stores plus the supporting services.
+
+**SQL Server (EF Core)** — the transactional store:
+
+- `AppDbContext` with `UseSqlServer` (`DefaultConnection`), `EnableRetryOnFailure(3)`, migrations in the Persistence assembly.
+- **Interceptors** registered on the context:
+  - `AuditableEntityInterceptor` — stamps `CreatedAt/UpdatedAt/CreatedBy`.
+  - `SoftDeleteInterceptor` — converts deletes to an `IsDeleted` flag (no hard deletes).
+  - `DomainEventInterceptor` — dispatches domain events (see §6).
+- `IUnitOfWork` → `UnitOfWork`; one repository per aggregate (`IUserRepository`, `IProjectRepository`, `ITopicPoolRepository`, `IGroupRepository`, `ISemesterRepository`, `IEvaluationSubmissionRepository`, `ISupportTicketRepository`, `ITopicRegistrationRepository`, `IDepartmentRepository`, `IMajorReadRepository`, `IProjectEvaluatorAssignmentRepository`).
+- **Query services** — one per feature (`I<Feature>QueryService`, interfaces in `Application/Common/Interfaces`, implementations here in `Persistence/SqlServer/QueryServices`): read-optimized DTO projections that bypass aggregates; query handlers depend on these only. The earlier role/aggregate-named services (`AdminDashboard`/`MentorDashboard`/`DepartmentHead`/`Evaluator`/`Topic`/`TopicPool`/`StudentGroup`) were consolidated into the per-feature `DashboardQueryService` (all four role dashboards), `EvaluationsQueryService`, `ProjectsQueryService`, `TopicsQueryService`, `TopicPoolsQueryService`, `StudentGroupsQueryService`, ….
+
+**MongoDB (`TEDFLogs`)** — write-heavy / append-mostly data: `IMongoClient` (singleton) + `MongoDbContext`; documents for `Conversation`, `Message`, `Notification`, `EvaluationLog`, `ProjectModificationHistory`, `QuarantinedAttachment`, `RequestLog`, `SystemAuditLog`, `UserActivityLog`, `ErrorLog`. Serializers configured once via `MongoSerializerConfiguration`; indexes created on startup via `MongoIndexConfiguration`.
+
+**Startup init** (`InitializeDatabaseAsync`, dev only): applies pending migrations, runs `DevelopmentDataSeeder`; when the Firebase emulator is enabled also runs `LoadTestDataSeeder` + `FirebaseEmulatorSeeder`; then ensures Mongo indexes.
+
+---
+
+## 8. Caching
+
+Hybrid two-tier cache, selected at startup based on config:
+
+```
+Query (ICachedQuery) ─► CachingBehavior ─► ICacheService
+                                              │
+                    L1: MemoryCacheService (IMemoryCache, in-process)
+                                              │ miss
+                    L2: RedisCacheService (StackExchange.Redis)
+                                              │ miss
+                                          Handler → DB, then populate L1 + L2
+```
+
+- When `CacheSettings:RedisConnectionString` is set → `HybridCacheService` (L1+L2) is the `ICacheService`, plus a `RedisCacheInvalidationListener` hosted service that keeps each instance's **L1 in sync across instances** via Redis pub/sub. With no Redis configured (dev) → memory-only fallback.
+- `CachingBehavior` adds **stampede protection**: a per-key `SemaphoreSlim` ensures only one thread populates a missing key, with a double-check after acquiring the lock.
+- Writes invalidate via `ICacheInvalidatingCommand.CachePrefixesToInvalidate` → `CacheInvalidationService` clears matching keys from both tiers.
+
+---
+
+## 9. Authentication & Authorization
+
+**Authentication** — Firebase + JWT Bearer (`AddInfrastructure`):
+
+- Firebase Admin SDK is initialized from `FirebaseSettings` (supports the Auth emulator).
+- JWT Bearer validates Firebase ID tokens against issuer `https://securetoken.google.com/{projectId}` and audience `{projectId}` (emulator mode relaxes signing-key validation).
+- `JwtBearerEvents`:
+  - `OnMessageReceived` — for `/hubs/*` requests, reads the token from `?access_token=` (SignalR can't send headers).
+  - `OnTokenValidated` — the Firebase `sub` is the Firebase UID, **not** the DB id. The handler resolves the user via `IUserRepository.GetByFirebaseUidAsync`, then injects extra claims: `DbUserId` (so `ICurrentUserService.UserId` returns the real Guid), `Name` (FullName), and one `Role` claim per active role.
+
+**Authorization** — policy + resource based. Six `IAuthorizationHandler`s are registered:
+
+| Handler / Requirement                                                                      | Checks                                                |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `PermissionAuthorizationHandler` (`PermissionRequirement`)                                 | role/permission policy (`Permissions`, `PolicyNames`) |
+| `ProjectOwnerAuthorizationHandler` (`ProjectOwnerRequirement`)                             | caller owns the project                               |
+| `GroupMemberAuthorizationHandler` (`GroupMemberRequirement`)                               | caller is in the group                                |
+| `GroupLeaderAuthorizationHandler` (`GroupLeaderRequirement`)                               | caller is the group leader                            |
+| `MentorOfProjectAuthorizationHandler` (`MentorOfProjectRequirement`)                       | caller mentors the project                            |
+| `DepartmentHeadOfDepartmentAuthorizationHandler` (`DepartmentHeadOfDepartmentRequirement`) | caller heads the department                           |
+
+Policies are declared in `Authorization/Policies/` (`AuthorizationPolicies`, `Permissions`, `PolicyNames`). The Hangfire dashboard is gated by `HangfireAuthFilter` (authenticated **Admin** only).
+
+---
+
+## 10. Real-time, Background Jobs & Cross-cutting Services
+
+- **SignalR** — `NotificationHub` (`/hubs/notifications`) and `ChatHub` (`/hubs/chat`); `IRealtimeNotificationService` + `INotificationService` persist to MongoDB and push to clients.
+- **Hangfire** — SQL Server storage (`HangfireConnection`, falling back to `DefaultConnection`). Seven recurring jobs registered via `RecurringJobsConfiguration`: `TopicExpirationJob`, `EvaluationReminderJob`, `SemesterPhaseTransitionJob`, `DefenseScheduleReminderJob`, `MeetingReminderJob`, `GroupJoinRequestExpirationJob`, `DataCleanupJob` — plus the API-layer `QuarantineRetryJob` (every 30 min). `IBackgroundJobService` → `HangfireJobService` abstracts enqueuing.
+- **Email** — `SmtpEmailService` (MailKit) + `EmailTemplateService` (HTML templates).
+- **File storage** — `FirebaseStorageService` (`IFileStorageService`); `ExcelService` for spreadsheet export.
+- **Health checks** — `/health` aggregates `sqlserver` + `mongodb` checks.
+- **Time / identity** — `IDateTimeService` (singleton) and `ICurrentUserService` (scoped, reads claims via `IHttpContextAccessor`).
+
+---
+
+## 11. API Endpoints
+
+Endpoints use **Minimal API + the `IEndpoint` convention** (not controllers). The folder is organized **by feature** (not by role — there is no `Mentor`/`DepartmentHead`/`Admin`/`Departments` folder), **one `sealed class <Feature>Endpoints : IEndpoint` per route group** — the whole group (route map + handlers) lives in a single file:
+
+```
+Endpoints/<Domain>/
+├── <Domain>Endpoints.cs           # sealed IEndpoint: MapEndpoint builds the group + maps every route inline
+└── Requests/<Domain>Requests.cs   # request-body DTO records (…<Domain>.Requests namespace), if any
+```
+
+A domain folder may hold **more than one** `IEndpoint` class when it spans multiple route groups (e.g. `Topics/TopicCatalogEndpoints` for `/api/topics` and `Topics/TopicPoolsEndpoints` for `/api/topic-pools`).
+
+`MapEndpoint` builds the route group and maps each route to a **named `private static async Task<IResult>` handler** (method-group reference, not an inline lambda), with `.WithTags`/`.WithName`/`.Produces` per route:
+
+```csharp
+public sealed class SupportTicketsEndpoints : IEndpoint
+{
+    public void MapEndpoint(IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/support-tickets").RequireAuthorization();
+
+        group.MapGet("", GetTickets).WithTags("SupportTickets").WithName("GetTickets").Produces(200).Produces(401);
+        group.MapPost("", CreateTicket).WithTags("SupportTickets").WithName("CreateTicket").Produces(201).Produces(400);
+        // …
+    }
+
+    private static async Task<IResult> GetTickets([AsParameters] GetTicketsRequest request, ISender sender, HttpContext ctx, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetTicketsQuery(ctx.User.GetUserId(), ctx.User.IsInRole("Admin"), request.SearchTerm, request.Status, request.Priority), ct);
+        return Results.Ok(result);
+    }
+}
+```
+
+- **Auto-registration unchanged:** `MapEndpoints()` discovers every non-abstract `IEndpoint` type by reflection and calls `MapEndpoint`. No central route table.
+- Handlers stay thin: read the caller from `ICurrentUserService`/`HttpContext`/policies, send one MediatR command/query, return via the `ApiResponse` helpers. Authorization is the group default plus per-route `RequireAuthorization(PolicyNames.…)` overrides. Full conventions: [`PROJECT-RULES.md`](PROJECT-RULES.md) §9.
+
+> **Feature-based layout.** `Endpoints/` mirrors the frontend feature set: `ActivityLogs`, `Archives`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (two classes), `Users`. Role-shaped folders are gone — per-role dashboards are unified under `Dashboard`, dept-head evaluator management under `Evaluations`, the admin + dept-head project lists under `Projects`, assign-department-head under `Users`, and the mentor topic list/edits under `Topics`. See [`../../docs/API_SPEC.md`](../../docs/API_SPEC.md) for the full route list.
+
+---
+
+## 12. Error Handling & Response Envelope
+
+- All responses use the `ApiResponse` / `ApiResponse<T>` envelope (`{ success, message, data?, errors? }`), produced via `ApiResponseExtensions`.
+- `ExceptionHandlingMiddleware` (Infrastructure) maps exceptions to status codes and an `ApiResponse.Fail(...)` body:
+
+  | Exception                         | HTTP                                                                   |
+  | --------------------------------- | ---------------------------------------------------------------------- |
+  | `EntityNotFoundException`         | 404                                                                    |
+  | `ValidationException`             | 400 (+ field errors)                                                   |
+  | `BusinessRuleValidationException` | 400                                                                    |
+  | `ConcurrencyException`            | 409                                                                    |
+  | `UnauthorizedAccessException`     | 403                                                                    |
+  | `DomainException`                 | 400                                                                    |
+  | _(unhandled)_                     | 500 — logged to Mongo `error_logs` + a summary in `user_activity_logs` |
+
+- Error codes themselves are documented in [`../CLAUDE.md`](../CLAUDE.md) (§ Error Code Prefix) and [`PROJECT-RULES.md`](PROJECT-RULES.md). Validation failures are raised early by `ValidationBehavior` before the handler runs.
