@@ -1,1 +1,0 @@
-export { RegisterTopicModal } from './RegisterTopicModal'
