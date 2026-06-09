@@ -184,6 +184,18 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
             invitation.Accept();
             RaiseDomainEvent(new InvitationAcceptedEvent(Id, Code.Value, invitation.InviterId, studentId));
             AddMember(studentId);
+
+            if (_invitations.Count != 0 && _members.Count == 5)
+            {
+                var invitationsRemainingToReject = _invitations.Where(j => j.GroupId == Id && j.IsPending).ToList();
+
+                foreach (var invitationRemaining in invitationsRemainingToReject)
+                {
+                    invitationRemaining.Reject();
+                    RaiseDomainEvent(new InvitationRejectedEvent(invitation.GroupId, Code.Value, invitation.InviterId, studentId));
+                }
+            }
+
         }
 
         public void RejectInvitation(int invitationId, Guid studentId)
@@ -242,11 +254,23 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
                 throw new BusinessRuleValidationException("Join request has expired.");
             }
 
-            CheckRule(new GroupCannotExceedMaxMembersRule(ActiveMemberCount, MaxMembers));
+            CheckRule(new GroupCannotExceedMaxMembersRule(ActiveMemberCount, MaxMembers)); 
 
             request.Approve();
+            
             RaiseDomainEvent(new JoinRequestApprovedEvent(Id, Code.Value, request.StudentId));
             AddMember(request.StudentId);
+
+            if (_joinRequests.Count != 0 && _members.Count == 5)
+            {
+                var joinRequestRemainingToReject = _joinRequests.Where(j => j.GroupId == Id && j.IsPending).ToList();
+
+                foreach (var joinRequest in joinRequestRemainingToReject)
+                {
+                    joinRequest.Reject();
+                    RaiseDomainEvent(new JoinRequestRejectedEvent(joinRequest.GroupId, Code.Value, joinRequest.StudentId));
+                }
+            }
         }
 
         public void RejectJoinRequest(int requestId, Guid rejecterId)
