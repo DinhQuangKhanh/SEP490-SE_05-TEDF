@@ -18,6 +18,7 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
         Task<List<Guid>> GetActiveGroupIdsWithoutProjectAsync(int semesterId, CancellationToken cancellationToken = default);
         Task<Group?> GetWithInvitationsAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Group?> GetWithJoinRequestsAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<Group?> GetWithJoinRequestsAndInvitationsAsync(Guid id, CancellationToken cancellationToken);
         Task<Group?> GetWithAllRelationsAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

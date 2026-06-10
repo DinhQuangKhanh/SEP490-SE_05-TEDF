@@ -1,5 +1,7 @@
 using TEDF.Application.Common;
+using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.GroupAggregate;
+using TEDF.Domain.Aggregates.GroupAggregate.Entities;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
@@ -43,7 +45,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         if (!await _settings.GetBoolAsync(SettingKeys.AllowDirectRegistration, true, ct))
             throw new BusinessRuleValidationException("Tính năng sinh viên tự đề xuất đề tài hiện đang bị tắt.");
 
-        var group = await _groupRepository.GetWithMembersAsync(groupId, ct)
+        var group = await _groupRepository.GetWithJoinRequestsAndInvitationsAsync(groupId, ct)
             ?? throw new EntityNotFoundException(nameof(Group), groupId);
 
         if (group.ProjectId.HasValue)
@@ -120,12 +122,34 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         if (!project.GroupId.HasValue)
             throw new BusinessRuleValidationException("Đề tài chưa được gán cho nhóm nào.");
 
-        if (project.Status == ProjectStatus.Draft)
-            project.SubmitToMentor(userId);
-        else if (project.Status == ProjectStatus.NeedsModification)
-            project.ResubmitToMentor(userId);
-        else
-            throw new BusinessRuleValidationException("Đề tài không ở trạng thái có thể gửi cho giảng viên.");
+        var group = await _groupRepository.GetByIdAsync(project.GroupId.Value, ct)
+                    ?? throw new EntityNotFoundException(nameof(Group), project.GroupId.Value);
+
+        switch (project.Status)
+        {
+            case ProjectStatus.Draft:
+                project.SubmitToMentor(userId);
+                break;
+            case ProjectStatus.NeedsModification:
+                project.ResubmitToMentor(userId);
+                break;
+            default:
+                throw new BusinessRuleValidationException("Đề tài không ở trạng thái có thể gửi cho giảng viên.");
+        }
+
+        var groupJoinRequestToReject = group.JoinRequests.Where(j => j.IsPending);
+        var groupInvitationToReject = group.Invitations.Where(i => i.IsPending);
+        var groupLeader = group.Leader;
+
+        foreach (var groupJoinRequest in groupJoinRequestToReject)
+        {
+            group.RejectJoinRequest(groupJoinRequest.Id, groupLeader!.StudentId);
+        }
+
+        foreach (var groupInvitation in groupInvitationToReject)
+        {
+            group.RejectInvitation(groupInvitation.Id, groupInvitation.InviteeId);
+        }
 
         await _unitOfWork.SaveChangesAsync(ct);
     }

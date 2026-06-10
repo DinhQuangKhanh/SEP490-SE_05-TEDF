@@ -7,6 +7,7 @@ using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Enums.Project;
 using TEDF.Domain.Services;
 using ISystemSettingsService = TEDF.Application.Common.Interfaces.ISystemSettingsService;
 
@@ -104,6 +105,10 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
         var invitation = group.InviteMember(inviterId, invitee.Id, message);
 
+        var groupProject = await _projectRepository.GetByGroupIdAsync(groupId, ct);
+        if (groupProject != null && groupProject.Status != ProjectStatus.Rejected && groupProject.Status != ProjectStatus.Cancelled && groupProject.Status != ProjectStatus.Draft)
+            throw new BusinessRuleValidationException("Nhóm đã có đề tài và không thể mời thành viên mới.");
+
         try
         {
             await _unitOfWork.SaveChangesAsync(ct);
@@ -126,6 +131,10 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
         if (await _groupRepository.HasPendingJoinRequestAsync(studentId, group.SemesterId, ct))
             throw new BusinessRuleValidationException("Bạn đã có một yêu cầu tham gia nhóm đang chờ xử lý trong học kỳ này.");
+
+        var groupProject = await _projectRepository.GetByGroupIdAsync(groupId, ct);
+        if (groupProject != null && groupProject.Status != ProjectStatus.Rejected && groupProject.Status != ProjectStatus.Cancelled && groupProject.Status != ProjectStatus.Draft)
+            throw new BusinessRuleValidationException("Nhóm đã có đề tài và không thể thêm thành viên mới.");
 
         var joinRequest = group.RequestToJoin(studentId, message);
 
@@ -176,6 +185,10 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
             if (await _groupRepository.IsStudentInActiveGroupAsync(joinRequest.StudentId, group.SemesterId, ct))
                 throw new BusinessRuleValidationException("Sinh viên đã có nhóm hoạt động trong học kỳ này.");
+
+            var groupProject = await _projectRepository.GetByGroupIdAsync(groupId, ct);
+            if (groupProject != null && groupProject.Status != ProjectStatus.Rejected && groupProject.Status != ProjectStatus.Cancelled && groupProject.Status != ProjectStatus.Draft)
+                throw new BusinessRuleValidationException("Nhóm đã có đề tài và không thể thêm thành viên mới.");
 
             group.ApproveJoinRequest(requestId, leaderId);
         }
