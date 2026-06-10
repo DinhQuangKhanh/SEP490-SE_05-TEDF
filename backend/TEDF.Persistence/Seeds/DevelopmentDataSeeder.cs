@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TEDF.Persistence.SqlServer;
 
 namespace TEDF.Persistence.Seeds;
@@ -14,27 +15,37 @@ public static class DevelopmentDataSeeder
 
     // Majors (all belong to DeptCNTT)
     private const int MajorSE = 1; // Kỹ thuật phần mềm
-    private const int MajorAI = 2; // Trí tuệ nhân tạo
-    private const int MajorDS = 3; // Khoa học dữ liệu ứng dụng
-    private const int MajorIA = 4; // An toàn thông tin
-    private const int MajorIC = 5; // Vi mạch bán dẫn
-    private const int MajorAS = 6; // Công nghệ ô tô số
-    private const int MajorIS = 7; // Hệ thống thông tin
-    private const int MajorGD = 8; // Thiết kế đồ hoạ và mỹ thuật số
 
     private static readonly DateTime SeedDate = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public static async Task SeedAsync(AppDbContext context)
+    public static async Task SeedAsync(AppDbContext context, ILogger? logger = null)
     {
-        // Idempotent: skip entirely if the department row already exists
+        // Never reset data by default on app startup.
+        // Opt-in reset only when explicitly requested via environment variable.
+        // Example: set TEDF_RESET_DEVELOPMENT_TEST_ON_STARTUP=true
+        var resetOnStartup =
+            string.Equals(
+                Environment.GetEnvironmentVariable("TEDF_RESET_DEVELOPMENT_TEST_ON_STARTUP"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (resetOnStartup)
+        {
+            logger?.LogWarning("TEDF_RESET_DEVELOPMENT_TEST_ON_STARTUP=true => resetting database before development-test seeding.");
+            await ResetDatabaseAsync(context, logger);
+        }
+
         var alreadySeeded = await context.Database
-            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Departments WHERE Id = {0}", DeptCNTT)
+            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Major WHERE Id = {0}", MajorSE)
             .SingleOrDefaultAsync();
 
         if (alreadySeeded > 0)
+        {
+            logger?.LogInformation("Load-test data already seeded, skipping.");
             return;
+        }
 
         await SeedDepartmentsAsync(context);
         await SeedMajorsAsync(context);
@@ -62,19 +73,10 @@ public static class DevelopmentDataSeeder
             SET IDENTITY_INSERT Majors ON;
             INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
             VALUES
-            (@p0, @p8, N'Kỹ thuật phần mềm',              'SE',  N'Chuyên ngành Kỹ thuật phần mềm',              1, @p9, NULL),
-            (@p1, @p8, N'Trí tuệ nhân tạo',               'AI',  N'Chuyên ngành Trí tuệ nhân tạo',               1, @p9, NULL),
-            (@p2, @p8, N'Khoa học dữ liệu ứng dụng',      'DS',  N'Chuyên ngành Khoa học dữ liệu ứng dụng',      1, @p9, NULL),
-            (@p3, @p8, N'An toàn thông tin',               'IA',  N'Chuyên ngành An toàn thông tin',              1, @p9, NULL),
-            (@p4, @p8, N'Vi mạch bán dẫn',                'IC',  N'Chuyên ngành Vi mạch bán dẫn',                1, @p9, NULL),
-            (@p5, @p8, N'Công nghệ ô tô số',              'AS', N'Chuyên ngành Công nghệ ô tô số',              1, @p9, NULL),
-            (@p6, @p8, N'Hệ thống thông tin',             'IS',  N'Chuyên ngành Hệ thống thông tin',             1, @p9, NULL),
-            (@p7, @p8, N'Thiết kế đồ hoạ và mỹ thuật số','GD',  N'Chuyên ngành Thiết kế đồ hoạ và mỹ thuật số', 1, @p9, NULL);
+            (@p0, @p8, N'Kỹ thuật phần mềm',              'SE',  N'Chuyên ngành Kỹ thuật phần mềm',              1, @p9, NULL)
             SET IDENTITY_INSERT Majors OFF;";
 
-        await context.Database.ExecuteSqlRawAsync(sql,
-            MajorSE, MajorAI, MajorDS, MajorIA, MajorIC, MajorAS, MajorIS, MajorGD,
-            DeptCNTT, SeedDate);
+        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, DeptCNTT, SeedDate);
     }
 
     // ─── 3. Project Archives (sample, for the admin "Old topic archives" panel) ──
@@ -104,6 +106,61 @@ public static class DevelopmentDataSeeder
             322122547L,   // ~0.3 GB
             1288490189L,  // ~1.2 GB
             SeedDate);
+    }
+
+    // ════════════════════════════════════════════════
+    //  RESET DATABASE (uncomment call in SeedAsync to use)
+    //  Deletes ALL data in FK-safe order, then resets
+    //  identity seeds so the next seeding starts fresh.
+    // ════════════════════════════════════════════════
+    // ReSharper disable once UnusedMember.Local
+    private static async Task ResetDatabaseAsync(AppDbContext context, ILogger? logger)
+    {
+        logger?.LogWarning("Resetting database — deleting ALL data...");
+
+        var originalTimeout = context.Database.GetCommandTimeout();
+        context.Database.SetCommandTimeout(TimeSpan.FromMinutes(3));
+
+        // Order matters: delete children before parents to respect FK constraints.
+        var tables = new[]
+        {
+            "ProjectArchives",
+            "Majors",
+            "Departments"
+        };
+
+        try
+        {
+            foreach (var entry in tables)
+            {
+                await context.Database.ExecuteSqlRawAsync($"DELETE FROM [{entry}];");
+            }
+
+            // Only RESEED tables that actually use identity columns (int Id, auto-increment).
+            // Tables with Guid PKs or ValueGeneratedNever do NOT have identity columns.
+            var identityTables = new[]
+            {
+                "Departments", "Majors"
+            };
+
+            foreach (var table in identityTables)
+            {
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync($"DBCC CHECKIDENT ('[{table}]', RESEED, 0);");
+                }
+                catch
+                {
+                    // Table might not exist or might be empty — ignore.
+                }
+            }
+
+            logger?.LogWarning("Database reset complete. All data deleted.");
+        }
+        finally
+        {
+            context.Database.SetCommandTimeout(originalTimeout);
+        }
     }
 
 }
