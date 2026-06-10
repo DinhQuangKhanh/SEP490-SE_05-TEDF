@@ -56,24 +56,13 @@ public static class LoadTestDataSeeder
 
     private const int BatchSize = 50;
 
-    // Major IDs from DevelopmentDataSeeder
+    // Department and Major ID
+    private const int DeptCNTT = 1;
     private const int MajorSE = 1;
-    private const int MajorAI = 2;
-    private const int MajorDS = 3;
-    private const int MajorIA = 4;
-    private const int MajorIC = 5;
-    private const int MajorAS = 6;
-    private const int MajorIS = 7;
-    private const int MajorGD = 8;
 
-    private static readonly int[] AllMajorIds = [MajorSE, MajorAI, MajorDS, MajorIA, MajorIC, MajorAS, MajorIS, MajorGD];
-    private static readonly string[] MajorCodes = ["SE", "AI", "DS", "IA", "IC", "AS", "IS", "GD"];
-    private static readonly string[] MajorNames =
-    [
-        "Kỹ thuật phần mềm", "Trí tuệ nhân tạo", "Khoa học dữ liệu ứng dụng",
-        "An toàn thông tin", "Vi mạch bán dẫn", "Công nghệ ô tô số",
-        "Hệ thống thông tin", "Thiết kế đồ hoạ và mỹ thuật số"
-    ];
+    private static readonly int[] AllMajorIds = [MajorSE];
+    private static readonly string[] MajorCodes = ["SE"];
+    private static readonly string[] MajorNames = ["Kỹ thuật phần mềm"];
 
     // ────────────────── ID helpers ──────────────────
     public static Guid AdminId(int i) => Guid.Parse($"10000000-0000-0000-0000-{i:D12}");
@@ -86,7 +75,6 @@ public static class LoadTestDataSeeder
     private static Guid PoolProjectId(int majorIndex, int topicIndex) => Guid.Parse($"90{majorIndex:D2}0000-0000-0000-0000-{topicIndex:D12}");
     private static Guid RegistrationId(int i) => Guid.Parse($"A0000000-0000-0000-0000-{i:D12}");
     private static Guid SupportTicketId(int i) => Guid.Parse($"B0000000-0000-0000-0000-{i:D12}");
-    private static Guid RejectedProjectId(int i) => Guid.Parse($"C0000000-0000-0000-0000-{i:D12}");
 
     // Real Summer 2026 registration data (distinct GUID ranges so they never collide with the
     // synthetic load-test rows above): students 41…, groups 51…, projects 61….
@@ -94,8 +82,6 @@ public static class LoadTestDataSeeder
     private static Guid RealGroupId(int i) => Guid.Parse($"51000000-0000-0000-0000-{i:D12}");
     private static Guid RealProjectId(int i) => Guid.Parse($"61000000-0000-0000-0000-{i:D12}");
 
-    // Rejected project count for Spring 2026
-    private const int RejectedProjectCount = 10;
     private const int SupportTicketCount = 12;
     private const int TopicPoolProjectsPerMajor = 25;
 
@@ -144,6 +130,9 @@ public static class LoadTestDataSeeder
 
         logger?.LogInformation("Seeding load-test data (Fall 2025 + Spring 2026 + Summer 2026)...");
 
+        await SeedDepartmentsAsync(context);
+        await SeedMajorsAsync(context);
+        await SeedProjectArchivesAsync(context);
         await SeedSemestersAsync(context, logger);
         await SeedUsersAsync(context, logger);
         await SeedUserRolesAsync(context, logger);
@@ -157,13 +146,68 @@ public static class LoadTestDataSeeder
         await SeedProjectMentorsAsync(context, logger);
         await SeedProjectEvaluatorAssignmentsAsync(context, logger);
         await SeedTopicRegistrationsAsync(context, logger);
-        await SeedSpring26RejectedProjectsAsync(context, logger);
         await SeedSpring26TopicRegistrationsAsync(context, logger);
         await SeedSupportTicketsAsync(context, logger);
         await AssignDepartmentHeadAsync(context, logger);
         await SeedSummer26RealRegistrationsAsync(context, logger);
 
         logger?.LogInformation("Load-test data seeding complete.");
+    }
+
+    // ─── 1. Departments ──────────────────────────────────────────────────────
+
+    private static async Task SeedDepartmentsAsync(AppDbContext context)
+    {
+        var sql = @"
+            SET IDENTITY_INSERT Departments ON;
+            INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
+            VALUES (@p0, N'Công nghệ thông tin', 'CNTT', N'Khoa Công nghệ thông tin', NULL, 1, @p1, NULL);
+            SET IDENTITY_INSERT Departments OFF;";
+
+        await context.Database.ExecuteSqlRawAsync(sql, DeptCNTT, SeedDate);
+    }
+
+    // ─── 2. Majors ───────────────────────────────────────────────────────────
+
+    private static async Task SeedMajorsAsync(AppDbContext context)
+    {
+        var sql = @"
+            SET IDENTITY_INSERT Majors ON;
+            INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+            VALUES
+            (@p0, @p1, N'Kỹ thuật phần mềm',              'SE',  N'Chuyên ngành Kỹ thuật phần mềm',              1, @p2, NULL)
+            SET IDENTITY_INSERT Majors OFF;";
+
+        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, DeptCNTT, SeedDate);
+    }
+
+    // ─── 3. Project Archives (sample, for the admin "Old topic archives" panel) ──
+
+    private static async Task SeedProjectArchivesAsync(AppDbContext context)
+    {
+        // A few completed projects per past academic year so the storage panel shows real data.
+        var sql = @"
+            INSERT INTO ProjectArchives (Id, ProjectName, StudentNames, MajorId, AcademicYear, Summary, DocumentUrl, Tags, FileSizeBytes, ViewCount, DownloadCount, CreatedAt)
+            VALUES
+            (@p0, N'Hệ thống quản lý thư viện thông minh', N'Nguyễn Văn A, Trần Thị B', @pMajor, N'2023-2024', N'Khóa luận tốt nghiệp', NULL, N'library,web', @pSize1, 12, 3, @pDate),
+            (@p1, N'Ứng dụng đặt lịch khám bệnh',          N'Lê Văn C, Phạm Thị D',    @pMajor, N'2023-2024', N'Khóa luận tốt nghiệp', NULL, N'health,mobile', @pSize2, 8, 1, @pDate),
+            (@p2, N'Nền tảng học trực tuyến',              N'Hoàng Văn E, Vũ Thị F',   @pMajor, N'2022-2023', N'Khóa luận tốt nghiệp', NULL, N'education,web', @pSize3, 20, 7, @pDate);";
+
+        var parameters = new List<object>
+        {
+            Guid.Parse("D0000000-0000-0000-0000-000000000001"),
+            Guid.Parse("D0000000-0000-0000-0000-000000000002"),
+            Guid.Parse("D0000000-0000-0000-0000-000000000003"),
+        };
+
+        await context.Database.ExecuteSqlRawAsync(
+            sql.Replace("@pMajor", "@p3").Replace("@pSize1", "@p4").Replace("@pSize2", "@p5").Replace("@pSize3", "@p6").Replace("@pDate", "@p7"),
+            parameters[0], parameters[1], parameters[2],
+            MajorSE,
+            644245094L,   // ~0.6 GB
+            322122547L,   // ~0.3 GB
+            1288490189L,  // ~1.2 GB
+            SeedDate);
     }
 
     // ════════════════════════════════════════════════
@@ -385,7 +429,7 @@ public static class LoadTestDataSeeder
 
         await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
 
-        logger?.LogInformation("Seeded 8 topic pools.");
+        logger?.LogInformation("Seeded 1 topic pool.");
     }
 
     // ════════════════════════════════════════════════
@@ -1363,107 +1407,6 @@ public static class LoadTestDataSeeder
     }
 
     // ════════════════════════════════════════════════
-    //  SPRING 2026 REJECTED PROJECTS (10 projects, Rejected status)
-    //  These represent topics rejected during the evaluation phase
-    // ════════════════════════════════════════════════
-    private static async Task SeedSpring26RejectedProjectsAsync(AppDbContext context, ILogger? logger)
-    {
-        // Rejected topics — diverse majors, no Group, have Mentor
-        var rejectedTopics = new (string Code, string NameEn, string NameVi, int MajorId)[]
-        {
-            ("RJ_01", "Smart Greenhouse Monitoring System using IoT and Machine Learning", "Hệ thống giám sát nhà kính thông minh sử dụng IoT và Machine Learning", MajorAI),
-            ("RJ_02", "Blockchain-based Supply Chain Tracking Platform for Agricultural Products", "Nền tảng theo dõi chuỗi cung ứng nông sản dựa trên Blockchain", MajorSE),
-            ("RJ_03", "Real-time Network Intrusion Detection using Deep Learning", "Hệ thống phát hiện xâm nhập mạng thời gian thực sử dụng Deep Learning", MajorIA),
-            ("RJ_04", "Automated Resume Screening System with NLP and Sentiment Analysis", "Hệ thống sàng lọc hồ sơ tự động sử dụng NLP và phân tích cảm xúc", MajorDS),
-            ("RJ_05", "FPGA-based Hardware Accelerator for Convolutional Neural Networks", "Thiết kế bộ tăng tốc phần cứng dựa trên FPGA cho mạng CNN", MajorIC),
-            ("RJ_06", "Autonomous Vehicle Parking System using Computer Vision and Sensors", "Hệ thống đỗ xe tự động sử dụng thị giác máy tính và cảm biến", MajorAS),
-            ("RJ_07", "Enterprise Resource Planning System for Small Healthcare Clinics", "Hệ thống ERP cho phòng khám y tế quy mô nhỏ", MajorIS),
-            ("RJ_08", "3D Product Configurator with AR Preview for E-commerce", "Công cụ cấu hình sản phẩm 3D với xem trước AR cho thương mại điện tử", MajorGD),
-            ("RJ_09", "Predictive Maintenance Platform for Industrial Equipment using AI", "Nền tảng bảo trì dự đoán cho thiết bị công nghiệp sử dụng AI", MajorAI),
-            ("RJ_10", "Decentralized Voting System using Zero-Knowledge Proofs", "Hệ thống bỏ phiếu phi tập trung sử dụng Zero-Knowledge Proofs", MajorIA),
-        };
-
-        var valueClauses = new List<string>();
-        var parameters = new List<object?>();
-        var paramIndex = 0;
-
-        for (var i = 0; i < rejectedTopics.Length; i++)
-        {
-            var topic = rejectedTopics[i];
-            var mentorIndex = ((i + 100) % DualRoleCount) + 1; // Offset to avoid clash with existing mentors
-
-            var pId = $"@p{paramIndex++}";
-            var pCode = $"@p{paramIndex++}";
-            var pNameVi = $"@p{paramIndex++}";
-            var pNameEn = $"@p{paramIndex++}";
-            var pNameAbbr = $"@p{paramIndex++}";
-            var pDesc = $"@p{paramIndex++}";
-            var pObj = $"@p{paramIndex++}";
-            var pMajor = $"@p{paramIndex++}";
-            var pSemester = $"@p{paramIndex++}";
-            var pSubmittedBy = $"@p{paramIndex++}";
-            var pSubmittedAt = $"@p{paramIndex++}";
-            var pDate = $"@p{paramIndex++}";
-
-            // Status=4 (Rejected), no GroupId, no TopicPoolId, no ApprovedAt/StartDate/Deadline
-            valueClauses.Add($@"({pId}, {pCode}, {pNameVi}, {pNameEn}, {pNameAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
-                    {pMajor}, {pSemester}, NULL, NULL, 5, 1, 0, 4, 0,
-                    {pSubmittedAt}, {pSubmittedBy}, NULL, NULL, NULL, 3, 0,
-                    NULL, NULL, NULL, {pDate}, NULL)");
-
-            parameters.Add(RejectedProjectId(i + 1));
-            parameters.Add(topic.Code);
-            parameters.Add(topic.NameVi);
-            parameters.Add(topic.NameEn);
-            parameters.Add(topic.Code);
-            parameters.Add($"Mô tả đề tài: {topic.NameVi}");
-            parameters.Add($"Mục tiêu: {topic.NameEn}");
-            parameters.Add(topic.MajorId);
-            parameters.Add(Spring2026Id);
-            parameters.Add(DualRoleId(mentorIndex));
-            parameters.Add(new DateTime(2025, 11, 10, 0, 0, 0, DateTimeKind.Utc));
-            parameters.Add(SeedDate);
-        }
-
-        var sql = $@"
-            INSERT INTO Projects (Id, Code, NameVi, NameEn, NameAbbr,
-                Description, Objectives, Scope, Technologies, ExpectedResults,
-                MajorId, SemesterId, GroupId, TopicPoolId, MaxStudents, SourceType, RegistrationType, Status, Priority,
-                SubmittedAt, SubmittedBy, ApprovedAt, StartDate, Deadline, EvaluationCount, LastEvaluationResult,
-                PoolStatus, CreatedInSemesterId, ExpirationSemesterId, CreatedAt, UpdatedAt)
-            VALUES {string.Join(",\n                   ", valueClauses)};";
-
-        await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray()!);
-
-        // Add ProjectMentors for rejected projects
-        var mentorClauses = new List<string>();
-        var mentorParams = new List<object>();
-        var mParamIndex = 0;
-
-        for (var i = 0; i < rejectedTopics.Length; i++)
-        {
-            var mentorIndex = ((i + 100) % DualRoleCount) + 1;
-            var pProject = $"@p{mParamIndex++}";
-            var pMentor = $"@p{mParamIndex++}";
-            var pDate = $"@p{mParamIndex++}";
-
-            mentorClauses.Add($"({pProject}, {pMentor}, 0, {pDate}, NULL, NULL)");
-            mentorParams.Add(RejectedProjectId(i + 1));
-            mentorParams.Add(DualRoleId(mentorIndex));
-            mentorParams.Add(SeedDate);
-        }
-
-        var mentorSql = $@"
-            INSERT INTO ProjectMentors (ProjectId, MentorId, Status, AssignedAt, AssignedBy, Notes)
-            VALUES {string.Join(",\n                   ", mentorClauses)};";
-
-        await context.Database.ExecuteSqlRawAsync(mentorSql, mentorParams.ToArray());
-
-        logger?.LogInformation("Seeded {Count} rejected Spring 2026 projects with mentors.", rejectedTopics.Length);
-    }
-
-    // ════════════════════════════════════════════════
     //  SPRING 2026 TOPIC REGISTRATIONS
     //  20 Confirmed (evaluated InProgress projects) + 10 Rejected (rejected projects)
     //  Last 20 Spring26 projects are PendingEvaluation — no registrations yet
@@ -1508,58 +1451,7 @@ public static class LoadTestDataSeeder
 
         await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray()!);
 
-        // 10 Rejected registrations for rejected projects
-        // These need existing groups that tried to register for rejected topics
-        // Use groups from the 361..400 student range (students 361*4=1441.. which doesn't exist)
-        // Instead, reuse some groups that already have confirmed registrations — but that would be duplicate.
-        // Better: create virtual registrations from random students
-        var rejClauses = new List<string>();
-        var rejParams = new List<object?>();
-        var rejParamIndex = 0;
-
-        for (var i = 1; i <= RejectedProjectCount; i++)
-        {
-            // Use students not assigned to any project group (students 361+)
-            var studentIndex = Fall25GroupCount * 5 + Spring26GroupCount * 5 + i; // 450+1
-            if (studentIndex > StudentCount) studentIndex = (i % StudentCount) + 1;
-
-            var registrationIndex = registrationOffset + Spring26GroupCount + i; // 90 + i
-            var mentorIndex = ((i + 100 - 1) % DualRoleCount) + 1;
-
-            // Rejected registrations don't need a real group - use an existing group
-            // But TopicRegistration requires GroupId. Use the group that corresponds to the student range
-            // Actually, use the same groups from Fall25 (they already finished, so they could have tried to register again)
-            var groupIndex = i; // Groups 1..10 (Fall25 groups, they're done with Fall25)
-
-            var pId = $"@p{rejParamIndex++}";
-            var pProject = $"@p{rejParamIndex++}";
-            var pGroup = $"@p{rejParamIndex++}";
-            var pRegisteredBy = $"@p{rejParamIndex++}";
-            var pRegisteredAt = $"@p{rejParamIndex++}";
-            var pProcessedBy = $"@p{rejParamIndex++}";
-            var pProcessedAt = $"@p{rejParamIndex++}";
-            var pRejectReason = $"@p{rejParamIndex++}";
-
-            rejClauses.Add($"({pId}, {pProject}, {pGroup}, {pRegisteredBy}, {pRegisteredAt}, 'Rejected', 1, NULL, {pProcessedBy}, {pProcessedAt}, {pRejectReason})");
-
-            rejParams.Add(RegistrationId(registrationIndex));
-            rejParams.Add(RejectedProjectId(i));
-            rejParams.Add(GroupId(groupIndex));
-            rejParams.Add(StudentId(StudentStartIndex(groupIndex)));
-            rejParams.Add(new DateTime(2025, 11, 12, 0, 0, 0, DateTimeKind.Utc));
-            rejParams.Add(DualRoleId(mentorIndex));
-            rejParams.Add(new DateTime(2025, 12, 10, 0, 0, 0, DateTimeKind.Utc));
-            rejParams.Add($"Đề tài không đáp ứng yêu cầu chất lượng của hội đồng thẩm định kỳ Spring 2026.");
-        }
-
-        var rejSql = $@"
-            INSERT INTO TopicRegistrations (Id, ProjectId, GroupId, RegisteredBy, RegisteredAt, Status, Priority, Note, ProcessedBy, ProcessedAt, RejectReason)
-            VALUES {string.Join(",\n                   ", rejClauses)};";
-
-        await context.Database.ExecuteSqlRawAsync(rejSql, rejParams.ToArray()!);
-
-        logger?.LogInformation("Seeded {Confirmed} confirmed + {Rejected} rejected Spring 2026 topic registrations.",
-            Spring26GroupCount, RejectedProjectCount);
+        logger?.LogInformation("Seeded {Confirmed} confirmed", Spring26GroupCount);
     }
 
     // ════════════════════════════════════════════════
@@ -1761,6 +1653,10 @@ public static class LoadTestDataSeeder
             "UPDATE Departments SET HeadOfDepartmentId = NULL;",
 
             "Semesters",
+
+            "ProjectArchives",
+            "Majors",
+            "Departments"
         };
 
         try
@@ -1789,8 +1685,7 @@ public static class LoadTestDataSeeder
             {
                 try
                 {
-                    await context.Database.ExecuteSqlRawAsync(
-                        $"DBCC CHECKIDENT ('[{table}]', RESEED, 0);");
+                    await context.Database.ExecuteSqlRawAsync($"DBCC CHECKIDENT ('[{table}]', RESEED, 0);");
                 }
                 catch
                 {
@@ -1814,13 +1709,6 @@ public static class LoadTestDataSeeder
         return majorIndex switch
         {
             0 => GenerateSeTopics(),
-            1 => GenerateAiTopics(),
-            2 => GenerateDsTopics(),
-            3 => GenerateIaTopics(),
-            4 => GenerateIcTopics(),
-            5 => GenerateAsTopics(),
-            6 => GenerateIsTopics(),
-            7 => GenerateGdTopics(),
             _ => throw new ArgumentOutOfRangeException(nameof(majorIndex))
         };
     }
@@ -1864,251 +1752,6 @@ public static class LoadTestDataSeeder
             var t = templates[i % templates.Length];
             var s = subjects[i % subjects.Length];
             result[i] = (string.Format(t.En, s.Item1), string.Format(t.Vi, s.Item2));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateAiTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building an AI-powered Chatbot for Customer Service using Transformers and FastAPI", "Xây dựng Chatbot AI hỗ trợ khách hàng sử dụng Transformers và FastAPI"),
-            ("Developing a Deep Learning Model for Vietnamese Handwriting Recognition", "Phát triển mô hình Deep Learning nhận dạng chữ viết tay tiếng Việt"),
-            ("Building a Face Recognition Attendance System using OpenCV and TensorFlow", "Xây dựng hệ thống điểm danh nhận diện khuôn mặt sử dụng OpenCV và TensorFlow"),
-            ("Developing an AI-based Medical Image Diagnosis System using CNN", "Phát triển hệ thống chẩn đoán hình ảnh y tế bằng AI sử dụng CNN"),
-            ("Building a Sentiment Analysis System for Vietnamese Social Media", "Xây dựng hệ thống phân tích cảm xúc mạng xã hội tiếng Việt"),
-            ("Developing an AI-powered Plant Disease Detection Mobile App", "Phát triển ứng dụng phát hiện bệnh cây trồng bằng AI"),
-            ("Building an Intelligent Traffic Monitoring System using YOLOv8", "Xây dựng hệ thống giám sát giao thông thông minh sử dụng YOLOv8"),
-            ("Developing a Vietnamese Speech-to-Text System using Wav2Vec", "Phát triển hệ thống nhận dạng giọng nói tiếng Việt sử dụng Wav2Vec"),
-            ("Building an AI-based Recommendation Engine for E-Learning", "Xây dựng hệ thống gợi ý học tập bằng AI"),
-            ("Developing a Predictive Maintenance System using Machine Learning", "Phát triển hệ thống bảo trì dự đoán sử dụng Machine Learning"),
-            ("Building a GAN-based Image Generation System for Fashion Design", "Xây dựng hệ thống tạo ảnh thời trang bằng GAN"),
-            ("Developing an NLP-based Legal Document Analysis System", "Phát triển hệ thống phân tích văn bản pháp luật bằng NLP"),
-            ("Building an AI-powered Fraud Detection System for Banking", "Xây dựng hệ thống phát hiện gian lận ngân hàng bằng AI"),
-            ("Developing an Autonomous Drone Navigation System using Reinforcement Learning", "Phát triển hệ thống điều hướng drone tự động bằng Reinforcement Learning"),
-            ("Building a Vietnamese Language Translation System using Seq2Seq", "Xây dựng hệ thống dịch thuật tiếng Việt sử dụng Seq2Seq"),
-            ("Developing an AI-based Resume Screening System", "Phát triển hệ thống sàng lọc CV bằng AI"),
-            ("Building a Smart Agriculture Monitoring System using Computer Vision", "Xây dựng hệ thống giám sát nông nghiệp thông minh bằng Computer Vision"),
-            ("Developing an AI-powered Music Composition Tool", "Phát triển công cụ sáng tác nhạc bằng AI"),
-            ("Building an Emotion Detection System from Voice using Deep Learning", "Xây dựng hệ thống nhận diện cảm xúc qua giọng nói bằng Deep Learning"),
-            ("Developing an AI-based Real-time Object Tracking System", "Phát triển hệ thống theo dõi đối tượng thời gian thực bằng AI"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateDsTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building a Real-time Data Dashboard for Business Intelligence using Power BI and Python", "Xây dựng Dashboard dữ liệu thời gian thực cho Business Intelligence sử dụng Power BI và Python"),
-            ("Developing a Customer Churn Prediction Model using Machine Learning", "Phát triển mô hình dự đoán khách hàng rời bỏ sử dụng Machine Learning"),
-            ("Building a Big Data Processing Pipeline using Apache Spark and Kafka", "Xây dựng pipeline xử lý dữ liệu lớn sử dụng Apache Spark và Kafka"),
-            ("Developing a Sales Forecasting System using Time Series Analysis", "Phát triển hệ thống dự báo doanh thu sử dụng phân tích chuỗi thời gian"),
-            ("Building a Data Lake Architecture for Healthcare Analytics", "Xây dựng kiến trúc Data Lake cho phân tích y tế"),
-            ("Developing a Social Media Analytics Platform using NLP and Graph DB", "Phát triển nền tảng phân tích mạng xã hội sử dụng NLP và Graph DB"),
-            ("Building a Credit Scoring Model using Ensemble Methods", "Xây dựng mô hình chấm điểm tín dụng sử dụng Ensemble Methods"),
-            ("Developing a Real-time Fraud Detection System using Stream Processing", "Phát triển hệ thống phát hiện gian lận thời gian thực sử dụng Stream Processing"),
-            ("Building a Recommendation System for Movie Streaming using Collaborative Filtering", "Xây dựng hệ thống gợi ý phim sử dụng Collaborative Filtering"),
-            ("Developing a Market Basket Analysis Tool for Retail", "Phát triển công cụ phân tích giỏ hàng cho bán lẻ"),
-            ("Building a Geospatial Data Analysis Platform for Urban Planning", "Xây dựng nền tảng phân tích dữ liệu không gian cho quy hoạch đô thị"),
-            ("Developing a Student Performance Prediction System using Data Mining", "Phát triển hệ thống dự đoán kết quả học tập sử dụng Data Mining"),
-            ("Building an ETL Pipeline for E-Commerce Data Warehouse", "Xây dựng pipeline ETL cho Data Warehouse thương mại điện tử"),
-            ("Developing a Supply Chain Optimization Model using Linear Programming", "Phát triển mô hình tối ưu chuỗi cung ứng sử dụng Linear Programming"),
-            ("Building a COVID-19 Data Visualization and Prediction Platform", "Xây dựng nền tảng trực quan hóa và dự đoán dữ liệu COVID-19"),
-            ("Developing a Text Mining System for Vietnamese News Classification", "Phát triển hệ thống Text Mining phân loại tin tức tiếng Việt"),
-            ("Building a Data Quality Monitoring Dashboard using Great Expectations", "Xây dựng Dashboard giám sát chất lượng dữ liệu sử dụng Great Expectations"),
-            ("Developing an Energy Consumption Prediction System using IoT Data", "Phát triển hệ thống dự đoán tiêu thụ năng lượng từ dữ liệu IoT"),
-            ("Building a Web Scraping and Data Analysis Pipeline for Price Comparison", "Xây dựng pipeline thu thập và phân tích dữ liệu so sánh giá"),
-            ("Developing a Customer Segmentation Model using Clustering Algorithms", "Phát triển mô hình phân khúc khách hàng sử dụng thuật toán Clustering"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateIaTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building a Network Intrusion Detection System using Machine Learning", "Xây dựng hệ thống phát hiện xâm nhập mạng sử dụng Machine Learning"),
-            ("Developing a Vulnerability Scanner for Web Applications using Python", "Phát triển công cụ quét lỗ hổng bảo mật ứng dụng web sử dụng Python"),
-            ("Building a SIEM Dashboard for Security Operations Center", "Xây dựng Dashboard SIEM cho Trung tâm điều hành an ninh"),
-            ("Developing a Phishing Email Detection System using NLP", "Phát triển hệ thống phát hiện email lừa đảo sử dụng NLP"),
-            ("Building a Secure File Sharing Platform with End-to-End Encryption", "Xây dựng nền tảng chia sẻ tệp bảo mật với mã hóa đầu cuối"),
-            ("Developing a Digital Forensics Investigation Tool", "Phát triển công cụ điều tra pháp y kỹ thuật số"),
-            ("Building a PKI-based Certificate Management System", "Xây dựng hệ thống quản lý chứng chỉ dựa trên PKI"),
-            ("Developing a Malware Analysis Sandbox Environment", "Phát triển môi trường Sandbox phân tích mã độc"),
-            ("Building a Zero-Trust Network Architecture Prototype", "Xây dựng nguyên mẫu kiến trúc mạng Zero-Trust"),
-            ("Developing an IoT Security Monitoring Platform", "Phát triển nền tảng giám sát bảo mật IoT"),
-            ("Building a Blockchain-based Identity Verification System", "Xây dựng hệ thống xác minh danh tính dựa trên Blockchain"),
-            ("Developing a Web Application Firewall using ModSecurity", "Phát triển tường lửa ứng dụng web sử dụng ModSecurity"),
-            ("Building a Password Security Assessment Tool", "Xây dựng công cụ đánh giá bảo mật mật khẩu"),
-            ("Developing a DDoS Attack Detection and Mitigation System", "Phát triển hệ thống phát hiện và giảm thiểu tấn công DDoS"),
-            ("Building a Secure Authentication System using FIDO2/WebAuthn", "Xây dựng hệ thống xác thực bảo mật sử dụng FIDO2/WebAuthn"),
-            ("Developing a Data Loss Prevention System for Enterprises", "Phát triển hệ thống ngăn chặn mất dữ liệu cho doanh nghiệp"),
-            ("Building a Security Awareness Training Platform", "Xây dựng nền tảng đào tạo nhận thức an ninh mạng"),
-            ("Developing a Threat Intelligence Aggregation Platform", "Phát triển nền tảng tổng hợp thông tin mối đe dọa"),
-            ("Building a Secure API Gateway with Rate Limiting and WAF", "Xây dựng API Gateway bảo mật với Rate Limiting và WAF"),
-            ("Developing a Compliance Monitoring System for GDPR/PDPA", "Phát triển hệ thống giám sát tuân thủ GDPR/PDPA"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateIcTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Designing a RISC-V Processor Core using Verilog HDL", "Thiết kế lõi vi xử lý RISC-V sử dụng Verilog HDL"),
-            ("Building an FPGA-based Image Processing Accelerator", "Xây dựng bộ tăng tốc xử lý ảnh trên FPGA"),
-            ("Developing a Low-Power IoT SoC Design using Cadence Tools", "Phát triển thiết kế SoC IoT tiết kiệm năng lượng sử dụng Cadence"),
-            ("Designing a Digital Signal Processing Unit on FPGA", "Thiết kế đơn vị xử lý tín hiệu số trên FPGA"),
-            ("Building an AI Inference Accelerator Chip Architecture", "Xây dựng kiến trúc chip tăng tốc suy luận AI"),
-            ("Developing a Custom ASIC for Edge Computing Applications", "Phát triển ASIC tùy chỉnh cho ứng dụng Edge Computing"),
-            ("Designing a Memory Controller for DDR4 SDRAM", "Thiết kế bộ điều khiển bộ nhớ cho DDR4 SDRAM"),
-            ("Building a Hardware Security Module using FPGA", "Xây dựng module bảo mật phần cứng sử dụng FPGA"),
-            ("Developing a UART/SPI/I2C Communication IP Core", "Phát triển IP Core giao tiếp UART/SPI/I2C"),
-            ("Designing a Neural Network Accelerator on Zynq FPGA", "Thiết kế bộ tăng tốc mạng neural trên Zynq FPGA"),
-            ("Building a USB 3.0 Controller IP Core", "Xây dựng IP Core điều khiển USB 3.0"),
-            ("Developing a Power Management IC Design", "Phát triển thiết kế IC quản lý năng lượng"),
-            ("Designing a Bluetooth Low Energy SoC", "Thiết kế SoC Bluetooth Low Energy"),
-            ("Building an AES Encryption Engine on FPGA", "Xây dựng engine mã hóa AES trên FPGA"),
-            ("Developing a Camera Interface Module using MIPI CSI-2", "Phát triển module giao tiếp camera sử dụng MIPI CSI-2"),
-            ("Designing a Multi-core Processor Architecture for Embedded Systems", "Thiết kế kiến trúc vi xử lý đa nhân cho hệ thống nhúng"),
-            ("Building a PCIe Controller IP for High-Speed Data Transfer", "Xây dựng IP điều khiển PCIe cho truyền dữ liệu tốc độ cao"),
-            ("Developing an ADC/DAC Interface for Mixed-Signal Systems", "Phát triển giao diện ADC/DAC cho hệ thống tín hiệu hỗn hợp"),
-            ("Designing a Chip Layout for 28nm CMOS Technology", "Thiết kế layout chip cho công nghệ CMOS 28nm"),
-            ("Building a MEMS Sensor Interface ASIC", "Xây dựng ASIC giao tiếp cảm biến MEMS"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateAsTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building an ADAS Lane Detection System using Computer Vision", "Xây dựng hệ thống phát hiện làn đường ADAS sử dụng Computer Vision"),
-            ("Developing an OBD-II Diagnostic Application for Vehicles", "Phát triển ứng dụng chẩn đoán OBD-II cho xe hơi"),
-            ("Building an Autonomous Parking System using Ultrasonic Sensors", "Xây dựng hệ thống đỗ xe tự động sử dụng cảm biến siêu âm"),
-            ("Developing a Vehicle Fleet Management System using GPS and IoT", "Phát triển hệ thống quản lý đội xe sử dụng GPS và IoT"),
-            ("Building a Driver Drowsiness Detection System using AI", "Xây dựng hệ thống phát hiện tài xế buồn ngủ bằng AI"),
-            ("Developing a CAN Bus Communication Simulator", "Phát triển trình mô phỏng giao tiếp CAN Bus"),
-            ("Building a Battery Management System for Electric Vehicles", "Xây dựng hệ thống quản lý pin cho xe điện"),
-            ("Developing a V2X Communication Prototype using DSRC", "Phát triển nguyên mẫu giao tiếp V2X sử dụng DSRC"),
-            ("Building a Vehicle Infotainment System on Embedded Linux", "Xây dựng hệ thống giải trí trên xe sử dụng Embedded Linux"),
-            ("Developing a Tire Pressure Monitoring System using BLE", "Phát triển hệ thống giám sát áp suất lốp sử dụng BLE"),
-            ("Building a Traffic Sign Recognition System using Deep Learning", "Xây dựng hệ thống nhận dạng biển báo giao thông bằng Deep Learning"),
-            ("Developing an Electric Vehicle Charging Station Management System", "Phát triển hệ thống quản lý trạm sạc xe điện"),
-            ("Building a Vehicle Telematics Platform using AWS IoT", "Xây dựng nền tảng Telematics cho xe sử dụng AWS IoT"),
-            ("Developing a Pedestrian Detection System using LiDAR", "Phát triển hệ thống phát hiện người đi bộ sử dụng LiDAR"),
-            ("Building a Digital Twin for Vehicle Performance Monitoring", "Xây dựng Digital Twin giám sát hiệu suất xe"),
-            ("Developing a Smart Dashboard for Connected Vehicles", "Phát triển bảng điều khiển thông minh cho xe kết nối"),
-            ("Building an Autonomous Vehicle Path Planning System", "Xây dựng hệ thống lập kế hoạch đường đi xe tự lái"),
-            ("Developing an AUTOSAR-based ECU Software Architecture", "Phát triển kiến trúc phần mềm ECU dựa trên AUTOSAR"),
-            ("Building a Vehicle Cybersecurity Monitoring System", "Xây dựng hệ thống giám sát an ninh mạng cho xe"),
-            ("Developing a Predictive Maintenance System for Vehicle Engines", "Phát triển hệ thống bảo trì dự đoán cho động cơ xe"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateIsTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building an ERP System for Small and Medium Enterprises using SAP HANA", "Xây dựng hệ thống ERP cho doanh nghiệp vừa và nhỏ sử dụng SAP HANA"),
-            ("Developing a CRM System with Salesforce Integration", "Phát triển hệ thống CRM tích hợp Salesforce"),
-            ("Building a Business Process Management Platform using Camunda", "Xây dựng nền tảng quản lý quy trình kinh doanh sử dụng Camunda"),
-            ("Developing a Document Management System for Government Agencies", "Phát triển hệ thống quản lý văn bản cho cơ quan nhà nước"),
-            ("Building a Knowledge Management Portal for Enterprises", "Xây dựng cổng quản lý tri thức cho doanh nghiệp"),
-            ("Developing an IT Service Management System using ITIL Framework", "Phát triển hệ thống quản lý dịch vụ CNTT theo ITIL"),
-            ("Building a Supply Chain Management System using Blockchain", "Xây dựng hệ thống quản lý chuỗi cung ứng sử dụng Blockchain"),
-            ("Developing a Human Resource Information System", "Phát triển hệ thống thông tin nhân sự"),
-            ("Building an E-Government Service Portal for Da Nang City", "Xây dựng cổng dịch vụ chính phủ điện tử cho TP Đà Nẵng"),
-            ("Developing a Workflow Automation System using Low-Code Platform", "Phát triển hệ thống tự động hóa quy trình sử dụng nền tảng Low-Code"),
-            ("Building a Healthcare Information System for Clinics", "Xây dựng hệ thống thông tin y tế cho phòng khám"),
-            ("Developing a School Management Information System", "Phát triển hệ thống thông tin quản lý trường học"),
-            ("Building a Digital Asset Management System", "Xây dựng hệ thống quản lý tài sản số"),
-            ("Developing a Financial Reporting and Analytics System", "Phát triển hệ thống báo cáo và phân tích tài chính"),
-            ("Building an Inventory Management System with Barcode/RFID", "Xây dựng hệ thống quản lý tồn kho tích hợp Barcode/RFID"),
-            ("Developing a Customer Support Ticketing System", "Phát triển hệ thống quản lý ticket hỗ trợ khách hàng"),
-            ("Building a Project Portfolio Management System", "Xây dựng hệ thống quản lý danh mục dự án"),
-            ("Developing a Compliance Management System for Banking", "Phát triển hệ thống quản lý tuân thủ cho ngân hàng"),
-            ("Building a Learning Management System for Corporate Training", "Xây dựng hệ thống quản lý học tập cho đào tạo doanh nghiệp"),
-            ("Developing a Quality Management System using Six Sigma", "Phát triển hệ thống quản lý chất lượng theo Six Sigma"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
-        }
-        return result;
-    }
-
-    private static (string NameEn, string NameVi)[] GenerateGdTopics()
-    {
-        var subjects = new (string En, string Vi)[]
-        {
-            ("Building a 3D Character Modeling Pipeline using Blender and Unity", "Xây dựng pipeline tạo mô hình nhân vật 3D sử dụng Blender và Unity"),
-            ("Developing a Brand Identity Design System for Digital Platforms", "Phát triển hệ thống thiết kế nhận diện thương hiệu cho nền tảng số"),
-            ("Building an Interactive Motion Graphics Portfolio Website", "Xây dựng website portfolio Motion Graphics tương tác"),
-            ("Developing a UI/UX Design System for Mobile Banking Applications", "Phát triển Design System UI/UX cho ứng dụng ngân hàng di động"),
-            ("Building a Digital Illustration Marketplace Platform", "Xây dựng nền tảng sàn giao dịch minh họa kỹ thuật số"),
-            ("Developing an Augmented Reality Product Visualization App", "Phát triển ứng dụng trực quan hóa sản phẩm bằng AR"),
-            ("Building a Responsive Web Design Template System", "Xây dựng hệ thống template thiết kế web responsive"),
-            ("Developing a Social Media Content Creation Tool", "Phát triển công cụ tạo nội dung mạng xã hội"),
-            ("Building a 2D Game Art Asset Pipeline using Photoshop and Spine", "Xây dựng pipeline tạo asset game 2D sử dụng Photoshop và Spine"),
-            ("Developing an Infographic Generator for Data Storytelling", "Phát triển công cụ tạo Infographic cho Data Storytelling"),
-            ("Building a Virtual Exhibition Gallery using Three.js", "Xây dựng phòng triển lãm ảo sử dụng Three.js"),
-            ("Developing a Logo Design Tool with AI-Assisted Suggestions", "Phát triển công cụ thiết kế logo tích hợp gợi ý AI"),
-            ("Building a Typography Showcase Platform for Vietnamese Fonts", "Xây dựng nền tảng trưng bày Typography cho font chữ Việt"),
-            ("Developing a Packaging Design Mockup Generator", "Phát triển công cụ tạo mockup thiết kế bao bì"),
-            ("Building a Color Palette Generator for Design Projects", "Xây dựng công cụ tạo bảng màu cho dự án thiết kế"),
-            ("Developing a Video Editing Platform for Short-Form Content", "Phát triển nền tảng chỉnh sửa video cho nội dung ngắn"),
-            ("Building an Animated Sticker Creator for Messaging Apps", "Xây dựng công cụ tạo sticker hoạt hình cho ứng dụng nhắn tin"),
-            ("Developing a Print-on-Demand Design Studio", "Phát triển studio thiết kế in theo yêu cầu"),
-            ("Building a Collaborative Whiteboard for Design Teams", "Xây dựng bảng trắng cộng tác cho nhóm thiết kế"),
-            ("Developing a Photo Retouching and Enhancement Web App", "Phát triển ứng dụng web chỉnh sửa và nâng cao chất lượng ảnh"),
-        };
-        var result = new (string, string)[100];
-        for (var i = 0; i < 100; i++)
-        {
-            var s = subjects[i % subjects.Length];
-            result[i] = (s.En + (i >= subjects.Length ? $" - Version {i / subjects.Length + 1}" : ""),
-                         s.Vi + (i >= subjects.Length ? $" - Phiên bản {i / subjects.Length + 1}" : ""));
         }
         return result;
     }
