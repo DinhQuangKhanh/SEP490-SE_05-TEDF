@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
 import { Header } from "@/components/layout/Header";
@@ -546,55 +547,55 @@ function TopicDetailModal({
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Mô tả *
                   </label>
-                  <textarea
+                  <AutoResizeTextarea
                     rows={3}
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Mục tiêu *
                   </label>
-                  <textarea
+                  <AutoResizeTextarea
                     rows={3}
                     value={editForm.objectives}
                     onChange={(e) => setEditForm({ ...editForm, objectives: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Phạm vi
                   </label>
-                  <textarea
+                  <AutoResizeTextarea
                     rows={2}
                     value={editForm.scope ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, scope: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Công nghệ sử dụng
                   </label>
-                  <textarea
+                  <AutoResizeTextarea
                     rows={2}
                     value={editForm.technologies ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, technologies: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Kết quả mong đợi
                   </label>
-                  <textarea
+                  <AutoResizeTextarea
                     rows={2}
                     value={editForm.expectedResults ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, expectedResults: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                 </div>
               </div>
@@ -727,11 +728,11 @@ function TopicDetailModal({
           {reviewAction === "requestModification" && (
             <div className="space-y-3">
               {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
-              <textarea
+              <AutoResizeTextarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 placeholder="Nhập góp ý cho sinh viên (tùy chọn)..."
               />
               <div className="flex items-center gap-3">

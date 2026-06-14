@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import { topicPoolService } from "@/lib/topicPools/topicPoolService";
@@ -181,24 +182,24 @@ function ProposeTopicModal({ poolId, onClose, onSuccess }: ProposeTopicModalProp
 
           <div>
             <label className="block mb-1 text-xs font-semibold text-slate-600">Mô tả *</label>
-            <textarea
+            <AutoResizeTextarea
               required
               rows={3}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              className="w-full resize-none input-field"
+              className="w-full input-field"
               placeholder="Mô tả tổng quan về đề tài..."
             />
           </div>
 
           <div>
             <label className="block mb-1 text-xs font-semibold text-slate-600">Mục tiêu *</label>
-            <textarea
+            <AutoResizeTextarea
               required
               rows={3}
               value={form.objectives}
               onChange={(e) => set("objectives", e.target.value)}
-              className="w-full resize-none input-field"
+              className="w-full input-field"
               placeholder="Mục tiêu cần đạt được..."
             />
           </div>
@@ -206,21 +207,21 @@ function ProposeTopicModal({ poolId, onClose, onSuccess }: ProposeTopicModalProp
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="block mb-1 text-xs font-semibold text-slate-600">Phạm vi (tùy chọn)</label>
-              <textarea
+              <AutoResizeTextarea
                 rows={2}
                 value={form.scope}
                 onChange={(e) => set("scope", e.target.value)}
-                className="w-full resize-none input-field"
+                className="w-full input-field"
                 placeholder="Phạm vi nghiên cứu..."
               />
             </div>
             <div>
               <label className="block mb-1 text-xs font-semibold text-slate-600">Công nghệ (tùy chọn)</label>
-              <textarea
+              <AutoResizeTextarea
                 rows={2}
                 value={form.technologies}
                 onChange={(e) => set("technologies", e.target.value)}
-                className="w-full resize-none input-field"
+                className="w-full input-field"
                 placeholder="React, .NET, SQL Server..."
               />
             </div>
@@ -228,11 +229,11 @@ function ProposeTopicModal({ poolId, onClose, onSuccess }: ProposeTopicModalProp
 
           <div>
             <label className="block mb-1 text-xs font-semibold text-slate-600">Kết quả dự kiến (tùy chọn)</label>
-            <textarea
+            <AutoResizeTextarea
               rows={2}
               value={form.expectedResults}
               onChange={(e) => set("expectedResults", e.target.value)}
-              className="w-full resize-none input-field"
+              className="w-full input-field"
               placeholder="Sản phẩm, báo cáo..."
             />
           </div>
