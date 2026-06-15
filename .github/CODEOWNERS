@@ -4,7 +4,7 @@
 
 # ==================================================
 
-\* @owner @DinhQuangKhanh
+* @owner @DinhQuangKhanh @ngoduonghoangchau
 
 # ==================================================
 
@@ -36,5 +36,5 @@
 
 # ==================================================
 
-.github/ @owner
-\*\*/CODEOWNERS @owner
+.github/ @DinhQuangKhanh @ngoduonghoangchau
+**/CODEOWNERS @DinhQuangKhanh @ngoduonghoangchau
