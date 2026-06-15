@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { majorService, proposedTopicService } from "@/lib";
 import { AvailableMentor, CreateProposedTopicRequest, MajorOption } from "@/types";
 
@@ -190,11 +191,11 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">
             Mô tả đề tài <span className="text-red-500">*</span>
           </label>
-          <textarea
+          <AutoResizeTextarea
             value={form.description}
             onChange={(e) => update("description", e.target.value)}
             rows={4}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Mô tả tổng quan về đề tài..."
           />
         </div>
@@ -204,11 +205,11 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">
             Mục tiêu <span className="text-red-500">*</span>
           </label>
-          <textarea
+          <AutoResizeTextarea
             value={form.objectives}
             onChange={(e) => update("objectives", e.target.value)}
             rows={3}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Mục tiêu cần đạt được..."
           />
         </div>
@@ -216,11 +217,11 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
         {/* Scope */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Phạm vi nghiên cứu</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.scope}
             onChange={(e) => update("scope", e.target.value)}
             rows={2}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Giới hạn phạm vi nghiên cứu..."
           />
         </div>
@@ -239,11 +240,11 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
         {/* Expected Results */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Kết quả dự kiến</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.expectedResults}
             onChange={(e) => update("expectedResults", e.target.value)}
             rows={2}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Kết quả kỳ vọng sau khi hoàn thành..."
           />
         </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { CreateProposedTopicRequest } from "@/types";
 import { proposedTopicService } from "@/lib";
 
@@ -114,11 +115,11 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
         {/* Mô Tả */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Mô Tả Đề Tài</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.description}
             onChange={(e) => update("description", e.target.value)}
             rows={3}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Mô tả chi tiết về đề tài..."
           />
         </div>
@@ -126,11 +127,11 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
         {/* Mục Tiêu */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Mục Tiêu</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.objectives}
             onChange={(e) => update("objectives", e.target.value)}
             rows={2}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Mục tiêu chính của đề tài..."
           />
         </div>
@@ -138,11 +139,11 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
         {/* Phạm Vi */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Phạm Vi (Tùy Chọn)</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.scope}
             onChange={(e) => update("scope", e.target.value)}
             rows={2}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Phạm vi của đề tài..."
           />
         </div>
@@ -162,11 +163,11 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
         {/* Kết Quả Dự Kiến */}
         <div>
           <label className="block text-sm font-semibold text-[#101319] mb-1.5">Kết Quả Dự Kiến (Tùy Chọn)</label>
-          <textarea
+          <AutoResizeTextarea
             value={form.expectedResults}
             onChange={(e) => update("expectedResults", e.target.value)}
             rows={2}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Kết quả mong đợi sau khi hoàn thành..."
           />
         </div>
