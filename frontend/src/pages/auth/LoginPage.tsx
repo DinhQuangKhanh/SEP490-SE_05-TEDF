@@ -5,6 +5,17 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const isEmulatorMode = import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true";
 
+/** Emulator quick-login: role keys are the literal seed email prefixes (`{role}{serial}@fpt.edu.vn`). */
+const LOGIN_ROLES = [
+  { key: "student", label: "Sinh viên" },
+  { key: "admin", label: "Quản trị" },
+  { key: "lecturer", label: "Giảng viên" },
+] as const;
+
+type LoginRole = (typeof LOGIN_ROLES)[number]["key"];
+
+const DEFAULT_PASSWORD = "Test@123456";
+
 const roleHomeMap: Record<string, string> = {
   admin: "/admin",
   mentor: "/mentor",
@@ -27,8 +38,8 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showEmailLogin] = useState(isEmulatorMode);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<LoginRole>("student");
+  const [serial, setSerial] = useState("");
 
   const { user, loginWithGoogle, loginWithEmailPassword } = useAuth();
   const navigate = useNavigate();
@@ -60,10 +71,18 @@ export function LoginPage() {
   const handleEmailLogin = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+
+    const trimmed = serial.trim();
+    if (!trimmed) {
+      setError("Vui lòng nhập số thứ tự tài khoản.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const success = await loginWithEmailPassword(email, password);
+      const email = `${role}${trimmed}@fpt.edu.vn`;
+      const success = await loginWithEmailPassword(email, DEFAULT_PASSWORD);
       if (success) {
         // Redirect handled by useEffect below when user state updates
       } else {
@@ -206,22 +225,41 @@ export function LoginPage() {
                   className="flex flex-col gap-3 p-4 border bg-amber-50 border-amber-200 rounded-xl"
                 >
                   <p className="text-xs font-medium text-amber-700">Firebase Emulator - Test Login</p>
+
+                  {/* Role selector */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {LOGIN_ROLES.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => setRole(r.key)}
+                        className={`h-9 rounded-lg text-xs font-semibold transition-colors ${
+                          role === r.key
+                            ? "bg-primary text-white"
+                            : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Serial number */}
                   <input
-                    type="email"
-                    placeholder="Email (vd: student1@fpt.edu.vn)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Số thứ tự (vd: 1)"
+                    value={serial}
+                    onChange={(e) => setSerial(e.target.value)}
                     className="w-full px-4 text-sm border rounded-lg h-11 border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
                   />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full px-4 text-sm border rounded-lg h-11 border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
-                  />
+
+                  {/* Live email preview */}
+                  <p className="text-[11px] text-amber-700">
+                    Đăng nhập với:{" "}
+                    <span className="font-semibold">{`${role}${serial.trim() || "…"}@fpt.edu.vn`}</span>
+                  </p>
+
                   <button
                     type="submit"
                     disabled={isLoading}
