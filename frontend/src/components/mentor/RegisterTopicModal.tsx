@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TopicPoolDto } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -47,7 +48,7 @@ const STEPS = [
 
 const inputClass =
   "block w-full border border-slate-300 px-4 py-3 rounded-xl bg-white text-sm placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none";
-const textareaClass = `${inputClass} resize-none leading-relaxed`;
+const textareaClass = `${inputClass} leading-relaxed`;
 const selectClass = `${inputClass} text-slate-700`;
 const labelClass = "block text-sm font-semibold text-slate-700 mb-1.5";
 
@@ -520,7 +521,7 @@ function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v
         <label className={labelClass}>
           Mục tiêu đề tài <span className="text-red-500">*</span>
         </label>
-        <textarea
+        <AutoResizeTextarea
           rows={4}
           value={form.objectives}
           onChange={(e) => set("objectives", e.target.value)}
@@ -534,7 +535,7 @@ function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v
         <label className={labelClass}>
           Phạm vi <span className="text-red-500">*</span>
         </label>
-        <textarea
+        <AutoResizeTextarea
           rows={3}
           value={form.scope}
           onChange={(e) => set("scope", e.target.value)}
@@ -546,7 +547,7 @@ function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v
         <label className={labelClass}>
           Công nghệ sử dụng <span className="text-red-500">*</span>
         </label>
-        <textarea
+        <AutoResizeTextarea
           rows={2}
           value={form.technologies}
           onChange={(e) => set("technologies", e.target.value)}
@@ -556,7 +557,7 @@ function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v
       </div>
       <div>
         <label className={labelClass}>Kết quả mong đợi</label>
-        <textarea
+        <AutoResizeTextarea
           rows={3}
           value={form.expectedResults}
           onChange={(e) => set("expectedResults", e.target.value)}
