@@ -92,7 +92,7 @@ jobs:
           /k:"DinhQuangKhanh_SEP490-SE_05-TEDF"
           /o:"dinhquangkhanh"
           /d:sonar.host.url="https://sonarcloud.io"
-          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/Migrations/**,frontend/node_modules/**,frontend/dist/**,frontend/.vite/**"
 
       - name: Build solution
@@ -101,4 +101,4 @@ jobs:
       - name: End SonarQube Cloud analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        run: dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
