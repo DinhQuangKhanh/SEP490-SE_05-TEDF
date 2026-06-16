@@ -14,7 +14,7 @@ protected='^(refs/heads/)?(main|master)$'
 target="${PRE_COMMIT_REMOTE_BRANCH:-}"
 
 # Fallback when run outside pre-commit's pre-push stage: use the checked-out branch.
-if [ -z "$target" ]; then
+if [[ -z "$target" ]]; then
   target="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
 fi
 

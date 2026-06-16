@@ -40,7 +40,7 @@ for file in "$@"; do
   done
 done
 
-if [ "${#blocked[@]}" -gt 0 ]; then
+if [[ "${#blocked[@]}" -gt 0 ]]; then
   echo "✖ Blocked: the following staged file(s) look sensitive and must not be committed:" >&2
   for f in "${blocked[@]}"; do
     echo "    - $f" >&2
