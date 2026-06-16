@@ -89,8 +89,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: >
           dotnet-sonarscanner begin
-          /k:"<PROJECT_KEY>"
-          /o:"<ORGANIZATION>"
+          /k:"dinhquangkhanh"
+          /o:"DinhQuangKhanh"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/Migrations/**,frontend/node_modules/**,frontend/dist/**,frontend/.vite/**"
