@@ -1,0 +1,104 @@
+# ==================================================
+#
+# SONARQUBE CLOUD ANALYSIS
+#
+# Static code analysis for the TEDF monorepo (backend + frontend)
+# run against SonarQube Cloud (https://sonarcloud.io).
+#
+# C# requires the build-integrated scanner, so we use
+# dotnet-sonarscanner (begin -> dotnet build -> end). Running it
+# from the repo root means the frontend TypeScript under frontend/src
+# is analyzed by the same pass.
+#
+# Required GitHub secret:
+#   SONAR_TOKEN  (Settings -> Secrets and variables -> Actions)
+#
+# Before this runs, replace the <PROJECT_KEY> and <ORGANIZATION>
+# placeholders below with your SonarQube Cloud project/org keys.
+#
+# ==================================================
+
+name: SonarQube Cloud
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarqube:
+    name: SonarQube Cloud Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------------------------------
+      # Checkout (full history -> accurate new-code & PR decoration)
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------
+      # Toolchains: JDK (scanner), .NET 8 (backend), Node (TS analyzer)
+      # --------------------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # --------------------------------------------------
+      # Caches: SonarQube Cloud packages + global dotnet tools
+      # --------------------------------------------------
+      - name: Cache SonarQube Cloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache dotnet-sonarscanner tool
+        uses: actions/cache@v4
+        with:
+          path: ~/.dotnet/tools
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      # --------------------------------------------------
+      # Analysis: begin -> build solution -> end
+      # --------------------------------------------------
+      - name: Begin SonarQube Cloud analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet-sonarscanner begin
+          /k:"DinhQuangKhanh_SEP490-SE_05-TEDF"
+          /o:"dinhquangkhanh"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/Migrations/**,frontend/node_modules/**,frontend/dist/**,frontend/.vite/**"
+
+      - name: Build solution
+        run: dotnet build backend/TEDF.sln --configuration Release
+
+      - name: End SonarQube Cloud analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
