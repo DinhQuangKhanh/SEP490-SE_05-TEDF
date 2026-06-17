@@ -2,34 +2,43 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
-import { RoleSwitcher } from './RoleSwitcher'
-import { useUnreadSupportCount } from '@/hooks/useUnreadSupportCount'
 
-const navItems = [
-    { label: 'Dashboard', icon: 'dashboard', path: '/mentor' },
-    { label: 'Nhóm của tôi', icon: 'groups', path: '/mentor/groups' },
-    { label: 'Danh sách đề tài', icon: 'folder_open', path: '/mentor/topics' },
-    { label: 'Kho đề tài', icon: 'inventory_2', path: '/mentor/topic-pools' },
-    { label: 'Lịch trình', icon: 'calendar_month', path: '/mentor/schedule' },
-]
+export interface SidebarItem {
+    label: string
+    icon: string
+    path: string
+    /** When true the item is active only on an exact pathname match (used for index routes). */
+    exact?: boolean
+    /** Optional count badge (e.g. unread support tickets). */
+    badge?: string
+}
 
-const systemItems = [
-    { label: 'Cài đặt', icon: 'settings', path: '/mentor/settings' },
-    { label: 'Hỗ trợ', icon: 'support_agent', path: '/mentor/support' },
-]
+export interface SidebarProfile {
+    name: string
+    subtitle: string
+    avatarUrl?: string
+}
 
-export function MentorSidebar() {
+/**
+ * Shared collapsible sidebar frame used by the role sidebars (Lecturer, Student, …).
+ * Each role only supplies its nav items, footer items and profile — the chrome
+ * (logo, hover-expand, footer, logout) lives here so it isn't duplicated per role.
+ */
+export function SidebarShell({
+    navItems,
+    footerItems = [],
+    profile,
+}: {
+    navItems: SidebarItem[]
+    footerItems?: SidebarItem[]
+    profile: SidebarProfile
+}) {
     const location = useLocation()
-    const { user, logout } = useAuth()
-    const unreadSupportCount = useUnreadSupportCount()
+    const { logout } = useAuth()
     const [isHovered, setIsHovered] = useState(false)
 
-    const isActive = (path: string) => {
-        if (path === '/mentor') {
-            return location.pathname === '/mentor'
-        }
-        return location.pathname.startsWith(path)
-    }
+    const isActive = (item: SidebarItem) =>
+        item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path)
 
     return (
         <motion.aside
@@ -51,33 +60,24 @@ export function MentorSidebar() {
             {/* Navigation */}
             <nav className={`flex-1 ${isHovered ? 'px-4' : 'px-2'} flex flex-col gap-1.5 overflow-y-auto transition-all duration-300`}>
                 {navItems.map((item) => (
-                    <NavItem key={item.path} {...item} active={isActive(item.path)} expanded={isHovered} />
+                    <NavItem key={item.path} {...item} active={isActive(item)} expanded={isHovered} />
                 ))}
             </nav>
 
             {/* Footer */}
             <div className={`p-4 border-t border-[#e9ecf1] ${isHovered ? '' : 'px-2'}`}>
-                <RoleSwitcher expanded={isHovered} />
-                {systemItems.map((item) => (
-                    <NavItem 
-                        key={item.path} 
-                        {...item} 
-                        badge={item.path === '/mentor/support' && unreadSupportCount > 0 ? unreadSupportCount.toString() : undefined}
-                        active={isActive(item.path)} 
-                        expanded={isHovered} 
-                    />
+                {footerItems.map((item) => (
+                    <NavItem key={item.path} {...item} active={isActive(item)} expanded={isHovered} />
                 ))}
                 {/* User Profile */}
                 <div className={`mt-4 flex items-center ${isHovered ? 'gap-3 px-4' : 'justify-center px-0'} py-2 transition-all duration-300`}>
                     <div
                         className="h-10 w-10 rounded-full bg-gray-200 bg-cover bg-center shrink-0"
-                        style={{
-                            backgroundImage: user?.avatar ? `url('${user.avatar}')` : undefined,
-                        }}
+                        style={{ backgroundImage: profile.avatarUrl ? `url('${profile.avatarUrl}')` : undefined }}
                     />
                     <div className={`flex flex-col overflow-hidden text-left transition-all duration-300 ${isHovered ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{user?.name || 'TS. Trần Minh Tuấn'}</p>
-                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">Giảng viên hướng dẫn</p>
+                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{profile.name}</p>
+                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">{profile.subtitle}</p>
                     </div>
                 </div>
                 {/* Logout Button */}
@@ -100,15 +100,8 @@ function NavItem({
     path,
     badge,
     active,
-    expanded
-}: {
-    label: string
-    icon: string
-    path: string
-    badge?: string
-    active: boolean
-    expanded: boolean
-}) {
+    expanded,
+}: SidebarItem & { active: boolean; expanded: boolean }) {
     return (
         <NavLink
             to={path}

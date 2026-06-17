@@ -4,16 +4,18 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const roleHomeMap: Record<string, string> = {
     admin: '/admin',
-    mentor: '/mentor',
-    evaluator: '/evaluator',
+    mentor: '/lecturer',
+    evaluator: '/lecturer',
     student: '/student',
+    departmenthead: '/lecturer',
 }
 
 const roleLabelMap: Record<string, string> = {
     admin: 'Quản trị viên',
-    mentor: 'Giảng viên hướng dẫn',
-    evaluator: 'Phản biện',
+    mentor: 'Giảng viên',
+    evaluator: 'Giảng viên',
     student: 'Sinh viên',
+    departmenthead: 'Chủ nhiệm bộ môn',
 }
 
 export function AccessDeniedPage() {

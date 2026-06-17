@@ -4,9 +4,10 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const roleHomeMap: Record<string, string> = {
     admin: '/admin',
-    mentor: '/mentor',
-    evaluator: '/evaluator',
+    mentor: '/lecturer',
+    evaluator: '/lecturer',
     student: '/student',
+    departmenthead: '/lecturer',
 }
 
 export function NotFoundPage() {

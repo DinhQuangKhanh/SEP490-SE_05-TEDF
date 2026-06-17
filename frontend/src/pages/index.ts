@@ -9,6 +9,7 @@ export { SupportPage } from "./admin/SupportPage";
 export { ActivityLogsPage } from "./admin/ActivityLogsPage";
 export * from "./evaluator";
 export * from "./mentor";
+export * from "./lecturer";
 export * from "./student";
 export * from "./errors";
 export { DepartmentHeadDashboardPage } from "./department-head/DepartmentHeadDashboardPage";

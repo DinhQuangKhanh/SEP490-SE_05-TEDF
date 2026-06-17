@@ -104,7 +104,7 @@ export function EvaluatorProjectsPage() {
   }
 
   function handleRowAction(project: EvaluatorProjectItemDto) {
-    navigate(`/evaluator/review/${project.projectId}`);
+    navigate(`/lecturer/moderate/${project.projectId}`);
   }
 
   function handleDownload() {
@@ -281,24 +281,7 @@ export function EvaluatorProjectsPage() {
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chuyên ngành</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={majorId}
-                  onChange={(e) => {
-                    updateParams({ majorId: e.target.value, page: 1 });
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  {filterOptions.majors.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
+              <div className="md:col-span-3 flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Trạng thái</label>
                 <select
                   className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
@@ -396,7 +379,6 @@ export function EvaluatorProjectsPage() {
                   <tbody className="divide-y divide-gray-100">
                     {items.map((project) => {
                       const resultInfo = RESULT_DISPLAY[project.individualResult];
-                      const isPending = project.individualResult === "Pending";
                       return (
                         <motion.tr
                           key={project.assignmentId}
@@ -459,17 +441,10 @@ export function EvaluatorProjectsPage() {
                           <td className="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-blue-50/30 transition-colors shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.05)]">
                             <button
                               onClick={() => handleRowAction(project)}
-                              className={`inline-flex items-center justify-center h-8 px-4 text-xs font-bold rounded-lg transition-all ${
-                                isPending
-                                  ? "bg-primary text-white hover:bg-primary-dark shadow-sm shadow-primary/20 hover:shadow-md hover:-translate-y-0.5"
-                                  : "bg-white border border-gray-200 text-slate-900 hover:bg-gray-50 hover:border-primary/50 hover:text-primary"
-                              }`}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors whitespace-nowrap"
                             >
-                              {isPending
-                                ? "Thẩm định"
-                                : project.individualResult === "Approved"
-                                  ? "Xem lại"
-                                  : "Chi tiết"}
+                              <span className="material-symbols-outlined text-[16px]">visibility</span>
+                              Xem chi tiết
                             </button>
                           </td>
                         </motion.tr>
