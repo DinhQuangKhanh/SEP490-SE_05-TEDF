@@ -370,7 +370,7 @@ export function EvaluatorHistoryPage() {
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <button
-                              onClick={() => navigate(`/evaluator/review/${histItem.projectId}`)}
+                              onClick={() => navigate(`/lecturer/moderate/${histItem.projectId}`)}
                               className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
                             >
                               Chi tiết

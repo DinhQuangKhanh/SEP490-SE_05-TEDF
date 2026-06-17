@@ -18,10 +18,10 @@ const DEFAULT_PASSWORD = "Test@123456";
 
 const roleHomeMap: Record<string, string> = {
   admin: "/admin",
-  mentor: "/mentor",
-  evaluator: "/evaluator",
+  mentor: "/lecturer",
+  evaluator: "/lecturer",
   student: "/student",
-  departmentHead: "/department-head",
+  departmenthead: "/lecturer",
 };
 
 /** Compute destination: use `from` state if it matches user role, otherwise go to role home. */

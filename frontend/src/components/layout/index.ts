@@ -1,13 +1,9 @@
 export { Sidebar } from "./Sidebar";
 export { Header } from "./Header";
 export { AdminLayout } from "./AdminLayout";
-export { EvaluatorLayout } from "./EvaluatorLayout";
-export { EvaluatorSidebar } from "./EvaluatorSidebar";
-export { MentorLayout } from "./MentorLayout";
-export { MentorSidebar } from "./MentorSidebar";
+export { LecturerLayout } from "./LecturerLayout";
+export { LecturerSidebar } from "./LecturerSidebar";
 export { StudentLayout } from "./StudentLayout";
 export { StudentSidebar } from "./StudentSidebar";
-export { DepartmentHeadLayout } from "./DepartmentHeadLayout";
-export { DepartmentHeadSidebar } from "./DepartmentHeadSidebar";
 export { NotificationDropdown } from "./NotificationDropdown";
 export type { UserRole } from "./NotificationDropdown";

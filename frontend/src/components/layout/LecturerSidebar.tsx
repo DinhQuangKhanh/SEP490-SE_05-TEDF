@@ -2,33 +2,45 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
-import { RoleSwitcher } from './RoleSwitcher'
 import { useUnreadSupportCount } from '@/hooks/useUnreadSupportCount'
 
-const navItems = [
-    { label: 'Dashboard', icon: 'dashboard', path: '/mentor' },
-    { label: 'Nhóm của tôi', icon: 'groups', path: '/mentor/groups' },
-    { label: 'Danh sách đề tài', icon: 'folder_open', path: '/mentor/topics' },
-    { label: 'Kho đề tài', icon: 'inventory_2', path: '/mentor/topic-pools' },
-    { label: 'Lịch trình', icon: 'calendar_month', path: '/mentor/schedule' },
+interface NavItemConfig {
+    label: string
+    icon: string
+    path: string
+    /** When true, the active state requires an exact pathname match (used for the index route). */
+    exact?: boolean
+}
+
+// Items every lecturer (mentor + evaluator) sees.
+const baseNavItems: NavItemConfig[] = [
+    { label: 'Kho đề tài nghiên cứu', icon: 'inventory_2', path: '/lecturer', exact: true },
+    { label: 'Nhóm của tôi', icon: 'groups', path: '/lecturer/groups' },
+    { label: 'Tạo đề tài', icon: 'add_circle', path: '/lecturer/create' },
+    { label: 'Đề tài cần thẩm định', icon: 'fact_check', path: '/lecturer/moderate' },
+    { label: 'Lịch sử thẩm định', icon: 'history', path: '/lecturer/history' },
 ]
 
-const systemItems = [
-    { label: 'Cài đặt', icon: 'settings', path: '/mentor/settings' },
-    { label: 'Hỗ trợ', icon: 'support_agent', path: '/mentor/support' },
+// Extra items shown only when the lecturer also holds Department-Head authority.
+const departmentHeadNavItems: NavItemConfig[] = [
+    { label: 'Tổng quan', icon: 'dashboard', path: '/lecturer/dashboard' },
+    { label: 'Phân công thẩm định', icon: 'assignment_ind', path: '/lecturer/assign' },
 ]
 
-export function MentorSidebar() {
+const supportItem: NavItemConfig = { label: 'Hỗ trợ', icon: 'support_agent', path: '/lecturer/support' }
+
+export function LecturerSidebar() {
     const location = useLocation()
     const { user, logout } = useAuth()
     const unreadSupportCount = useUnreadSupportCount()
     const [isHovered, setIsHovered] = useState(false)
 
-    const isActive = (path: string) => {
-        if (path === '/mentor') {
-            return location.pathname === '/mentor'
-        }
-        return location.pathname.startsWith(path)
+    const isDeptHead = !!user?.roles?.includes('departmenthead')
+    const navItems = isDeptHead ? [...baseNavItems, ...departmentHeadNavItems] : baseNavItems
+
+    const isActive = (item: NavItemConfig) => {
+        if (item.exact) return location.pathname === item.path
+        return location.pathname.startsWith(item.path)
     }
 
     return (
@@ -51,22 +63,18 @@ export function MentorSidebar() {
             {/* Navigation */}
             <nav className={`flex-1 ${isHovered ? 'px-4' : 'px-2'} flex flex-col gap-1.5 overflow-y-auto transition-all duration-300`}>
                 {navItems.map((item) => (
-                    <NavItem key={item.path} {...item} active={isActive(item.path)} expanded={isHovered} />
+                    <NavItem key={item.path} {...item} active={isActive(item)} expanded={isHovered} />
                 ))}
             </nav>
 
             {/* Footer */}
             <div className={`p-4 border-t border-[#e9ecf1] ${isHovered ? '' : 'px-2'}`}>
-                <RoleSwitcher expanded={isHovered} />
-                {systemItems.map((item) => (
-                    <NavItem 
-                        key={item.path} 
-                        {...item} 
-                        badge={item.path === '/mentor/support' && unreadSupportCount > 0 ? unreadSupportCount.toString() : undefined}
-                        active={isActive(item.path)} 
-                        expanded={isHovered} 
-                    />
-                ))}
+                <NavItem
+                    {...supportItem}
+                    badge={unreadSupportCount > 0 ? unreadSupportCount.toString() : undefined}
+                    active={isActive(supportItem)}
+                    expanded={isHovered}
+                />
                 {/* User Profile */}
                 <div className={`mt-4 flex items-center ${isHovered ? 'gap-3 px-4' : 'justify-center px-0'} py-2 transition-all duration-300`}>
                     <div
@@ -76,8 +84,8 @@ export function MentorSidebar() {
                         }}
                     />
                     <div className={`flex flex-col overflow-hidden text-left transition-all duration-300 ${isHovered ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{user?.name || 'TS. Trần Minh Tuấn'}</p>
-                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">Giảng viên hướng dẫn</p>
+                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{user?.name || 'Giảng viên'}</p>
+                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">{isDeptHead ? 'Chủ nhiệm bộ môn' : 'Giảng viên'}</p>
                     </div>
                 </div>
                 {/* Logout Button */}
@@ -100,7 +108,7 @@ function NavItem({
     path,
     badge,
     active,
-    expanded
+    expanded,
 }: {
     label: string
     icon: string

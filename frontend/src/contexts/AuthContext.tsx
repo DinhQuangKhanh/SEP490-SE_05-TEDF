@@ -195,9 +195,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem('activeRole', role)
             const roleHomeMap: Record<string, string> = {
                 admin: '/admin',
-                mentor: '/mentor',
-                evaluator: '/evaluator',
+                mentor: '/lecturer',
+                evaluator: '/lecturer',
                 student: '/student',
+                departmenthead: '/lecturer',
             }
             navigate(roleHomeMap[role] || '/')
         }
