@@ -93,6 +93,7 @@ jobs:
           /o:"dinhquangkhanh"
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.coverage.exclusions="**/*"
           /d:sonar.exclusions="**/bin/**,**/obj/**,**/Migrations/**,frontend/node_modules/**,frontend/dist/**,frontend/.vite/**"
 
       - name: Build solution
