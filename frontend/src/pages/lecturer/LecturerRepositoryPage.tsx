@@ -22,29 +22,9 @@ import type {
   TopicDocument,
   UpdatePoolTopicRequest,
 } from "@/types";
-
-// ── Animation variants ───────────────────────────────────────────────────────
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
+import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | "...")[] {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
