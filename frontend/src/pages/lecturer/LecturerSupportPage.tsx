@@ -67,7 +67,7 @@ function priorityDot(priority: string) {
   }
 }
 
-export function MentorSupportPage() {
+export function LecturerSupportPage() {
   const [tickets, setTickets] = useState<TicketListDto[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [ticketDetail, setTicketDetail] = useState<TicketResponse | null>(null);

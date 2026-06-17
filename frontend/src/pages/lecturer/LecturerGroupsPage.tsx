@@ -16,7 +16,7 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-export function MentorGroupsPage() {
+export function LecturerGroupsPage() {
   const navigate = useNavigate();
   const { showError } = useSystemError();
   const [groups, setGroups] = useState<MentorGroupDto[]>([]);

@@ -37,7 +37,7 @@ function getInitials(name: string): string {
     .slice(-2);
 }
 
-export function EvaluatorProjectsPage() {
+export function LecturerModerationPage() {
   const navigate = useNavigate();
   const { showError } = useSystemError();
   const [searchParams, setSearchParams] = useSearchParams();

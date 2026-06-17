@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
-import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
+import { RegisterTopicModal } from "@/components/lecturer";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -299,7 +299,7 @@ function DetailLoadingSkeleton() {
  * Research topic repository. A regular lecturer sees only their own topics;
  * a lecturer with Department-Head authority sees every topic in the department.
  */
-export function MentorTopicsPage() {
+export function LecturerRepositoryPage() {
   const { user } = useAuth();
   const isDeptHead = !!user?.roles?.includes("departmenthead");
   return isDeptHead ? <DepartmentTopicsView /> : <MentorOwnTopicsView />;

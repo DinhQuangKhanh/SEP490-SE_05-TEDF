@@ -16,13 +16,13 @@ import {
   UsersPage,
   ProjectsPage,
   SupportPage,
-  EvaluatorProjectsPage,
-  EvaluatorHistoryPage,
-  EvaluatorReviewPage,
-  MentorGroupsPage,
-  MentorTopicsPage,
-  MentorTopicDetailPage,
-  MentorSupportPage,
+  LecturerModerationPage,
+  LecturerHistoryPage,
+  LecturerReviewPage,
+  LecturerGroupsPage,
+  LecturerRepositoryPage,
+  LecturerGroupDetailPage,
+  LecturerSupportPage,
   StudentDashboardPage,
   StudentSchedulePage,
   StudentTopicsPage,
@@ -114,14 +114,14 @@ function App() {
                 }
               >
                 {/* Research topic repository (own topics; all topics for DepartmentHead) */}
-                <Route index element={<MentorTopicsPage />} />
-                <Route path="groups" element={<MentorGroupsPage />} />
-                <Route path="groups/:id" element={<MentorTopicDetailPage />} />
+                <Route index element={<LecturerRepositoryPage />} />
+                <Route path="groups" element={<LecturerGroupsPage />} />
+                <Route path="groups/:id" element={<LecturerGroupDetailPage />} />
                 <Route path="create" element={<TopicCreatePage />} />
-                <Route path="moderate" element={<EvaluatorProjectsPage />} />
-                <Route path="moderate/:id" element={<EvaluatorReviewPage />} />
-                <Route path="history" element={<EvaluatorHistoryPage />} />
-                <Route path="support" element={<MentorSupportPage />} />
+                <Route path="moderate" element={<LecturerModerationPage />} />
+                <Route path="moderate/:id" element={<LecturerReviewPage />} />
+                <Route path="history" element={<LecturerHistoryPage />} />
+                <Route path="support" element={<LecturerSupportPage />} />
                 {/* Department-Head-only pages */}
                 <Route
                   path="dashboard"

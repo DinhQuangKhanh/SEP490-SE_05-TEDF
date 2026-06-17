@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
+import { RegisterTopicModal } from "@/components/lecturer";
 
 /**
  * Dedicated page for registering/proposing a new topic.

@@ -5,7 +5,7 @@ import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService } from "@/lib";
 import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
 
-export function EvaluatorReviewPage() {
+export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showError } = useSystemError();

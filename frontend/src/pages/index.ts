@@ -7,8 +7,6 @@ export { UsersPage } from "./admin/UsersPage";
 export { ProjectsPage } from "./admin/ProjectsPage";
 export { SupportPage } from "./admin/SupportPage";
 export { ActivityLogsPage } from "./admin/ActivityLogsPage";
-export * from "./evaluator";
-export * from "./mentor";
 export * from "./lecturer";
 export * from "./student";
 export * from "./errors";

@@ -27,7 +27,7 @@ const RESULT_DISPLAY: Record<string, { label: string; colors: string }> = {
   Rejected: { label: "Từ chối", colors: "bg-red-50 text-red-600 border-red-200" },
 };
 
-export function EvaluatorHistoryPage() {
+export function LecturerHistoryPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState("");
