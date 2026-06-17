@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMaintenance } from '@/contexts/MaintenanceContext'
 import { ReactNode } from 'react'
 
-type UserRole = 'admin' | 'mentor' | 'evaluator' | 'student'
+type UserRole = 'admin' | 'mentor' | 'evaluator' | 'student' | 'departmenthead'
 
 interface ProtectedRouteProps {
     children: ReactNode

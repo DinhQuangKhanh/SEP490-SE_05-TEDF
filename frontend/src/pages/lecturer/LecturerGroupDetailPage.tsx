@@ -28,7 +28,7 @@ const messages = [
     { author: 'Nam (Trưởng nhóm)', time: '09:15 - 20/10', content: 'Dạ vâng ạ, chúng em đang bổ sung và sẽ nộp bản thảo mới vào chiều nay ạ.', isMentor: false },
 ]
 
-export function MentorTopicDetailPage() {
+export function LecturerGroupDetailPage() {
 
     return (
         <>

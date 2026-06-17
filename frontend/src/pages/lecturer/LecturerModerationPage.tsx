@@ -1,20 +1,12 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorFilterOptionsResponse, EvaluatorProjectItemDto, EvaluatorProjectsResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
-
+import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
+import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
+import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
 
 const RESULT_DISPLAY: Record<string, { label: string; colors: string; animate: boolean }> = {
   Pending: { label: "Chờ duyệt", colors: "bg-blue-50 text-blue-600 border-blue-100", animate: true },
@@ -25,10 +17,6 @@ const RESULT_DISPLAY: Record<string, { label: string; colors: string; animate: b
 
 const PAGE_SIZE = 10;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -37,7 +25,7 @@ function getInitials(name: string): string {
     .slice(-2);
 }
 
-export function EvaluatorProjectsPage() {
+export function LecturerModerationPage() {
   const navigate = useNavigate();
   const { showError } = useSystemError();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -104,7 +92,7 @@ export function EvaluatorProjectsPage() {
   }
 
   function handleRowAction(project: EvaluatorProjectItemDto) {
-    navigate(`/evaluator/review/${project.projectId}`);
+    navigate(`/lecturer/moderate/${project.projectId}`);
   }
 
   function handleDownload() {
@@ -147,75 +135,6 @@ export function EvaluatorProjectsPage() {
   const from = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, totalCount);
 
-  function renderPageButtons() {
-    if (totalPages <= 1) return null;
-    const buttons: React.ReactNode[] = [];
-
-    buttons.push(
-      <button
-        key="prev"
-        disabled={page <= 1}
-        onClick={() => updateParams({ page: Math.max(1, page - 1) })}
-        className="size-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-slate-500 disabled:opacity-50 transition-all"
-      >
-        <span className="material-symbols-outlined text-sm">chevron_left</span>
-      </button>,
-    );
-
-    for (let i = 1; i <= Math.min(totalPages, 5); i++) {
-      buttons.push(
-        <button
-          key={i}
-          onClick={() => updateParams({ page: i })}
-          className={`size-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
-            page === i
-              ? "bg-primary text-white shadow-md shadow-primary/20"
-              : "border border-gray-200 hover:bg-gray-50 text-slate-500"
-          }`}
-        >
-          {i}
-        </button>,
-      );
-    }
-
-    if (totalPages > 5) {
-      buttons.push(
-        <button
-          key="ellipsis"
-          className="size-8 flex items-center justify-center rounded-lg border border-gray-200 text-slate-500 text-xs font-bold"
-        >
-          ...
-        </button>,
-      );
-      buttons.push(
-        <button
-          key={totalPages}
-          onClick={() => updateParams({ page: totalPages })}
-          className={`size-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
-            page === totalPages
-              ? "bg-primary text-white shadow-md shadow-primary/20"
-              : "border border-gray-200 hover:bg-gray-50 text-slate-500"
-          }`}
-        >
-          {totalPages}
-        </button>,
-      );
-    }
-
-    buttons.push(
-      <button
-        key="next"
-        disabled={page >= totalPages}
-        onClick={() => updateParams({ page: Math.min(totalPages, page + 1) })}
-        className="size-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-slate-500 disabled:opacity-50 transition-all"
-      >
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </button>,
-    );
-
-    return buttons;
-  }
-
   const activeSemesterLabel = semesterId
     ? filterOptions.semesters.find((s) => String(s.value) === semesterId)?.label
     : null;
@@ -245,86 +164,37 @@ export function EvaluatorProjectsPage() {
       <div className="w-full p-6 md:p-8 flex flex-col gap-6 flex-1">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
           {/* Filters */}
-          <motion.div variants={item} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-              <div className="md:col-span-3 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Tìm kiếm</label>
-                <div className="relative group">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors">
-                    search
-                  </span>
-                  <input
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                    placeholder="Mã đề tài, Tên đề tài..."
-                    type="text"
-                    value={search}
-                    onChange={(e) => {
-                      updateParams({ search: e.target.value, page: 1 });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Kỳ học</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={semesterId}
-                  onChange={(e) => {
-                    updateParams({ semesterId: e.target.value, page: 1 });
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  {filterOptions.semesters.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chuyên ngành</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={majorId}
-                  onChange={(e) => {
-                    updateParams({ majorId: e.target.value, page: 1 });
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  {filterOptions.majors.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Trạng thái</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={result}
-                  onChange={(e) => {
-                    updateParams({ result: e.target.value, page: 1 });
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  <option value="Pending">Chờ duyệt</option>
-                  <option value="Approved">Đã duyệt</option>
-                  <option value="NeedsModification">Cần chỉnh sửa</option>
-                  <option value="Rejected">Từ chối</option>
-                </select>
-              </div>
-              <div className="md:col-span-3 flex justify-end gap-2">
-                <button
-                  onClick={clearFilters}
-                  className="flex-1 md:flex-none h-[42px] px-4 rounded-lg border border-gray-200 text-slate-500 font-semibold text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                  Xóa lọc
-                </button>
-              </div>
-            </div>
-          </motion.div>
+          <EvaluatorFilterBar
+            search={search}
+            onSearch={(v) => updateParams({ search: v, page: 1 })}
+            searchPlaceholder="Mã đề tài, Tên đề tài..."
+            onClear={clearFilters}
+            selects={[
+              {
+                label: "Kỳ học",
+                value: semesterId,
+                onChange: (v) => updateParams({ semesterId: v, page: 1 }),
+                colSpan: 2,
+                options: [
+                  { value: "", label: "Tất cả" },
+                  ...filterOptions.semesters.map((s) => ({ value: String(s.value), label: s.label })),
+                ],
+              },
+              {
+                label: "Trạng thái",
+                value: result,
+                onChange: (v) => updateParams({ result: v, page: 1 }),
+                colSpan: 3,
+                options: [
+                  { value: "", label: "Tất cả" },
+                  { value: "Pending", label: "Chờ duyệt" },
+                  { value: "Approved", label: "Đã duyệt" },
+                  { value: "NeedsModification", label: "Cần chỉnh sửa" },
+                  { value: "Rejected", label: "Từ chối" },
+                ],
+              },
+            ]}
+          />
 
           {/* Table */}
           <motion.div
@@ -396,7 +266,6 @@ export function EvaluatorProjectsPage() {
                   <tbody className="divide-y divide-gray-100">
                     {items.map((project) => {
                       const resultInfo = RESULT_DISPLAY[project.individualResult];
-                      const isPending = project.individualResult === "Pending";
                       return (
                         <motion.tr
                           key={project.assignmentId}
@@ -459,17 +328,10 @@ export function EvaluatorProjectsPage() {
                           <td className="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-blue-50/30 transition-colors shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.05)]">
                             <button
                               onClick={() => handleRowAction(project)}
-                              className={`inline-flex items-center justify-center h-8 px-4 text-xs font-bold rounded-lg transition-all ${
-                                isPending
-                                  ? "bg-primary text-white hover:bg-primary-dark shadow-sm shadow-primary/20 hover:shadow-md hover:-translate-y-0.5"
-                                  : "bg-white border border-gray-200 text-slate-900 hover:bg-gray-50 hover:border-primary/50 hover:text-primary"
-                              }`}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors whitespace-nowrap"
                             >
-                              {isPending
-                                ? "Thẩm định"
-                                : project.individualResult === "Approved"
-                                  ? "Xem lại"
-                                  : "Chi tiết"}
+                              <span className="material-symbols-outlined text-[16px]">visibility</span>
+                              Xem chi tiết
                             </button>
                           </td>
                         </motion.tr>
@@ -487,7 +349,7 @@ export function EvaluatorProjectsPage() {
                   <span className="font-bold text-slate-900">{to}</span> trong tổng số{" "}
                   <span className="font-bold text-slate-900">{totalCount}</span> đề tài
                 </p>
-                <div className="flex items-center gap-2">{renderPageButtons()}</div>
+                <EvaluatorPagination page={page} totalPages={totalPages} onPage={(p) => updateParams({ page: p })} />
               </div>
             )}
           </motion.div>

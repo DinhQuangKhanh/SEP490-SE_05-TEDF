@@ -1,25 +1,14 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorHistoryResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
+import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
+import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
+import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
 
 const PAGE_SIZE = 10;
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
 
 const RESULT_DISPLAY: Record<string, { label: string; colors: string }> = {
   Approved: { label: "Đã duyệt", colors: "bg-green-50 text-green-600 border-green-200" },
@@ -27,7 +16,7 @@ const RESULT_DISPLAY: Record<string, { label: string; colors: string }> = {
   Rejected: { label: "Từ chối", colors: "bg-red-50 text-red-600 border-red-200" },
 };
 
-export function EvaluatorHistoryPage() {
+export function LecturerHistoryPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState("");
@@ -71,75 +60,6 @@ export function EvaluatorHistoryPage() {
   const items = data?.items ?? [];
   const totalCount = data?.totalCount ?? 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-
-  function renderPageButtons() {
-    if (totalPages <= 1) return null;
-    const buttons: React.ReactNode[] = [];
-
-    buttons.push(
-      <button
-        key="prev"
-        disabled={page <= 1}
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-        className="size-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-slate-500 disabled:opacity-50 transition-all"
-      >
-        <span className="material-symbols-outlined text-sm">chevron_left</span>
-      </button>,
-    );
-
-    for (let i = 1; i <= Math.min(totalPages, 5); i++) {
-      buttons.push(
-        <button
-          key={i}
-          onClick={() => setPage(i)}
-          className={`size-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
-            page === i
-              ? "bg-primary text-white shadow-md shadow-primary/20"
-              : "border border-gray-200 hover:bg-gray-50 text-slate-500"
-          }`}
-        >
-          {i}
-        </button>,
-      );
-    }
-
-    if (totalPages > 5) {
-      buttons.push(
-        <button
-          key="ellipsis"
-          className="size-8 flex items-center justify-center rounded-lg border border-gray-200 text-slate-500 text-xs font-bold"
-        >
-          ...
-        </button>,
-      );
-      buttons.push(
-        <button
-          key={totalPages}
-          onClick={() => setPage(totalPages)}
-          className={`size-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
-            page === totalPages
-              ? "bg-primary text-white shadow-md shadow-primary/20"
-              : "border border-gray-200 hover:bg-gray-50 text-slate-500"
-          }`}
-        >
-          {totalPages}
-        </button>,
-      );
-    }
-
-    buttons.push(
-      <button
-        key="next"
-        disabled={page >= totalPages}
-        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        className="size-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 text-slate-500 disabled:opacity-50 transition-all"
-      >
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </button>,
-    );
-
-    return buttons;
-  }
 
   const from = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, totalCount);
@@ -217,69 +137,47 @@ export function EvaluatorHistoryPage() {
           </motion.div>
 
           {/* Filters */}
-          <motion.div variants={item} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-              <div className="md:col-span-3 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Tìm kiếm</label>
-                <div className="relative group">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors">
-                    search
-                  </span>
-                  <input
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                    placeholder="Tên đề tài, mã..."
-                    type="text"
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Thời gian</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={dateRange}
-                  onChange={(e) => {
-                    setDateRange(e.target.value);
-                    setPage(1);
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  <option value="thisMonth">Tháng này</option>
-                  <option value="thisWeek">Tuần này</option>
-                  <option value="yesterday">Hôm qua</option>
-                </select>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Kết quả</label>
-                <select
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                  value={result}
-                  onChange={(e) => {
-                    setResult(e.target.value);
-                    setPage(1);
-                  }}
-                >
-                  <option value="">Tất cả</option>
-                  <option value="Approved">Đã duyệt</option>
-                  <option value="NeedsModification">Cần chỉnh sửa</option>
-                  <option value="Rejected">Từ chối</option>
-                </select>
-              </div>
-              <div className="md:col-span-3 flex justify-end gap-2">
-                <button
-                  onClick={clearFilters}
-                  className="flex-1 md:flex-none h-[42px] px-4 rounded-lg border border-gray-200 text-slate-500 font-semibold text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                  Xóa lọc
-                </button>
-              </div>
-            </div>
-          </motion.div>
+          <EvaluatorFilterBar
+            search={search}
+            onSearch={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            searchPlaceholder="Tên đề tài, mã..."
+            onClear={clearFilters}
+            selects={[
+              {
+                label: "Thời gian",
+                value: dateRange,
+                onChange: (v) => {
+                  setDateRange(v);
+                  setPage(1);
+                },
+                colSpan: 2,
+                options: [
+                  { value: "", label: "Tất cả" },
+                  { value: "thisMonth", label: "Tháng này" },
+                  { value: "thisWeek", label: "Tuần này" },
+                  { value: "yesterday", label: "Hôm qua" },
+                ],
+              },
+              {
+                label: "Kết quả",
+                value: result,
+                onChange: (v) => {
+                  setResult(v);
+                  setPage(1);
+                },
+                colSpan: 2,
+                options: [
+                  { value: "", label: "Tất cả" },
+                  { value: "Approved", label: "Đã duyệt" },
+                  { value: "NeedsModification", label: "Cần chỉnh sửa" },
+                  { value: "Rejected", label: "Từ chối" },
+                ],
+              },
+            ]}
+          />
 
           {/* History Table */}
           <motion.div
@@ -370,7 +268,7 @@ export function EvaluatorHistoryPage() {
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <button
-                              onClick={() => navigate(`/evaluator/review/${histItem.projectId}`)}
+                              onClick={() => navigate(`/lecturer/moderate/${histItem.projectId}`)}
                               className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
                             >
                               Chi tiết
@@ -391,7 +289,7 @@ export function EvaluatorHistoryPage() {
                   <span className="font-bold text-slate-900">{to}</span> trong tổng số{" "}
                   <span className="font-bold text-slate-900">{totalCount}</span> bản ghi
                 </p>
-                <div className="flex items-center gap-2">{renderPageButtons()}</div>
+                <EvaluatorPagination page={page} totalPages={totalPages} onPage={setPage} />
               </div>
             )}
           </motion.div>

@@ -39,9 +39,8 @@ npm run preview  # preview the production build
 - Per-role context files in `src/`, read the one matching the area you are touching:
   - [`src/ADMIN_CONTEXT.md`](src/ADMIN_CONTEXT.md)
   - [`src/DEPARTMENT-HEAD_context.md`](src/DEPARTMENT-HEAD_context.md)
-  - [`src/MENTOR.context`](src/MENTOR.context)
+  - [`src/LECTURER_CONTEXT.md`](src/LECTURER_CONTEXT.md)
   - [`src/STUDENT_CONTEXT.md`](src/STUDENT_CONTEXT.md)
-  - [`src/EVALUATOR_CONTEXT.md`](src/EVALUATOR_CONTEXT.md)
 
 ### Reference
 
@@ -60,10 +59,10 @@ npm run preview  # preview the production build
 | Concern | Location |
 |---------|----------|
 | Route table + theme bootstrap | `src/App.tsx` (entry `src/main.tsx`) |
-| Pages (by role) | `src/pages/{admin,department-head,mentor,student,evaluator}/`; also `auth/`, `errors/` |
+| Pages (by role) | `src/pages/{admin,department-head,lecturer,student}/`; also `auth/`, `errors/` (Mentor + Evaluator are unified under `lecturer/`) |
 | Role layouts + sidebars + header | `src/components/layout/` |
 | Route guard | `src/components/auth/ProtectedRoute.tsx` |
-| Other components | `src/components/{admin,mentor,student,support,common,shared}/` |
+| Other components | `src/components/{admin,lecturer,student,support,common,shared}/` |
 | API clients (one per domain) | `src/lib/<domain>/<domain>Service.ts` over `src/lib/common/apiClient.ts`; barrel `src/lib/index.ts` (`@/lib`) |
 | API route registry (single source of truth) | `src/lib/common/routes.ts` — services build URLs from `routes.*`, never raw strings |
 | File upload helpers | `src/lib/common/fileUploadUtils.ts` |
@@ -79,9 +78,9 @@ Role → home route map (from `App.tsx`): `admin → /admin`, `mentor → /mento
 
 Prefer importing from barrels via the `@/` alias rather than deep file paths:
 
-- `@/pages` — all page components (`src/pages/index.ts`; re-exports the `evaluator`, `mentor`, `student`, `errors` sub-barrels).
+- `@/pages` — all page components (`src/pages/index.ts`; re-exports the `lecturer`, `student`, `errors` sub-barrels).
 - `@/components/layout` — layouts, sidebars, `Header`, `NotificationDropdown` (+ `UserRole` type) (`src/components/layout/index.ts`).
-- `@/components/mentor` — `RegisterTopicModal` (`src/components/mentor/index.ts`).
+- `@/components/lecturer` — `RegisterTopicModal` (`src/components/lecturer/index.ts`).
 - `@/pages/errors` — `NotFoundPage`, `AccessDeniedPage`.
 - Contexts expose a provider + hook pair, e.g. `@/contexts/AuthContext` → `AuthProvider`, `useAuth`.
 - Service modules in `@/lib` (barrel) export named API objects per domain (`studentGroupService`, `supportService`, …).

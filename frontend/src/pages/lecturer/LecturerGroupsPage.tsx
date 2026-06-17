@@ -16,7 +16,7 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-export function MentorGroupsPage() {
+export function LecturerGroupsPage() {
   const navigate = useNavigate();
   const { showError } = useSystemError();
   const [groups, setGroups] = useState<MentorGroupDto[]>([]);
@@ -143,7 +143,7 @@ export function MentorGroupsPage() {
                   </div>
                   <div className="flex items-center justify-end px-5 py-3 border-t bg-slate-50 border-slate-100">
                     <button
-                      onClick={() => navigate(`/mentor/groups/${group.groupId}`)}
+                      onClick={() => navigate(`/lecturer/groups/${group.groupId}`)}
                       className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80"
                     >
                       Chi tiết <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

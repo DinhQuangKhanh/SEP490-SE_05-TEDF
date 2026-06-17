@@ -5,7 +5,7 @@ import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService } from "@/lib";
 import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
 
-export function EvaluatorReviewPage() {
+export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showError } = useSystemError();
@@ -67,7 +67,7 @@ export function EvaluatorReviewPage() {
         feedback: feedback || undefined,
       });
       setShowSuccess(true);
-      setTimeout(() => navigate("/evaluator"), 2000);
+      setTimeout(() => navigate("/lecturer/moderate"), 2000);
     } catch {
       showError("Không thể gửi thẩm định. Vui lòng thử lại sau.");
     } finally {
@@ -101,7 +101,7 @@ export function EvaluatorReviewPage() {
           <span className="material-symbols-outlined text-6xl text-gray-300 mb-4 block">error</span>
           <p className="text-lg font-semibold text-slate-700">Không tìm thấy đề tài</p>
           <button
-            onClick={() => navigate("/evaluator")}
+            onClick={() => navigate("/lecturer/moderate")}
             className="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark"
           >
             Quay lại Dashboard
@@ -139,7 +139,7 @@ export function EvaluatorReviewPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate("/evaluator")}
+                onClick={() => navigate("/lecturer/moderate")}
                 className="size-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50"
               >
                 <span className="material-symbols-outlined text-slate-500">arrow_back</span>
@@ -608,7 +608,7 @@ export function EvaluatorReviewPage() {
         {!project.existingResult && (
           <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
             <button
-              onClick={() => navigate("/evaluator")}
+              onClick={() => navigate("/lecturer/moderate")}
               className="flex-1 h-11 rounded-xl border border-gray-200 text-slate-700 font-semibold text-sm hover:bg-gray-50"
             >
               Quay lại

@@ -1,73 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { Header } from "@/components/layout";
+import { Header, type UserRole } from "@/components/layout";
 import { CreateTicketModal } from "@/components/support/CreateTicketModal";
 import { supportService } from "@/lib";
 import { TicketListDto, TicketResponse, TicketStatsResponse } from "@/types";
+import { container, item, timeAgo, statusLabel, statusClass, priorityDot, StatCard } from "./supportShared";
 
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "Vừa xong";
-  if (minutes < 60) return `${minutes} phút trước`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} giờ trước`;
-  const days = Math.floor(hours / 24);
-  return `${days} ngày trước`;
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case "Open":
-      return "Chưa đọc";
-    case "InProgress":
-      return "Đang xử lý";
-    case "Resolved":
-      return "Đã giải quyết";
-    case "Closed":
-      return "Đã đóng";
-    default:
-      return status;
-  }
-}
-
-function statusClass(status: string) {
-  switch (status) {
-    case "Open":
-      return "bg-error/10 text-error";
-    case "InProgress":
-      return "bg-blue-50 text-blue-600";
-    case "Resolved":
-      return "bg-success/10 text-success";
-    case "Closed":
-      return "bg-slate-100 text-slate-500";
-    default:
-      return "bg-slate-100 text-slate-600";
-  }
-}
-
-function priorityDot(priority: string) {
-  switch (priority) {
-    case "High":
-      return "bg-error";
-    case "Medium":
-      return "bg-yellow-500";
-    default:
-      return "bg-slate-300";
-  }
-}
-
-export function EvaluatorSupportPage() {
+/**
+ * User-facing support center (ticket list + conversation). Shared by every non-admin role
+ * (Lecturer, Student, …). The admin/agent view lives in `pages/admin/SupportPage.tsx`.
+ */
+export function SupportCenter({
+  title,
+  variant,
+  role,
+}: {
+  title: string;
+  variant?: "default" | "navy" | "primary";
+  role?: UserRole;
+}) {
   const [tickets, setTickets] = useState<TicketListDto[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [ticketDetail, setTicketDetail] = useState<TicketResponse | null>(null);
@@ -85,15 +36,10 @@ export function EvaluatorSupportPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const [ticketsData, statsData] = await Promise.all([
-        supportService.getTickets(),
-        supportService.getStats(),
-      ]);
+      const [ticketsData, statsData] = await Promise.all([supportService.getTickets(), supportService.getStats()]);
       setTickets(ticketsData);
       setStats(statsData);
-      if (!selectedTicketId && ticketsData.length > 0) {
-        setSelectedTicketId(ticketsData[0].id);
-      }
+      setSelectedTicketId((prev) => prev ?? (ticketsData.length > 0 ? ticketsData[0].id : null));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải danh sách yêu cầu.");
     } finally {
@@ -159,9 +105,15 @@ export function EvaluatorSupportPage() {
   })();
   const currentUserId = currentUser?.id;
 
+  const filterTabs: { key: string; label: string }[] = [
+    { key: "all", label: "Tất cả" },
+    { key: "unread", label: "Chờ phản hồi" },
+    { key: "resolved", label: "Đã xong" },
+  ];
+
   return (
     <>
-      <Header title="Hỗ Trợ & Liên Hệ Admin" showSearch={false} />
+      <Header title={title} showSearch={false} variant={variant} role={role} />
       <div className="flex-1 overflow-hidden p-8 bg-slate-50">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col h-full">
           <motion.div variants={item} className="grid grid-cols-3 gap-4 mb-6 shrink-0">
@@ -198,6 +150,7 @@ export function EvaluatorSupportPage() {
               <div>
                 <p className="text-sm text-red-800 font-semibold">{error}</p>
                 <button
+                  type="button"
                   onClick={fetchTickets}
                   className="mt-1 text-xs font-semibold text-red-700 hover:text-red-900 underline"
                 >
@@ -211,24 +164,16 @@ export function EvaluatorSupportPage() {
             <div className="lg:col-span-4 bento-card rounded-md overflow-hidden flex flex-col">
               <div className="p-4 border-b border-slate-200 shrink-0">
                 <div className="flex items-center gap-2 mb-3">
-                  <button
-                    onClick={() => setFilter("all")}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${filter === "all" ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    Tất cả
-                  </button>
-                  <button
-                    onClick={() => setFilter("unread")}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${filter === "unread" ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    Chờ phản hồi
-                  </button>
-                  <button
-                    onClick={() => setFilter("resolved")}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${filter === "resolved" ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"}`}
-                  >
-                    Đã xong
-                  </button>
+                  {filterTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setFilter(tab.key)}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${filter === tab.key ? "bg-primary text-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-[18px]">
@@ -255,10 +200,11 @@ export function EvaluatorSupportPage() {
                   </div>
                 ) : (
                   filteredTickets.map((ticket) => (
-                    <div
+                    <button
                       key={ticket.id}
+                      type="button"
                       onClick={() => setSelectedTicketId(ticket.id)}
-                      className={`p-4 cursor-pointer transition-colors ${selectedTicketId === ticket.id ? "bg-primary/5 border-l-4 border-l-primary" : "hover:bg-slate-50"}`}
+                      className={`w-full text-left block p-4 cursor-pointer transition-colors ${selectedTicketId === ticket.id ? "bg-primary/5 border-l-4 border-l-primary" : "hover:bg-slate-50"}`}
                     >
                       <div className="flex items-start gap-3">
                         <div className={`w-2 h-2 mt-2 rounded-full shrink-0 ${priorityDot(ticket.priority)}`} />
@@ -279,12 +225,13 @@ export function EvaluatorSupportPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
               <div className="p-3 border-t border-slate-200 shrink-0">
                 <button
+                  type="button"
                   onClick={() => setIsCreateModalOpen(true)}
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark transition-colors"
                 >
@@ -315,9 +262,7 @@ export function EvaluatorSupportPage() {
                       </span>
                       <h3 className="font-bold text-slate-800 text-lg truncate">{ticketDetail.title}</h3>
                     </div>
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass(ticketDetail.status)}`}
-                    >
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass(ticketDetail.status)}`}>
                       {statusLabel(ticketDetail.status)}
                     </span>
                   </div>
@@ -390,10 +335,16 @@ export function EvaluatorSupportPage() {
                           placeholder="Nhập nội dung tin nhắn cho Admin..."
                         />
                         <div className="absolute bottom-3 right-3 flex gap-1">
-                          <button className="p-1.5 text-slate-400 hover:text-primary transition-colors">
+                          <button
+                            type="button"
+                            aria-label="Đính kèm tệp"
+                            className="p-1.5 text-slate-400 hover:text-primary transition-colors"
+                          >
                             <span className="material-symbols-outlined text-[20px]">attach_file</span>
                           </button>
                           <button
+                            type="button"
+                            aria-label="Gửi tin nhắn"
                             onClick={handleReply}
                             disabled={isSending || !newMessage.trim()}
                             className="p-1.5 bg-primary text-white rounded hover:bg-primary-light transition-colors disabled:opacity-50"
@@ -418,31 +369,5 @@ export function EvaluatorSupportPage() {
         onCreated={fetchTickets}
       />
     </>
-  );
-}
-
-function StatCard({
-  icon,
-  iconColor,
-  iconBg,
-  value,
-  label,
-  valueColor = "text-slate-800",
-}: {
-  icon: string;
-  iconColor: string;
-  iconBg: string;
-  value: number;
-  label: string;
-  valueColor?: string;
-}) {
-  return (
-    <motion.div whileHover={{ scale: 1.02 }} className="bento-card p-5 rounded-md">
-      <div className={`w-8 h-8 rounded-md ${iconBg} ${iconColor} flex items-center justify-center mb-2`}>
-        <span className="material-symbols-outlined text-[20px]">{icon}</span>
-      </div>
-      <h3 className={`text-2xl font-bold ${valueColor} mt-1`}>{value}</h3>
-      <p className="text-xs text-slate-500 font-medium mt-0.5">{label}</p>
-    </motion.div>
   );
 }

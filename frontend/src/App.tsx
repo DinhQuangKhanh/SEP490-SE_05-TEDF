@@ -7,7 +7,7 @@ import { MaintenanceProvider } from "@/contexts/MaintenanceContext";
 import { SystemErrorProvider } from "@/contexts/SystemErrorContext";
 import { BrandingProvider } from "@/contexts/SettingsContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { AdminLayout, EvaluatorLayout, MentorLayout, StudentLayout, DepartmentHeadLayout } from "@/components/layout";
+import { AdminLayout, LecturerLayout, StudentLayout } from "@/components/layout";
 import {
   LoginPage,
   DashboardPage,
@@ -16,32 +16,24 @@ import {
   UsersPage,
   ProjectsPage,
   SupportPage,
-  EvaluatorDashboardPage,
-  EvaluatorProjectsPage,
-  EvaluatorHistoryPage,
-  EvaluatorReviewPage,
-  EvaluatorSimilarityPage,
-  EvaluatorSupportPage,
-  EvaluatorSchedulePage,
-  MentorDashboardPage,
-  MentorGroupsPage,
-  MentorTopicsPage,
-  MentorSchedulePage,
-  MentorFeedbackPage,
-  MentorTopicDetailPage,
-  MentorSupportPage,
+  LecturerModerationPage,
+  LecturerHistoryPage,
+  LecturerReviewPage,
+  LecturerGroupsPage,
+  LecturerRepositoryPage,
+  LecturerGroupDetailPage,
+  LecturerSupportPage,
   StudentDashboardPage,
   StudentSchedulePage,
   StudentTopicsPage,
   StudentMyTopicPage,
   StudentSupportPage,
   StudentGroupPage,
-  TopicPoolsPage,
-  TopicPoolDetailPage,
   MaintenancePage,
   DepartmentHeadDashboardPage,
   AssignEvaluatorsPage,
   ActivityLogsPage,
+  TopicCreatePage,
 } from "@/pages";
 
 // Helper function to adjust color brightness
@@ -55,10 +47,10 @@ const adjustColor = (color: string, amount: number) => {
 
 const roleHomeMap: Record<string, string> = {
   admin: "/admin",
-  mentor: "/mentor",
-  evaluator: "/evaluator",
+  mentor: "/lecturer",
+  evaluator: "/lecturer",
   student: "/student",
-  departmenthead: "/department-head",
+  departmenthead: "/lecturer",
 };
 
 /** Redirects authenticated users to their role-based home page, or to /login if not logged in. */
@@ -112,43 +104,41 @@ function App() {
                 <Route path="support" element={<SupportPage />} />
               </Route>
 
-              {/* Protected Evaluator Routes */}
+              {/* Protected Lecturer Routes (Mentor + Evaluator + DepartmentHead, unified) */}
               <Route
-                path="/evaluator"
+                path="/lecturer"
                 element={
-                  <ProtectedRoute allowedRoles={["evaluator", "mentor"]}>
-                    <EvaluatorLayout />
+                  <ProtectedRoute allowedRoles={["mentor", "evaluator", "departmenthead"]}>
+                    <LecturerLayout />
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<EvaluatorDashboardPage />} />
-                <Route path="projects" element={<EvaluatorProjectsPage />} />
-                <Route path="schedule" element={<EvaluatorSchedulePage />} />
-                <Route path="history" element={<EvaluatorHistoryPage />} />
-                <Route path="review/:id" element={<EvaluatorReviewPage />} />
-                <Route path="review" element={<EvaluatorReviewPage />} />
-                <Route path="similarity" element={<EvaluatorSimilarityPage />} />
-                <Route path="support" element={<EvaluatorSupportPage />} />
-              </Route>
-
-              {/* Protected Mentor Routes */}
-              <Route
-                path="/mentor"
-                element={
-                  <ProtectedRoute allowedRoles={["mentor", "evaluator"]}>
-                    <MentorLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<MentorDashboardPage />} />
-                <Route path="groups" element={<MentorGroupsPage />} />
-                <Route path="groups/:id" element={<MentorTopicDetailPage />} />
-                <Route path="topics" element={<MentorTopicsPage />} />
-                <Route path="topics/:id" element={<MentorFeedbackPage />} />
-                <Route path="schedule" element={<MentorSchedulePage />} />
-                <Route path="support" element={<MentorSupportPage />} />
-                <Route path="topic-pools" element={<TopicPoolsPage />} />
-                <Route path="topic-pools/:id" element={<TopicPoolDetailPage />} />
+                {/* Research topic repository (own topics; all topics for DepartmentHead) */}
+                <Route index element={<LecturerRepositoryPage />} />
+                <Route path="groups" element={<LecturerGroupsPage />} />
+                <Route path="groups/:id" element={<LecturerGroupDetailPage />} />
+                <Route path="create" element={<TopicCreatePage />} />
+                <Route path="moderate" element={<LecturerModerationPage />} />
+                <Route path="moderate/:id" element={<LecturerReviewPage />} />
+                <Route path="history" element={<LecturerHistoryPage />} />
+                <Route path="support" element={<LecturerSupportPage />} />
+                {/* Department-Head-only pages */}
+                <Route
+                  path="dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <DepartmentHeadDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="assign"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <AssignEvaluatorsPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               {/* Protected Student Routes */}
@@ -170,21 +160,6 @@ function App() {
 
               {/* Smart redirect: root goes to role-based home */}
               <Route path="/" element={<RoleBasedRedirect />} />
-              {/* Protected DepartmentHead Routes */}
-              <Route
-                path="/department-head"
-                element={
-                  <ProtectedRoute>
-                    <DepartmentHeadLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<DepartmentHeadDashboardPage />} />
-                <Route path="assign" element={<AssignEvaluatorsPage />} />
-              </Route>
-
-              {/* Redirect root to admin */}
-              <Route path="/" element={<Navigate to="/admin" replace />} />
 
               {/* 404 — any unmatched route */}
               <Route path="*" element={<NotFoundPage />} />
