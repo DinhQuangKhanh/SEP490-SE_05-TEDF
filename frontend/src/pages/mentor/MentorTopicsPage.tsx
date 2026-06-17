@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
@@ -121,6 +121,40 @@ function RepoPagination({
   );
 }
 
+/** Search box shared by the repository tables. */
+function RepoSearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative w-full md:w-96">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="block w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
+        placeholder={placeholder}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        >
+          <span className="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Read-only topic detail body shared by the mentor & department-head detail modals. */
 function ReadonlyTopicDetail({
   detail,
@@ -181,6 +215,80 @@ function ReadonlyTopicDetail({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Overlay + card + header chrome shared by the topic detail modals. */
+function DetailModalShell({
+  code,
+  statusValue,
+  nameVi,
+  nameEn,
+  headerExtra,
+  onClose,
+  children,
+}: {
+  code: string;
+  statusValue: number;
+  nameVi: string;
+  nameEn?: string | null;
+  headerExtra?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const sc = statusConfig(statusValue);
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-slate-400">{code}</span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
+              >
+                <span className={`size-1.5 rounded-full ${sc.dot}`} />
+                {sc.label}
+              </span>
+              {headerExtra}
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 truncate">{nameVi}</h2>
+            {nameEn && <p className="text-sm text-slate-500 truncate">{nameEn}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
+            <span className="material-symbols-outlined text-slate-400">close</span>
+          </button>
+        </div>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** Loading placeholder shared by the topic detail modals. */
+function DetailLoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="animate-pulse">
+          <div className="h-4 w-24 bg-slate-200 rounded mb-2" />
+          <div className="h-4 w-full bg-slate-100 rounded" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -304,26 +412,7 @@ function MentorOwnTopicsView() {
             variants={item}
             className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between"
           >
-            <div className="relative w-full md:w-96">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
-                placeholder="Tìm kiếm theo mã hoặc tên đề tài..."
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              )}
-            </div>
+            <RepoSearchInput value={search} onChange={setSearch} placeholder="Tìm kiếm theo mã hoặc tên đề tài..." />
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="flex items-center gap-2 min-w-[200px]">
                 <span className="text-sm text-slate-500 font-medium whitespace-nowrap">Kỳ học:</span>
@@ -525,26 +614,11 @@ function DepartmentTopicsView() {
             variants={item}
             className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between"
           >
-            <div className="relative w-full md:w-96">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
-                placeholder="Tìm theo mã, tên đề tài hoặc chuyên ngành..."
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              )}
-            </div>
+            <RepoSearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Tìm theo mã, tên đề tài hoặc chuyên ngành..."
+            />
             <span className="hidden md:inline text-sm text-slate-500">
               <span className="font-semibold text-slate-900">{totalCount}</span> đề tài
             </span>
@@ -655,72 +729,35 @@ function DepartmentTopicDetailModal({ project, onClose }: { project: DepartmentP
     });
   }, [project.projectId]);
 
-  const sc = statusConfig(project.statusValue);
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+    <DetailModalShell
+      code={project.projectCode}
+      statusValue={project.statusValue}
+      nameVi={project.nameVi}
+      nameEn={project.nameEn}
+      onClose={onClose}
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono text-slate-400">{project.projectCode}</span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
-              >
-                <span className={`size-1.5 rounded-full ${sc.dot}`} />
-                {sc.label}
-              </span>
-            </div>
-            <h2 className="text-lg font-bold text-slate-900 truncate">{project.nameVi}</h2>
-            {project.nameEn && <p className="text-sm text-slate-500 truncate">{project.nameEn}</p>}
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
-            <span className="material-symbols-outlined text-slate-400">close</span>
-          </button>
-        </div>
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        {loading ? (
+          <DetailLoadingSkeleton />
+        ) : detail ? (
+          <ReadonlyTopicDetail detail={detail} documents={documents} semesterName={project.semesterName} />
+        ) : (
+          <p className="text-sm text-slate-500 text-center py-8">Không thể tải thông tin chi tiết.</p>
+        )}
+      </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 w-24 bg-slate-200 rounded mb-2" />
-                  <div className="h-4 w-full bg-slate-100 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : detail ? (
-            <ReadonlyTopicDetail detail={detail} documents={documents} semesterName={project.semesterName} />
-          ) : (
-            <p className="text-sm text-slate-500 text-center py-8">Không thể tải thông tin chi tiết.</p>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 shrink-0 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            Đóng
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-slate-200 shrink-0 flex justify-end">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          Đóng
+        </button>
+      </div>
+    </DetailModalShell>
   );
 }
 
@@ -793,61 +830,27 @@ function TopicDetailModal({
     );
   }, [topic.id, topic.sourceType]);
 
-  const sc = statusConfig(topic.status);
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+    <DetailModalShell
+      code={topic.code}
+      statusValue={topic.status}
+      nameVi={topic.nameVi}
+      nameEn={topic.nameEn}
+      onClose={onClose}
+      headerExtra={
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+            topic.sourceType === 0 ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {sourceTypeLabel(topic.sourceType)}
+        </span>
+      }
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono text-slate-400">{topic.code}</span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
-              >
-                <span className={`size-1.5 rounded-full ${sc.dot}`} />
-                {sc.label}
-              </span>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  topic.sourceType === 0 ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {sourceTypeLabel(topic.sourceType)}
-              </span>
-            </div>
-            <h2 className="text-lg font-bold text-slate-900 truncate">{topic.nameVi}</h2>
-            {topic.nameEn && <p className="text-sm text-slate-500 truncate">{topic.nameEn}</p>}
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
-            <span className="material-symbols-outlined text-slate-400">close</span>
-          </button>
-        </div>
-
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 w-24 bg-slate-200 rounded mb-2" />
-                  <div className="h-4 w-full bg-slate-100 rounded" />
-                </div>
-              ))}
-            </div>
+            <DetailLoadingSkeleton />
           ) : detail ? (
             isEditing && isPoolNeedsModification ? (
               /* ── Edit Form for Pool Topics ── */
@@ -1194,8 +1197,7 @@ function TopicDetailModal({
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+    </DetailModalShell>
   );
 }
 
