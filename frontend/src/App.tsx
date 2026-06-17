@@ -31,7 +31,6 @@ import {
   MentorTopicDetailPage,
   MentorSupportPage,
   StudentDashboardPage,
-  StudentSchedulePage,
   StudentTopicsPage,
   StudentMyTopicPage,
   StudentSupportPage,
@@ -164,7 +163,6 @@ function App() {
                 <Route path="my-topic" element={<StudentMyTopicPage />} />
                 <Route path="topics" element={<StudentTopicsPage />} />
                 <Route path="groups" element={<StudentGroupPage />} />
-                <Route path="schedule" element={<StudentSchedulePage />} />
                 <Route path="support" element={<StudentSupportPage />} />
               </Route>
 

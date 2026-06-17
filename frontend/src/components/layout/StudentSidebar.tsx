@@ -9,12 +9,7 @@ const navItems = [
     { label: 'Đề tài của tôi', icon: 'book_2', path: '/student/my-topic' },
     { label: 'Kho đề tài đề xuất', icon: 'inventory_2', path: '/student/topics' },
     { label: 'Nhóm', icon: 'group', path: '/student/groups' },
-    { label: 'Lịch trình chung', icon: 'calendar_month', path: '/student/schedule' },
     { label: 'Hỗ trợ', icon: 'support_agent', path: '/student/support' },
-]
-
-const systemItems = [
-    { label: 'Cài đặt', icon: 'settings', path: '/student/settings' },
 ]
 
 export function StudentSidebar() {
@@ -55,20 +50,21 @@ export function StudentSidebar() {
 
             {/* Footer */}
             <div className={`p-4 border-t border-[#e9ecf1] ${isHovered ? '' : 'px-2'}`}>
-                {systemItems.map((item) => (
-                    <NavItem key={item.path} {...item} active={location.pathname === item.path} expanded={isHovered} />
-                ))}
                 {/* User Profile */}
-                <div className={`mt-4 flex items-center ${isHovered ? 'gap-3 px-4' : 'justify-center px-0'} py-2 transition-all duration-300`}>
-                    <div
-                        className="h-10 w-10 rounded-full bg-gray-200 bg-cover bg-center shrink-0"
-                        style={{
-                            backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuDcmhFbaP0vMcYOP70wqwwwzqaJSKf-3DBianrl7cMsyN3laUMyvlWs8wnYaX1nGPLIGVInAdzQXNsHKrfv82HbPyOEqqiste4qnOBNZlC9pOaZrSLZZg71hleEKDcTJeHR_GYWsO-keITdsHRIzw7R3rcP9y3adyO2PToD2nxURK0Afp67TENb5qrmoqmXYEQBi2m4pco1pHmYWtV4YOH6-TyoYeaerHqpC6lTitLFtQp4Ir5u8J_xlQdQDj7ofOfugeih7FL2vNVY')`,
-                        }}
-                    />
+                <div className={`mt-2 flex items-center ${isHovered ? 'gap-3 px-4' : 'justify-center px-0'} py-2 transition-all duration-300`}>
+                    {user?.avatar ? (
+                        <div
+                            className="h-10 w-10 rounded-full bg-gray-200 bg-cover bg-center shrink-0"
+                            style={{ backgroundImage: `url('${user.avatar}')` }}
+                        />
+                    ) : (
+                        <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0">
+                            {getInitials(user?.name)}
+                        </div>
+                    )}
                     <div className={`flex flex-col overflow-hidden text-left transition-all duration-300 ${isHovered ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{user?.name || 'Nguyễn Văn An'}</p>
-                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">K62 - CNTT</p>
+                        <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">{user?.name || 'Sinh viên'}</p>
+                        <p className="text-xs text-[#58698d] truncate whitespace-nowrap">{user?.email || ''}</p>
                     </div>
                 </div>
                 {/* Logout Button */}
@@ -83,6 +79,14 @@ export function StudentSidebar() {
             </div>
         </motion.aside>
     )
+}
+
+function getInitials(name?: string): string {
+    if (!name) return 'SV'
+    const parts = name.trim().split(/\s+/)
+    const last = parts[parts.length - 1]?.[0] ?? ''
+    const first = parts.length > 1 ? parts[0][0] : ''
+    return (first + last).toUpperCase() || 'SV'
 }
 
 function NavItem({
