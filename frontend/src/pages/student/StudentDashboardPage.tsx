@@ -16,42 +16,38 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+// Static class maps — Tailwind purges interpolated class names (`bg-${color}-50`),
+// so each colour variant must be spelled out in full to actually render.
+const quickAccessStyles: Record<string, { hoverBorder: string; iconWrap: string; labelHover: string }> = {
+  blue: { hoverBorder: "hover:border-blue-200", iconWrap: "bg-blue-50 text-blue-600", labelHover: "group-hover:text-blue-700" },
+  green: { hoverBorder: "hover:border-green-200", iconWrap: "bg-green-50 text-green-600", labelHover: "group-hover:text-green-700" },
+  pink: { hoverBorder: "hover:border-pink-200", iconWrap: "bg-pink-50 text-pink-600", labelHover: "group-hover:text-pink-700" },
+};
+
 const quickAccess = [
   { label: "Kho đề tài", icon: "folder_shared", color: "blue", path: "/student/topics" },
   { label: "Nhóm", icon: "group", color: "green", path: "/student/groups" },
-  { label: "Lịch trình", icon: "calendar_month", color: "indigo", path: "/student/schedule" },
   { label: "Hỗ trợ", icon: "live_help", color: "pink", path: "/student/support" },
 ];
 
-const deadlines = [
-  {
-    day: "15",
-    month: "T10",
-    type: "Quan trọng",
-    typeColor: "red",
-    title: "Nộp bản thảo Chương 3 - Cơ sở lý thuyết",
-    time: "10:00 AM",
-    location: "Hệ thống LMS",
-  },
-  {
-    day: "20",
-    month: "T10",
-    type: "Họp nhóm",
-    typeColor: "blue",
-    title: "Báo cáo tiến độ với Giảng viên hướng dẫn",
-    time: "08:30 AM",
-    location: "Phòng 302",
-  },
-  {
-    day: "05",
-    month: "T11",
-    type: "Nộp bài",
-    typeColor: "gray",
-    title: "Nộp báo cáo giữa kỳ (Soft copy)",
-    time: "23:59 PM",
-    location: "Email GV",
-  },
-];
+interface Deadline {
+  day: string;
+  month: string;
+  type: string;
+  typeColor: string;
+  title: string;
+  time: string;
+  location: string;
+}
+
+const deadlineStyles: Record<string, { badge: string; date: string }> = {
+  red: { badge: "text-red-600 bg-red-50 border-red-100", date: "bg-red-50 text-red-600 border-red-100" },
+  blue: { badge: "text-blue-600 bg-blue-50 border-blue-100", date: "bg-blue-50 text-blue-600 border-blue-100" },
+  gray: { badge: "text-gray-600 bg-gray-50 border-gray-100", date: "bg-gray-50 text-gray-600 border-gray-100" },
+};
+
+// No deadlines feed exists yet — render an empty state instead of fabricated rows.
+const deadlines: Deadline[] = [];
 
 export function StudentDashboardPage() {
   const navigate = useNavigate();
@@ -262,22 +258,25 @@ export function StudentDashboardPage() {
                 Truy cập nhanh
               </h3>
               <div className="grid h-full grid-cols-2 gap-4">
-                {quickAccess.map((qa) => (
-                  <button
-                    key={qa.label}
-                    onClick={() => qa.path !== "#" && navigate(qa.path)}
-                    className={`group flex flex-col items-center justify-center p-4 rounded-xl border border-[#e9ecf1] bg-white hover:border-${qa.color}-200 hover:shadow-md hover:-translate-y-1 transition-all`}
-                  >
-                    <div
-                      className={`w-12 h-12 mb-3 rounded-full bg-${qa.color}-50 text-${qa.color}-600 flex items-center justify-center group-hover:scale-110 transition-transform`}
+                {quickAccess.map((qa) => {
+                  const style = quickAccessStyles[qa.color];
+                  return (
+                    <button
+                      key={qa.label}
+                      onClick={() => qa.path !== "#" && navigate(qa.path)}
+                      className={`group flex flex-col items-center justify-center p-4 rounded-xl border border-[#e9ecf1] bg-white ${style.hoverBorder} hover:shadow-md hover:-translate-y-1 transition-all`}
                     >
-                      <span className="material-symbols-outlined text-[24px]">{qa.icon}</span>
-                    </div>
-                    <span className={`text-sm font-semibold text-gray-700 group-hover:text-${qa.color}-700`}>
-                      {qa.label}
-                    </span>
-                  </button>
-                ))}
+                      <div
+                        className={`w-12 h-12 mb-3 rounded-full ${style.iconWrap} flex items-center justify-center group-hover:scale-110 transition-transform`}
+                      >
+                        <span className="material-symbols-outlined text-[24px]">{qa.icon}</span>
+                      </div>
+                      <span className={`text-sm font-semibold text-gray-700 ${style.labelHover}`}>
+                        {qa.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </motion.div>
           </div>
@@ -304,44 +303,52 @@ export function StudentDashboardPage() {
               </div>
             </div>
             <div className="flex flex-col">
-              {deadlines.map((dl, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-4 p-4 border-b border-[#e9ecf1] last:border-0 hover:bg-gray-50 transition-colors group cursor-pointer"
-                >
-                  <div
-                    className={`w-14 h-14 rounded-xl bg-${dl.typeColor}-50 text-${dl.typeColor}-600 flex flex-col items-center justify-center border border-${dl.typeColor}-100 shrink-0`}
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{dl.month}</span>
-                    <span className="text-xl font-bold leading-none">{dl.day}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`text-xs font-bold text-${dl.typeColor}-600 bg-${dl.typeColor}-50 px-2 py-0.5 rounded border border-${dl.typeColor}-100`}
+              {deadlines.length > 0 ? (
+                deadlines.map((dl, idx) => {
+                  const style = deadlineStyles[dl.typeColor] ?? deadlineStyles.gray;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-4 p-4 border-b border-[#e9ecf1] last:border-0 hover:bg-gray-50 transition-colors group cursor-pointer"
+                    >
+                      <div
+                        className={`w-14 h-14 rounded-xl ${style.date} flex flex-col items-center justify-center border shrink-0`}
                       >
-                        {dl.type}
-                      </span>
-                      <span className="text-xs text-[#58698d] flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px]">schedule</span>
-                        {dl.time}
-                      </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{dl.month}</span>
+                        <span className="text-xl font-bold leading-none">{dl.day}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${style.badge}`}>
+                            {dl.type}
+                          </span>
+                          <span className="text-xs text-[#58698d] flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">schedule</span>
+                            {dl.time}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-[#101319] text-sm truncate group-hover:text-primary transition-colors">
+                          {dl.title}
+                        </h4>
+                      </div>
+                      <div className="flex-col items-end hidden gap-1 text-right sm:flex shrink-0">
+                        <span className="text-xs text-[#58698d] font-medium flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[16px]">location_on</span>
+                          {dl.location}
+                        </span>
+                        <button className="text-xs font-bold transition-opacity opacity-0 text-primary group-hover:opacity-100">
+                          Chi tiết
+                        </button>
+                      </div>
                     </div>
-                    <h4 className="font-bold text-[#101319] text-sm truncate group-hover:text-primary transition-colors">
-                      {dl.title}
-                    </h4>
-                  </div>
-                  <div className="flex-col items-end hidden gap-1 text-right sm:flex shrink-0">
-                    <span className="text-xs text-[#58698d] font-medium flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[16px]">location_on</span>
-                      {dl.location}
-                    </span>
-                    <button className="text-xs font-bold transition-opacity opacity-0 text-primary group-hover:opacity-100">
-                      Chi tiết
-                    </button>
-                  </div>
+                  );
+                })
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <span className="material-symbols-outlined text-4xl text-[#c4ccdb] mb-2">event_available</span>
+                  <p className="text-sm text-[#58698d]">Chưa có deadline sắp tới.</p>
                 </div>
-              ))}
+              )}
             </div>
           </motion.section>
 
