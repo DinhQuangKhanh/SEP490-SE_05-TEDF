@@ -20,7 +20,6 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 - **Core lifecycle is live:** auth, role routing, dashboards, users, projects, semesters, groups, topic pools, evaluations, and support tickets are wired to the API across all five roles.
 - **Real-time notifications** work (SignalR + `NotificationDropdown`).
 - **`lib/` + `types/` are feature-based**, mirroring the backend `TEDF.API/Endpoints/` folders (camelCase) with barrels (`@/lib`, `@/types`); URLs centralized in `lib/common/routes.ts`. Pages/components go through services only — no direct `apiClient` calls. (See [`PROJECT-RULES.md`](PROJECT-RULES.md) §5.)
-- **Still mock / not wired:** schedules & meetings, evaluator similarity, the mentor feedback page, and report exports. **Real-time chat** has no frontend yet.
 
 ---
 
@@ -40,24 +39,25 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 
 ### Department Head (`pages/department-head/`)
 
-| Page | Status | Notes |
-|------|--------|-------|
-| DepartmentHeadDashboardPage | ✅ | `dashboardService` (projects via `projectService`, evaluators via `evaluatorService`) |
-| AssignEvaluatorsPage | ✅ | evaluator assignment + final decision |
+Rendered inside the Lecturer layout for accounts granted DepartmentHead authority, but kept as a separate page folder/role.
 
-### Mentor (`pages/mentor/`)
+| Page | Route | Status | Notes |
+|------|-------|--------|-------|
+| DepartmentHeadDashboardPage | `/lecturer/dashboard` | ✅ | overview + alerts (DepartmentHead only) |
+| AssignEvaluatorsPage | `/lecturer/assign` | ✅ | evaluator assignment + final decision |
 
-| Page | Status | Notes |
-|------|--------|-------|
-| MentorDashboardPage | ✅ | `dashboardService` |
-| MentorGroupsPage | ✅ | assigned groups |
-| MentorTopicsPage | ✅ | topic management |
-| MentorTopicDetailPage | ✅ | topic detail / review |
-| TopicPoolsPage | ✅ | `topicPoolService` |
-| TopicPoolDetailPage | ✅ | pool detail + edit/resubmit |
-| MentorSupportPage | ✅ | support tickets |
-| MentorFeedbackPage | 📋 | Hardcoded `technologies` / `hardware` / `feedbackHistory` — no API |
-| MentorSchedulePage | 📋 | Static calendar (hardcoded events/groups) |
+### Lecturer (`pages/lecturer/`) — Mentor + Evaluator, unified
+
+| Page | Route | Status | Notes |
+|------|-------|--------|-------|
+| LecturerRepositoryPage | `/lecturer` | ✅ | Own topics; **all** dept topics for a DepartmentHead |
+| LecturerGroupsPage | `/lecturer/groups` | ✅ | assigned groups |
+| LecturerGroupDetailPage | `/lecturer/groups/:id` | 📋 | group/topic detail — hardcoded sample data |
+| TopicCreatePage | `/lecturer/create` | ✅ | `RegisterTopicModal` (`topicPoolService.proposeTopic`) |
+| LecturerModerationPage | `/lecturer/moderate` | ✅ | evaluation queue (`evaluatorService`) |
+| LecturerReviewPage | `/lecturer/moderate/:id` | ✅ | review / submit result |
+| LecturerHistoryPage | `/lecturer/history` | ✅ | evaluation history |
+| LecturerSupportPage | `/lecturer/support` | ✅ | support tickets |
 
 ### Student (`pages/student/`)
 
@@ -69,18 +69,6 @@ Snapshot of what is implemented in the TEDF admin SPA (`frontend/`), per page an
 | StudentTopicsPage | ✅ | browse/register topics |
 | StudentSupportPage | ✅ | support tickets |
 | StudentSchedulePage | 🚧 | Pulls group data via `studentGroupService`; calendar events still hardcoded |
-
-### Evaluator (`pages/evaluator/`)
-
-| Page | Status | Notes |
-|------|--------|-------|
-| EvaluatorDashboardPage | ✅ | `evaluatorService` |
-| EvaluatorProjectsPage | ✅ | assigned projects |
-| EvaluatorReviewPage | ✅ | review/submit result (`review/:id`) |
-| EvaluatorHistoryPage | ✅ | evaluation history |
-| EvaluatorSupportPage | ✅ | support tickets |
-| EvaluatorSchedulePage | 📋 | Static calendar (hardcoded events) |
-| EvaluatorSimilarityPage | 📋 | Mock similarity data only — no detection backend |
 
 ### Auth & Shared (`pages/auth/`, `pages/errors/`, root)
 
