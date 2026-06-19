@@ -1,18 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
-import { RegisterTopicModal } from "@/components/mentor/RegisterTopicModal";
+import { RegisterTopicModal } from "@/components/lecturer";
 import { Header } from "@/components/layout/Header";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   topicService,
   topicPoolService,
   proposedTopicService,
+  projectService,
   semesterService,
   sourceTypeLabel,
   statusConfig,
-  evaluationStatusConfig,
 } from "@/lib";
 import type {
+  DepartmentProject,
   MentorTopicItem,
   MentorTopicsResponse,
   SemesterOption,
@@ -20,29 +22,9 @@ import type {
   TopicDocument,
   UpdatePoolTopicRequest,
 } from "@/types";
-
-// ── Animation variants ───────────────────────────────────────────────────────
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
+import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | "...")[] {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -58,9 +40,254 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | "...
 
 const PAGE_SIZE = 10;
 
-// ── Main Component ───────────────────────────────────────────────────────────
+// ── Shared building blocks (reused by both the mentor & department-head views) ─
 
-export function MentorTopicsPage() {
+/** Pagination bar shared by the repository tables. */
+function RepoPagination({
+  page,
+  totalPages,
+  totalCount,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  onPage: (page: number) => void;
+}) {
+  const pageNumbers = getPageNumbers(page, totalPages);
+  return (
+    <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+      <p className="text-sm text-slate-500">
+        Hiển thị <span className="font-medium text-slate-900">{(page - 1) * PAGE_SIZE + 1}</span> đến{" "}
+        <span className="font-medium text-slate-900">{Math.min(page * PAGE_SIZE, totalCount)}</span> trong số{" "}
+        <span className="font-medium text-slate-900">{totalCount}</span> đề tài
+      </p>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Trước
+          </button>
+          {pageNumbers.map((p, i) =>
+            p === "..." ? (
+              <span key={`dots-${i}`} className="px-2 py-1 text-slate-400">
+                ...
+              </span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onPage(p)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  p === page ? "bg-primary text-white" : "text-slate-600 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {p}
+              </button>
+            ),
+          )}
+          <button
+            onClick={() => onPage(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Sau
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Search box shared by the repository tables. */
+function RepoSearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative w-full md:w-96">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="block w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
+        placeholder={placeholder}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        >
+          <span className="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Read-only topic detail body shared by the mentor & department-head detail modals. */
+function ReadonlyTopicDetail({
+  detail,
+  documents,
+  semesterName,
+}: {
+  detail: TopicDetail;
+  documents: TopicDocument[];
+  semesterName: string;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-4">
+        <InfoField label="Chuyên ngành" value={detail.majorName} icon="school" />
+        <InfoField label="Học kỳ" value={semesterName} icon="calendar_today" />
+        <InfoField label="Ngày tạo" value={formatDate(detail.createdAt)} icon="event" />
+        <InfoField label="SV tối đa" value={String(detail.maxStudents)} icon="groups" />
+      </div>
+
+      {detail.mentors.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Giảng viên hướng dẫn</h4>
+          <div className="flex flex-wrap gap-2">
+            {detail.mentors.map((m) => (
+              <span
+                key={m.mentorId}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 text-primary text-sm font-medium rounded-full"
+              >
+                <span className="material-symbols-outlined text-[16px]">person</span>
+                {m.fullName}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {detail.description && <DetailSection title="Mô tả" content={detail.description} />}
+      {detail.objectives && <DetailSection title="Mục tiêu" content={detail.objectives} />}
+      {detail.scope && <DetailSection title="Phạm vi" content={detail.scope} />}
+      {detail.technologies && <DetailSection title="Công nghệ sử dụng" content={detail.technologies} />}
+      {detail.expectedResults && <DetailSection title="Kết quả mong đợi" content={detail.expectedResults} />}
+
+      {documents.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tài liệu đính kèm</h4>
+          <div className="space-y-2">
+            {documents.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <span className="material-symbols-outlined text-slate-400 text-[20px]">attach_file</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{doc.originalFileName}</p>
+                  <p className="text-xs text-slate-400">
+                    {(doc.fileSize / 1024).toFixed(1)} KB &middot; {formatDate(doc.uploadedAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Overlay + card + header chrome shared by the topic detail modals. */
+function DetailModalShell({
+  code,
+  statusValue,
+  nameVi,
+  nameEn,
+  headerExtra,
+  onClose,
+  children,
+}: {
+  code: string;
+  statusValue: number;
+  nameVi: string;
+  nameEn?: string | null;
+  headerExtra?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const sc = statusConfig(statusValue);
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-slate-400">{code}</span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
+              >
+                <span className={`size-1.5 rounded-full ${sc.dot}`} />
+                {sc.label}
+              </span>
+              {headerExtra}
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 truncate">{nameVi}</h2>
+            {nameEn && <p className="text-sm text-slate-500 truncate">{nameEn}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
+            <span className="material-symbols-outlined text-slate-400">close</span>
+          </button>
+        </div>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** Loading placeholder shared by the topic detail modals. */
+function DetailLoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="animate-pulse">
+          <div className="h-4 w-24 bg-slate-200 rounded mb-2" />
+          <div className="h-4 w-full bg-slate-100 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Role-aware entry point ───────────────────────────────────────────────────
+
+/**
+ * Research topic repository. A regular lecturer sees only their own topics;
+ * a lecturer with Department-Head authority sees every topic in the department.
+ */
+export function LecturerRepositoryPage() {
+  const { user } = useAuth();
+  const isDeptHead = !!user?.roles?.includes("departmenthead");
+  return isDeptHead ? <DepartmentTopicsView /> : <MentorOwnTopicsView />;
+}
+
+// ── Mentor's own topics ──────────────────────────────────────────────────────
+
+function MentorOwnTopicsView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailTopic, setDetailTopic] = useState<MentorTopicItem | null>(null);
 
@@ -129,16 +356,15 @@ export function MentorTopicsPage() {
   }, [fetchTopics]);
 
   const totalPages = data?.totalPages ?? 1;
-  const pageNumbers = getPageNumbers(page, totalPages);
 
   return (
     <>
       <Header
-        title="Danh sách đề tài"
+        title="Kho đề tài nghiên cứu"
         subtitle="Quản lý và theo dõi trạng thái thẩm định các đề tài hướng dẫn"
         role="mentor"
         showSearch={false}
-        breadcrumb={[{ label: "TEDF" }, { label: "Danh sách đề tài" }]}
+        breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
       />
 
       {/* Content */}
@@ -147,9 +373,9 @@ export function MentorTopicsPage() {
           {/* Title & Actions */}
           <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">Kho Đề Tài Của Mentor</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Kho đề tài nghiên cứu</h2>
               <p className="text-slate-500 mt-1 text-sm">
-                Quản lý và theo dõi trạng thái thẩm định các đề tài hướng dẫn.
+                Quản lý và theo dõi trạng thái thẩm định các đề tài bạn hướng dẫn.
               </p>
             </div>
             <button
@@ -166,26 +392,7 @@ export function MentorTopicsPage() {
             variants={item}
             className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between"
           >
-            <div className="relative w-full md:w-96">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">search</span>
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full pl-10 pr-9 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
-                placeholder="Tìm kiếm theo mã hoặc tên đề tài..."
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              )}
-            </div>
+            <RepoSearchInput value={search} onChange={setSearch} placeholder="Tìm kiếm theo mã hoặc tên đề tài..." />
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="flex items-center gap-2 min-w-[200px]">
                 <span className="text-sm text-slate-500 font-medium whitespace-nowrap">Kỳ học:</span>
@@ -224,15 +431,14 @@ export function MentorTopicsPage() {
                       <tr>
                         <th className="px-6 py-4 w-36">Mã Đề Tài</th>
                         <th className="px-6 py-4 min-w-[300px]">Tên Đề Tài</th>
-                        <th className="px-6 py-4 w-40 text-center">Loại Đề Tài</th>
-                        <th className="px-6 py-4 w-40 text-center">Thẩm Định</th>
+                        <th className="px-6 py-4 w-44 text-center">Trạng Thái</th>
                         <th className="px-6 py-4 w-36">Ngày Gửi</th>
-                        <th className="px-6 py-4 w-32 text-right"></th>
+                        <th className="px-6 py-4 w-32 text-right">Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {data.items.map((topic) => {
-                        const evalSc = evaluationStatusConfig(topic.status);
+                        const sc = statusConfig(topic.status);
                         return (
                           <tr
                             key={topic.id}
@@ -253,29 +459,29 @@ export function MentorTopicsPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  topic.sourceType === 0
-                                    ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                                    : "bg-slate-100 text-slate-700 border border-slate-200"
-                                }`}
-                              >
-                                {sourceTypeLabel(topic.sourceType)}
-                              </span>
-                            </td>
                             <td className="px-6 py-4 text-center">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${evalSc.bg} ${evalSc.text} border border-current/10`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text} border border-current/10`}
                               >
-                                <span className={`size-1.5 rounded-full ${evalSc.dot}`} />
-                                {evalSc.label}
+                                <span className={`size-1.5 rounded-full ${sc.dot}`} />
+                                {sc.label}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-sm text-slate-600">
                               {formatDate(topic.submittedAt ?? topic.createdAt)}
                             </td>
-                            <td className="px-6 py-4 text-right"></td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailTopic(topic);
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors whitespace-nowrap"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                Xem chi tiết
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -285,50 +491,7 @@ export function MentorTopicsPage() {
 
                 {/* Pagination */}
                 {data.totalCount > 0 && (
-                  <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
-                    <p className="text-sm text-slate-500">
-                      Hiển thị <span className="font-medium text-slate-900">{(page - 1) * PAGE_SIZE + 1}</span> đến{" "}
-                      <span className="font-medium text-slate-900">{Math.min(page * PAGE_SIZE, data.totalCount)}</span>{" "}
-                      trong số <span className="font-medium text-slate-900">{data.totalCount}</span> đề tài
-                    </p>
-                    {totalPages > 1 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page <= 1}
-                          className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Trước
-                        </button>
-                        {pageNumbers.map((p, i) =>
-                          p === "..." ? (
-                            <span key={`dots-${i}`} className="px-2 py-1 text-slate-400">
-                              ...
-                            </span>
-                          ) : (
-                            <button
-                              key={p}
-                              onClick={() => setPage(p)}
-                              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                p === page
-                                  ? "bg-primary text-white"
-                                  : "text-slate-600 border border-slate-200 hover:bg-slate-50"
-                              }`}
-                            >
-                              {p}
-                            </button>
-                          ),
-                        )}
-                        <button
-                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={page >= totalPages}
-                          className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Sau
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <RepoPagination page={page} totalPages={totalPages} totalCount={data.totalCount} onPage={setPage} />
                 )}
               </>
             )}
@@ -359,6 +522,222 @@ export function MentorTopicsPage() {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// ── Department-Head view: all topics in the department ───────────────────────
+
+function DepartmentTopicsView() {
+  const [items, setItems] = useState<DepartmentProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [detailProject, setDetailProject] = useState<DepartmentProject | null>(null);
+
+  const fetchProjects = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await projectService.getDepartmentProjects();
+      setItems(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải dữ liệu");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  // Reset to the first page whenever the search term changes.
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? items.filter(
+        (p) =>
+          p.projectCode.toLowerCase().includes(q) ||
+          p.nameVi.toLowerCase().includes(q) ||
+          p.majorName.toLowerCase().includes(q),
+      )
+    : items;
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  return (
+    <>
+      <Header
+        title="Kho đề tài nghiên cứu"
+        subtitle="Toàn bộ đề tài của giảng viên trong bộ môn"
+        role="mentor"
+        showSearch={false}
+        breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
+      />
+
+      <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
+        <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+          <motion.div variants={item}>
+            <h2 className="text-2xl font-bold text-slate-900">Kho đề tài nghiên cứu</h2>
+            <p className="text-slate-500 mt-1 text-sm">Toàn bộ đề tài của giảng viên trong bộ môn.</p>
+          </motion.div>
+
+          {/* Search */}
+          <motion.div
+            variants={item}
+            className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between"
+          >
+            <RepoSearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Tìm theo mã, tên đề tài hoặc chuyên ngành..."
+            />
+            <span className="hidden md:inline text-sm text-slate-500">
+              <span className="font-semibold text-slate-900">{totalCount}</span> đề tài
+            </span>
+          </motion.div>
+
+          {/* Table */}
+          <motion.div variants={item} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {loading ? (
+              <TableSkeleton />
+            ) : error ? (
+              <ErrorState message={error} onRetry={fetchProjects} />
+            ) : totalCount === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-bold tracking-wider">
+                      <tr>
+                        <th className="px-6 py-4 w-36">Mã Đề Tài</th>
+                        <th className="px-6 py-4 min-w-[280px]">Tên Đề Tài</th>
+                        <th className="px-6 py-4 w-48">Giảng viên hướng dẫn</th>
+                        <th className="px-6 py-4 w-40 text-center">Trạng Thái</th>
+                        <th className="px-6 py-4 w-36">Ngày Gửi</th>
+                        <th className="px-6 py-4 w-32 text-right">Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pageItems.map((p) => {
+                        const sc = statusConfig(p.statusValue);
+                        return (
+                          <tr
+                            key={p.projectId}
+                            className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                            onClick={() => setDetailProject(p)}
+                          >
+                            <td className="px-6 py-4 text-sm font-medium text-slate-500 font-mono">{p.projectCode}</td>
+                            <td className="px-6 py-4">
+                              <p className="text-sm font-bold text-slate-900 group-hover:text-primary transition-colors">
+                                {p.nameVi}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">Chuyên ngành: {p.majorName}</p>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-slate-600">
+                              {p.mentors.map((m) => m.mentorName).join(", ") || "—"}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
+                              >
+                                <span className={`size-1.5 rounded-full ${sc.dot}`} />
+                                {sc.label}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-slate-600">{formatDate(p.submittedAt)}</td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailProject(p);
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors whitespace-nowrap"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                Xem chi tiết
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <RepoPagination page={currentPage} totalPages={totalPages} totalCount={totalCount} onPage={setPage} />
+              </>
+            )}
+          </motion.div>
+        </motion.div>
+      </div>
+
+      <AnimatePresence>
+        {detailProject && (
+          <DepartmentTopicDetailModal project={detailProject} onClose={() => setDetailProject(null)} />
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+// ── Department-Head: read-only topic detail modal ────────────────────────────
+
+function DepartmentTopicDetailModal({ project, onClose }: { project: DepartmentProject; onClose: () => void }) {
+  const [detail, setDetail] = useState<TopicDetail | null>(null);
+  const [documents, setDocuments] = useState<TopicDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.allSettled([
+      topicService.getTopicDetail(project.projectId),
+      topicService.getTopicDocuments(project.projectId),
+    ]).then(([detailRes, docsRes]) => {
+      if (detailRes.status === "fulfilled") setDetail(detailRes.value);
+      if (docsRes.status === "fulfilled") setDocuments(docsRes.value);
+      setLoading(false);
+    });
+  }, [project.projectId]);
+
+  return (
+    <DetailModalShell
+      code={project.projectCode}
+      statusValue={project.statusValue}
+      nameVi={project.nameVi}
+      nameEn={project.nameEn}
+      onClose={onClose}
+    >
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
+        {loading ? (
+          <DetailLoadingSkeleton />
+        ) : detail ? (
+          <ReadonlyTopicDetail detail={detail} documents={documents} semesterName={project.semesterName} />
+        ) : (
+          <p className="text-sm text-slate-500 text-center py-8">Không thể tải thông tin chi tiết.</p>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-slate-200 shrink-0 flex justify-end">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          Đóng
+        </button>
+      </div>
+    </DetailModalShell>
   );
 }
 
@@ -431,61 +810,27 @@ function TopicDetailModal({
     );
   }, [topic.id, topic.sourceType]);
 
-  const sc = statusConfig(topic.status);
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+    <DetailModalShell
+      code={topic.code}
+      statusValue={topic.status}
+      nameVi={topic.nameVi}
+      nameEn={topic.nameEn}
+      onClose={onClose}
+      headerExtra={
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+            topic.sourceType === 0 ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {sourceTypeLabel(topic.sourceType)}
+        </span>
+      }
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono text-slate-400">{topic.code}</span>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}
-              >
-                <span className={`size-1.5 rounded-full ${sc.dot}`} />
-                {sc.label}
-              </span>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  topic.sourceType === 0 ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {sourceTypeLabel(topic.sourceType)}
-              </span>
-            </div>
-            <h2 className="text-lg font-bold text-slate-900 truncate">{topic.nameVi}</h2>
-            {topic.nameEn && <p className="text-sm text-slate-500 truncate">{topic.nameEn}</p>}
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
-            <span className="material-symbols-outlined text-slate-400">close</span>
-          </button>
-        </div>
-
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 w-24 bg-slate-200 rounded mb-2" />
-                  <div className="h-4 w-full bg-slate-100 rounded" />
-                </div>
-              ))}
-            </div>
+            <DetailLoadingSkeleton />
           ) : detail ? (
             isEditing && isPoolNeedsModification ? (
               /* ── Edit Form for Pool Topics ── */
@@ -601,67 +946,7 @@ function TopicDetailModal({
               </div>
             ) : (
               /* ── Read-only Detail View ── */
-              <div className="space-y-5">
-                {/* Meta info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <InfoField label="Lĩnh vực" value={detail.majorName} icon="school" />
-                  <InfoField label="Học kỳ" value={topic.semesterName} icon="calendar_today" />
-                  <InfoField label="Ngày tạo" value={formatDate(detail.createdAt)} icon="event" />
-                  <InfoField label="SV tối đa" value={String(detail.maxStudents)} icon="groups" />
-                </div>
-
-                {/* Mentors */}
-                {detail.mentors.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                      Giảng viên hướng dẫn
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {detail.mentors.map((m) => (
-                        <span
-                          key={m.mentorId}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 text-primary text-sm font-medium rounded-full"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">person</span>
-                          {m.fullName}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Description */}
-                {detail.description && <DetailSection title="Mô tả" content={detail.description} />}
-                {detail.objectives && <DetailSection title="Mục tiêu" content={detail.objectives} />}
-                {detail.scope && <DetailSection title="Phạm vi" content={detail.scope} />}
-                {detail.technologies && <DetailSection title="Công nghệ sử dụng" content={detail.technologies} />}
-                {detail.expectedResults && <DetailSection title="Kết quả mong đợi" content={detail.expectedResults} />}
-
-                {/* Documents */}
-                {documents.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                      Tài liệu đính kèm
-                    </h4>
-                    <div className="space-y-2">
-                      {documents.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100"
-                        >
-                          <span className="material-symbols-outlined text-slate-400 text-[20px]">attach_file</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700 truncate">{doc.originalFileName}</p>
-                            <p className="text-xs text-slate-400">
-                              {(doc.fileSize / 1024).toFixed(1)} KB &middot; {formatDate(doc.uploadedAt)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ReadonlyTopicDetail detail={detail} documents={documents} semesterName={topic.semesterName} />
             )
           ) : (
             <p className="text-sm text-slate-500 text-center py-8">Không thể tải thông tin chi tiết.</p>
@@ -892,8 +1177,7 @@ function TopicDetailModal({
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+    </DetailModalShell>
   );
 }
 

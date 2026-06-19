@@ -31,7 +31,7 @@ export function StudentGroupPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("my-group");
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <>
       <Header variant="primary" title="Quản lý nhóm" showSearch={false} role="student" />
 
       {/* Tab Bar */}
@@ -62,7 +62,7 @@ export function StudentGroupPage() {
       </div>
 
       {/* Tab Content */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 p-8 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -76,8 +76,8 @@ export function StudentGroupPage() {
             {activeTab === "invitations" && <InvitationsContent />}
           </motion.div>
         </AnimatePresence>
-      </main>
-    </div>
+      </div>
+    </>
   );
 }
 

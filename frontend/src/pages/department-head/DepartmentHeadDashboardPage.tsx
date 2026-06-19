@@ -172,7 +172,7 @@ export function DepartmentHeadDashboardPage() {
                   variants={item}
                   whileHover={{ y: -2, boxShadow: "0 8px 25px -5px rgba(0,0,0,0.1)" }}
                   className="relative flex items-start justify-between h-32 p-5 overflow-hidden bg-white border shadow-sm cursor-pointer rounded-xl border-slate-100 group"
-                  onClick={() => (idx > 0 ? navigate("/department-head/assign") : undefined)}
+                  onClick={() => (idx > 0 ? navigate("/lecturer/assign") : undefined)}
                 >
                   <div className="z-10">
                     <p className="text-sm font-medium text-slate-500">{stat.label}</p>
@@ -214,21 +214,21 @@ export function DepartmentHeadDashboardPage() {
                   desc: "Phân công evaluator cho đề tài",
                   icon: "assignment_ind",
                   gradient: "from-blue-500 to-blue-600",
-                  path: "/department-head/assign",
+                  path: "/lecturer/assign",
                 },
                 {
                   title: "Kho đề tài bộ môn",
                   desc: "Xem tất cả đề tài trong bộ môn",
                   icon: "topic",
                   gradient: "from-indigo-500 to-indigo-600",
-                  path: "/department-head/assign",
+                  path: "/lecturer/assign",
                 },
                 {
-                  title: "Cài đặt",
-                  desc: "Quản lý cài đặt bộ môn",
-                  icon: "settings",
+                  title: "Hỗ trợ",
+                  desc: "Gửi yêu cầu và xem hỗ trợ",
+                  icon: "support_agent",
                   gradient: "from-slate-500 to-slate-600",
-                  path: "/department-head/settings",
+                  path: "/lecturer/support",
                 },
               ].map((card) => (
                 <motion.div
@@ -299,7 +299,7 @@ export function DepartmentHeadDashboardPage() {
                     <p className="text-sm text-amber-600">Kết quả thẩm định của 2 evaluator không thống nhất</p>
                   </div>
                   <Link
-                    to="/department-head/assign"
+                    to="/lecturer/assign"
                     className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors shrink-0"
                   >
                     <span className="material-symbols-outlined text-[18px]">gavel</span>
@@ -320,7 +320,7 @@ export function DepartmentHeadDashboardPage() {
                     <p className="text-sm text-blue-600">Vui lòng phân công 2 evaluator cho mỗi đề tài</p>
                   </div>
                   <Link
-                    to="/department-head/assign"
+                    to="/lecturer/assign"
                     className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors shrink-0"
                   >
                     <span className="material-symbols-outlined text-[18px]">person_add</span>
@@ -351,7 +351,7 @@ export function DepartmentHeadDashboardPage() {
                 Hoạt động gần đây
               </h3>
               <button
-                onClick={() => navigate("/department-head/assign")}
+                onClick={() => navigate("/lecturer/assign")}
                 className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               >
                 Xem tất cả <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
