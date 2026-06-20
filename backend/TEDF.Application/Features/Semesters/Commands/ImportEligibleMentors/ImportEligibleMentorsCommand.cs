@@ -2,15 +2,15 @@ using System.IO;
 using TEDF.Application.Common.Abstractions;
 using TEDF.Domain.Services;
 
-namespace TEDF.Application.Features.Semesters.Commands.ImportEligibleStudents;
+namespace TEDF.Application.Features.Semesters.Commands.ImportEligibleMentors;
 
-public record ImportEligibleStudentsCommand(
+public record ImportEligibleMentorsCommand(
     int SemesterId,
     Stream FileStream,
     string FileName,
-    Guid ImportedBy) : ICommand<ImportEligibleStudentsResponse>;
+    Guid ImportedBy) : ICommand<ImportEligibleMentorsResponse>;
 
-public record ImportEligibleStudentsResponse(
+public record ImportEligibleMentorsResponse(
     int TotalProcessed,
     int SuccessfullyImported,
     List<ImportRowIssue> Issues);
