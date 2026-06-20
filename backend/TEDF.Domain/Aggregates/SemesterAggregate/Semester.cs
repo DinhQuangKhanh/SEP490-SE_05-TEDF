@@ -12,6 +12,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
     {
         private readonly List<SemesterPhase> _phases = [];
         private readonly List<EligibleStudent> _eligibleStudents = [];
+        private readonly List<EligibleMentor> _eligibleMentors = [];
 
         public string Name { get; private set; } = string.Empty;
         public SemesterCode Code { get; private set; } = null!;
@@ -32,10 +33,15 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }
 
+        /// <summary>When the eligibility roster was finalized &amp; notifications/emails dispatched. Null until published.</summary>
+        public DateTime? RosterPublishedAt { get; private set; }
+
         public IReadOnlyCollection<SemesterPhase> Phases => _phases.AsReadOnly();
         public IReadOnlyCollection<EligibleStudent> EligibleStudents => _eligibleStudents.AsReadOnly();
+        public IReadOnlyCollection<EligibleMentor> EligibleMentors => _eligibleMentors.AsReadOnly();
         public SemesterPhase? CurrentPhase => _phases.FirstOrDefault(p => p.IsCurrent);
         public bool IsActive => Status == SemesterStatus.Ongoing;
+        public bool IsRosterPublished => RosterPublishedAt.HasValue;
 
         private Semester() { }
 
@@ -171,22 +177,80 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
             UpdatedAt = DateTime.UtcNow;
         }
 
-        public void AddEligibleStudent(Guid studentId, string studentCode, Guid? importedBy = null)
+        public void AddEligibleStudent(Guid studentId, string studentCode,
+            string? email = null, string? phoneNumber = null, int? majorId = null, Guid? importedBy = null)
         {
-            if (_eligibleStudents.Any(s => s.StudentId == studentId && s.IsEligible))
-                return;
-
             var existing = _eligibleStudents.FirstOrDefault(s => s.StudentId == studentId);
             if (existing != null)
             {
-                existing.ReinstateEligibility();
+                // Supplementary import: ignore the match but refresh the snapshot and reinstate if revoked.
+                existing.UpdateSnapshot(email, phoneNumber, majorId);
+                if (!existing.IsEligible)
+                    existing.ReinstateEligibility();
             }
             else
             {
-                var eligibleStudent = EligibleStudent.Create(Id, studentId, studentCode, importedBy);
-                _eligibleStudents.Add(eligibleStudent);
+                _eligibleStudents.Add(
+                    EligibleStudent.Create(Id, studentId, studentCode, email, phoneNumber, majorId, importedBy));
             }
             UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Adds (or reinstates) a mentor assigned to supervise in this semester. Idempotent: a mentor
+        /// already on the roster is left in place (snapshot/major refreshed) — implementing the
+        /// "ignore matches, add the rest" supplementary-import rule.
+        /// </summary>
+        public void AddEligibleMentor(Guid mentorId, string employeeCode, int? majorId,
+            string? email = null, string? phoneNumber = null, string? division = null, Guid? importedBy = null)
+        {
+            var existing = _eligibleMentors.FirstOrDefault(m => m.MentorId == mentorId);
+            if (existing != null)
+            {
+                existing.UpdateSnapshot(email, phoneNumber, division);
+                // Chỉ đổi ngành khi import cung cấp giá trị — tránh xóa ngành admin đã chọn.
+                if (majorId.HasValue)
+                    existing.ChangeMajor(majorId.Value);
+                if (!existing.IsAssigned)
+                    existing.Reinstate();
+            }
+            else
+            {
+                _eligibleMentors.Add(
+                    EligibleMentor.Create(Id, mentorId, employeeCode, majorId, email, phoneNumber, division, importedBy));
+            }
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>Corrects the assigned program of a rostered mentor (the inline "Program" edit).</summary>
+        public void UpdateEligibleMentorMajor(Guid mentorId, int majorId)
+        {
+            var mentor = _eligibleMentors.FirstOrDefault(m => m.MentorId == mentorId)
+                ?? throw new EntityNotFoundException(nameof(EligibleMentor), mentorId);
+            mentor.ChangeMajor(majorId);
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Finalizes the eligibility roster and raises <see cref="SemesterRosterPublishedEvent"/> so handlers
+        /// notify mentors and email students. Only allowed while the semester is still Upcoming.
+        /// </summary>
+        public void PublishRoster(Guid publishedBy)
+        {
+            EnsureUpcoming();
+
+            // Mọi giảng viên được phân công phải có Ngành (để thông báo kèm tên ngành).
+            var missingMajor = _eligibleMentors
+                .Where(m => m.IsAssigned && m.MajorId is null)
+                .Select(m => m.EmployeeCode)
+                .ToList();
+            if (missingMajor.Count > 0)
+                throw new BusinessRuleValidationException(
+                    "Vui lòng chọn Ngành cho các giảng viên trước khi công bố: " + string.Join(", ", missingMajor) + ".");
+
+            RosterPublishedAt = DateTime.UtcNow;
+            UpdatedAt = RosterPublishedAt;
+            RaiseDomainEvent(new SemesterRosterPublishedEvent(Id, publishedBy));
         }
 
         private void EnsureUpcoming()

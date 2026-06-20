@@ -16,6 +16,7 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         public string? AvatarUrl { get; private set; }
         public string? StudentCode { get; private set; }
         public string? EmployeeCode { get; private set; }
+        public string? PhoneNumber { get; private set; }
         public string? AcademicTitle { get; private set; }
         public int? DepartmentId { get; private set; }
         public UserStatus Status { get; private set; }
@@ -40,7 +41,8 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             string? studentCode = null,
             string? employeeCode = null,
             string? academicTitle = null,
-            int? departmentId = null)
+            int? departmentId = null,
+            string? phoneNumber = null)
         {
             var emailValueObject = Email.Create(email);
 
@@ -53,6 +55,7 @@ namespace TEDF.Domain.Aggregates.UserAggregate
                 AvatarUrl = avatarUrl,
                 StudentCode = studentCode,
                 EmployeeCode = employeeCode,
+                PhoneNumber = phoneNumber,
                 AcademicTitle = academicTitle,
                 DepartmentId = departmentId,
                 Status = UserStatus.Active,
@@ -69,6 +72,19 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         /// </summary>
         public void RecordLogin()
         {
+            LastLoginAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Liên kết tài khoản "chờ" (tạo lúc import) với FirebaseUid thật do Google cấp khi đăng nhập lần đầu.
+        /// </summary>
+        public void LinkFirebaseAccount(string firebaseUid)
+        {
+            if (string.IsNullOrWhiteSpace(firebaseUid))
+                throw new ArgumentException("FirebaseUid không hợp lệ.", nameof(firebaseUid));
+
+            FirebaseUid = firebaseUid;
             LastLoginAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
         }
@@ -183,6 +199,12 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             Status = UserStatus.Inactive;
             UpdatedAt = DateTime.UtcNow;
         }
+
+        /// <summary>Tiền tố FirebaseUid tạm cho tài khoản tạo lúc import, chờ liên kết khi đăng nhập lần đầu.</summary>
+        public const string PendingUidPrefix = "pending:";
+
+        /// <summary>Tài khoản được tạo lúc import nhưng chưa đăng nhập Google lần đầu (chưa có FirebaseUid thật).</summary>
+        public bool IsPendingActivation => FirebaseUid.StartsWith(PendingUidPrefix, StringComparison.Ordinal);
 
         /// <summary>
         /// Checks if the user is a student.
