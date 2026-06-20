@@ -26,6 +26,10 @@ public class SyncFirebaseClaimsOnUserCreatedHandler : INotificationHandler<UserC
     {
         try
         {
+            // Tài khoản "chờ" tạo lúc import chưa có Firebase account thật → bỏ qua (sẽ sync khi liên kết lần đăng nhập đầu).
+            if (notification.FirebaseUid.StartsWith(Domain.Aggregates.UserAggregate.User.PendingUidPrefix, StringComparison.Ordinal))
+                return;
+
             var user = await _userRepository.GetByIdAsync(notification.UserId, cancellationToken);
             if (user is null)
             {
