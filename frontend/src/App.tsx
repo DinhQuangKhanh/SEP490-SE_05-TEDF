@@ -33,6 +33,7 @@ import {
   AssignEvaluatorsPage,
   ActivityLogsPage,
   TopicCreatePage,
+  ProfilePage,
 } from "@/pages";
 
 // Helper function to adjust color brightness
@@ -111,6 +112,7 @@ function App() {
                 <Route path="activity-logs" element={<ActivityLogsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="support" element={<SupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Protected Lecturer Routes (Mentor + Evaluator + DepartmentHead, unified) */}
