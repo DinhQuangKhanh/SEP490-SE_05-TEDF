@@ -80,7 +80,7 @@ repos:
     hooks:
       - id: eslint-frontend
         name: eslint (frontend)
-        entry: npm --prefix frontend run linta
+        entry: npm --prefix frontend run lint
         language: system
         files: ^frontend/src/.*\.(ts|tsx)$
         pass_filenames: false
