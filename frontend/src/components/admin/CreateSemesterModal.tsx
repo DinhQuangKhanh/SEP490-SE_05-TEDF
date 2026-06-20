@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { semesterService } from "@/lib";
-import { majorService } from "@/lib";
 import { validatePhases, findCurrentSemester } from "@/lib";
-import { SemesterDto } from "@/types";
+import { SemesterDto, ImportRosterResponse } from "@/types";
+import { RosterUploadDropzone } from "./RosterUploadDropzone";
 
 interface CreateSemesterModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ function loadDraft() {
 
 export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: CreateSemesterModalProps) {
   const draft = loadDraft();
+  const navigate = useNavigate();
 
   const [name, setName] = useState(draft?.name ?? "");
   const [code, setCode] = useState(draft?.code ?? "");
@@ -52,28 +54,17 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Optional initial roster files (full management lives on the roster page).
+  const [studentFile, setStudentFile] = useState<File | null>(null);
+  const [mentorFile, setMentorFile] = useState<File | null>(null);
+  const [studentResult, setStudentResult] = useState<ImportRosterResponse | null>(null);
+  const [mentorResult, setMentorResult] = useState<ImportRosterResponse | null>(null);
+  const [createdId, setCreatedId] = useState<number | null>(null);
+
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Fetch Majors
-  const [majors, setMajors] = useState<{ id: number; name: string }[]>([]);
-
-  useEffect(() => {
-    majorService
-      .getMajors()
-      .then((res) => setMajors(res))
-      .catch((err) => console.error("Could not fetch majors", err));
-  }, []);
-
-  // Generate cohorts
-  const currentYear = new Date().getFullYear();
-  const cohorts = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i).map((year) => ({
-    label: `K${year}`,
-    value: year,
-  }));
-
-  // Auto-save draft to localStorage on every change
+  // Auto-save draft to localStorage on every change (files are not persisted).
   const saveDraft = useCallback(() => {
     const data = { name, code, startDate, endDate, description, phases };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
@@ -88,15 +79,15 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleFileSelect = (file: File | undefined) => {
-    if (!file) return;
+  /** Validates extension before accepting a roster file. */
+  const acceptFile = (setter: (f: File | null) => void) => (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!["csv", "xlsx", "xls"].includes(ext ?? "")) {
       showError("Chỉ chấp nhận file .csv, .xlsx hoặc .xls");
       return;
     }
-    setUploadedFile(file);
     setError(null);
+    setter(file);
   };
 
   const updatePhase = (index: number, field: "startDate" | "endDate", value: string) => {
@@ -119,54 +110,44 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     setPhases(PHASES_TEMPLATE.map((p) => ({ name: p.name, type: p.type, startDate: "", endDate: "" })));
     setError(null);
     setSuccess(false);
-    setUploadedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setStudentFile(null);
+    setMentorFile(null);
+    setStudentResult(null);
+    setMentorResult(null);
+    setCreatedId(null);
     clearDraft();
   };
 
-  // Click outside or X button → just close, keep data in localStorage
+  // Click outside or X button → close. Reset only once the create succeeded.
   const handleDismiss = () => {
     setError(null);
+    if (success) resetForm();
     onClose();
   };
 
-  // Explicit clear button
-  const handleClearDraft = () => {
+  const handleClearDraft = () => resetForm();
+
+  const goToRoster = () => {
+    if (createdId == null) return;
+    const id = createdId;
     resetForm();
+    onClose();
+    navigate(`/admin/semesters/${id}/roster`);
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      showError("Vui lòng nhập tên kỳ học.");
-      return;
-    }
-    if (!code.trim()) {
-      showError("Vui lòng nhập mã kỳ học.");
-      return;
-    }
-    if (!startDate) {
-      showError("Vui lòng chọn ngày bắt đầu.");
-      return;
-    }
-    if (!endDate) {
-      showError("Vui lòng chọn ngày kết thúc.");
-      return;
-    }
+    if (!name.trim()) return showError("Vui lòng nhập tên kỳ học.");
+    if (!code.trim()) return showError("Vui lòng nhập mã kỳ học.");
+    if (!startDate) return showError("Vui lòng chọn ngày bắt đầu.");
+    if (!endDate) return showError("Vui lòng chọn ngày kết thúc.");
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const semStart = new Date(startDate);
     const semEnd = new Date(endDate);
-    console.log(semStart, semEnd, today);
 
-    if (semStart < today) {
-      showError("Ngày bắt đầu kỳ học không được nhỏ hơn ngày hiện tại.");
-      return;
-    }
-    if (semEnd < semStart) {
-      showError("Ngày kết thúc phải sau ngày bắt đầu.");
-      return;
-    }
+    if (semStart < today) return showError("Ngày bắt đầu kỳ học không được nhỏ hơn ngày hiện tại.");
+    if (semEnd < semStart) return showError("Ngày kết thúc phải sau ngày bắt đầu.");
 
     const validPhases = phases.filter((p) => p.startDate && p.endDate);
     const labelFor = (p: PhaseInput) => PHASES_TEMPLATE.find((t) => t.type === p.type)?.label ?? p.name;
@@ -174,13 +155,11 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     // Create-only: timeline phases must not be in the past.
     for (const p of validPhases) {
       if (new Date(p.startDate) < today) {
-        showError(`Giai đoạn ${labelFor(p)}: Ngày bắt đầu không được nhỏ hơn ngày hiện tại.`);
-        return;
+        return showError(`Giai đoạn ${labelFor(p)}: Ngày bắt đầu không được nhỏ hơn ngày hiện tại.`);
       }
     }
 
-    // Type-aware validation (shared with the Edit modal): Registration/Evaluation fall within the
-    // current semester; Implementation/Defense fall within the new semester.
+    // Type-aware validation (shared with the Edit modal).
     const current = findCurrentSemester(semesters, today);
     const phaseError = validatePhases(
       validPhases.map((p) => ({ type: p.type, startDate: p.startDate, endDate: p.endDate, label: labelFor(p) })),
@@ -188,10 +167,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
       semEnd,
       current,
     );
-    if (phaseError) {
-      showError(phaseError);
-      return;
-    }
+    if (phaseError) return showError(phaseError);
 
     setIsSubmitting(true);
     setError(null);
@@ -212,27 +188,34 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
         })),
       });
 
-      // Upload eligible students if selected
-      if (uploadedFile) {
-        try {
-          await semesterService.importEligibleStudents(res.id, uploadedFile);
-        } catch (uploadErr) {
-          showError(
-            "Tạo học kỳ thành công nhưng có lỗi khi tải danh sách sinh viên: " +
-              (uploadErr instanceof Error ? uploadErr.message : "Unknown error"),
-          );
-          setIsSubmitting(false);
-          return; // Stop further success flow to let user see error
-        }
-      }
-
+      setCreatedId(res.id);
       setSuccess(true);
       onCreated?.();
       clearDraft();
-      setTimeout(() => {
-        resetForm();
-        onClose();
-      }, 1500);
+
+      // Optional initial imports — surface their result instead of swallowing it.
+      if (studentFile) {
+        try {
+          setStudentResult(await semesterService.importEligibleStudents(res.id, studentFile));
+        } catch (e) {
+          showError("Tải danh sách sinh viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
+        }
+      }
+      if (mentorFile) {
+        try {
+          setMentorResult(await semesterService.importEligibleMentors(res.id, mentorFile));
+        } catch (e) {
+          showError("Tải danh sách giảng viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
+        }
+      }
+
+      // Plain create (no files) → auto-close. With files, keep open so the admin reads the results.
+      if (!studentFile && !mentorFile) {
+        setTimeout(() => {
+          resetForm();
+          onClose();
+        }, 1500);
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : "Có lỗi xảy ra khi tạo kỳ học.");
     } finally {
@@ -241,6 +224,30 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
   };
 
   const hasDraft = name || code || startDate || endDate || phases.some((p) => p.startDate || p.endDate);
+
+  const renderResult = (title: string, result: ImportRosterResponse | null) => {
+    if (!result) return null;
+    // Gom các dòng lỗi theo lý do.
+    const grouped = new Map<string, string[]>();
+    for (const it of result.issues ?? []) {
+      const arr = grouped.get(it.reason) ?? [];
+      arr.push(it.code);
+      grouped.set(it.reason, arr);
+    }
+    return (
+      <div className="p-3 border rounded-md bg-slate-50 border-slate-200">
+        <p className="text-sm font-semibold text-slate-700">
+          {title}: đã nhập <span className="text-green-700">{result.successfullyImported}</span>/
+          {result.totalProcessed}
+        </p>
+        {[...grouped.entries()].map(([reason, codes]) => (
+          <p key={reason} className="mt-1 text-xs text-amber-700">
+            <span className="font-semibold">{codes.length} mã</span> — {reason}: {codes.join(", ")}
+          </p>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <AnimatePresence>
@@ -264,10 +271,10 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Tạo Kỳ Học Mới</h2>
-                <p className="text-sm text-slate-500">Thiết lập thời gian và đối tượng tham gia đồ án</p>
+                <p className="text-sm text-slate-500">Thiết lập thời gian và (tùy chọn) danh sách tham gia</p>
               </div>
               <div className="flex items-center gap-2">
-                {hasDraft && (
+                {hasDraft && !success && (
                   <button
                     onClick={handleClearDraft}
                     className="px-2 py-1 text-xs text-red-500 transition-colors rounded hover:text-red-700 hover:bg-red-50"
@@ -287,7 +294,6 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
 
             {/* Content */}
             <div ref={contentRef} className="flex-1 p-6 space-y-8 overflow-y-auto">
-              {/* Error / Success */}
               {error && (
                 <div className="flex items-start gap-3 p-3 border border-red-200 rounded-md bg-red-50">
                   <span className="material-symbols-outlined text-red-600 text-[20px] mt-0.5">error</span>
@@ -297,16 +303,21 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
               {success && (
                 <div className="flex items-start gap-3 p-3 border border-green-200 rounded-md bg-green-50">
                   <span className="material-symbols-outlined text-green-600 text-[20px] mt-0.5">check_circle</span>
-                  <p className="text-sm font-semibold text-green-800">Tạo kỳ học thành công!</p>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-green-800">Tạo kỳ học thành công!</p>
+                    <p className="mt-0.5 text-xs text-green-700">
+                      Bạn có thể nhập bổ sung, chỉnh sửa ngành của giảng viên và công bố danh sách ở trang quản lý.
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {renderResult("Sinh viên", studentResult)}
+                      {renderResult("Giảng viên", mentorResult)}
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Section 1: General Info */}
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-              >
+              <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     1
@@ -364,11 +375,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
               </motion.section>
 
               {/* Section 2: Timeline */}
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
+              <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     2
@@ -386,7 +393,6 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                         <input
                           className="w-full p-0 text-sm bg-transparent border-none focus:ring-0"
                           type="date"
-                          placeholder="Từ ngày"
                           value={phases[index].startDate}
                           onChange={(e) => updatePhase(index, "startDate", e.target.value)}
                         />
@@ -394,7 +400,6 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                         <input
                           className="w-full p-0 text-sm bg-transparent border-none focus:ring-0"
                           type="date"
-                          placeholder="Đến ngày"
                           value={phases[index].endDate}
                           onChange={(e) => updatePhase(index, "endDate", e.target.value)}
                         />
@@ -404,196 +409,86 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                 </div>
               </motion.section>
 
-              {/* Section 3: Participants */}
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <div className="flex items-center gap-2 mb-4">
+              {/* Section 3: Optional initial roster */}
+              <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <div className="flex items-center gap-2 mb-2">
                   <span className="flex items-center justify-center w-8 h-8 text-sm font-bold rounded bg-blue-50 text-primary">
                     3
                   </span>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-700">Đối tượng tham gia</h3>
-                    <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight">
-                      Quan trọng
-                    </span>
-                  </div>
+                  <h3 className="font-bold text-slate-700">Danh sách tham gia</h3>
+                  <span className="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tight">
+                    Tùy chọn
+                  </span>
                 </div>
+                <p className="mb-4 text-xs text-slate-500">
+                  Tải lên danh sách ban đầu nếu muốn. Bạn có thể nhập bổ sung, sửa ngành giảng viên và công bố (gửi thông
+                  báo / email) sau ở trang <strong>Quản lý danh sách</strong>.
+                </p>
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  {/* Upload Excel */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    className="hidden"
-                    onChange={(e) => handleFileSelect(e.target.files?.[0])}
+                  <RosterUploadDropzone
+                    label="Tải danh sách sinh viên"
+                    hint="Kéo thả hoặc bấm để chọn file .csv / .xlsx chứa MSSV đủ điều kiện."
+                    file={studentFile}
+                    onSelect={acceptFile(setStudentFile)}
+                    onClear={() => setStudentFile(null)}
+                    templateHref="/templates/danh_sach_sinh_vien_mau.csv"
+                    disabled={success}
                   />
-                  <div
-                    className={`border-2 border-dashed rounded-xl p-6 transition-colors group cursor-pointer ${
-                      uploadedFile ? "border-green-300 bg-green-50/30" : "border-slate-200 hover:border-primary/50"
-                    }`}
-                    onClick={() => !uploadedFile && fileInputRef.current?.click()}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleFileSelect(e.dataTransfer.files?.[0]);
-                    }}
-                  >
-                    <div className="flex flex-col items-center text-center">
-                      {uploadedFile ? (
-                        <>
-                          <div className="flex items-center justify-center w-12 h-12 mb-3 text-green-600 bg-green-100 rounded-full">
-                            <span className="text-3xl material-symbols-outlined">check_circle</span>
-                          </div>
-                          <h4 className="mb-1 font-bold text-slate-800">Đã tải lên</h4>
-                          <p className="mb-1 text-xs font-medium text-slate-600">{uploadedFile.name}</p>
-                          <p className="text-[10px] text-slate-400 mb-3">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setUploadedFile(null);
-                              if (fileInputRef.current) fileInputRef.current.value = "";
-                            }}
-                            className="py-1.5 px-4 bg-red-50 border border-red-200 rounded-md text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-                          >
-                            Xóa tệp tin
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-center w-12 h-12 mb-3 transition-colors rounded-full bg-slate-100 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary">
-                            <span className="text-3xl material-symbols-outlined">upload_file</span>
-                          </div>
-                          <h4 className="mb-1 font-bold text-slate-800">Tải danh sách Excel</h4>
-                          <p className="px-4 mb-4 text-xs text-slate-500">
-                            Kéo thả hoặc bấm để tải lên file .csv / .xlsx chứa danh sách MSSV đủ điều kiện.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              fileInputRef.current?.click();
-                            }}
-                            className="w-full px-4 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-slate-300 text-slate-700 hover:bg-slate-50"
-                          >
-                            Chọn tệp tin
-                          </button>
-                        </>
-                      )}
-                      <a
-                        className="mt-3 text-[11px] text-primary hover:underline flex items-center gap-1"
-                        href="/templates/danh_sach_sinh_vien_mau.csv"
-                        download
-                      >
-                        <span className="material-symbols-outlined text-[14px]">download</span> Tải file mẫu (.csv)
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Filter */}
-                  <div className="p-6 border border-slate-200 rounded-xl bg-slate-50/50">
-                    <h4 className="flex items-center gap-2 mb-3 font-bold text-slate-800">
-                      <span className="material-symbols-outlined text-[20px] text-primary">filter_alt</span>
-                      Lọc theo điều kiện
-                    </h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">
-                          Khóa &amp; Ngành
-                        </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            className="px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                            value={startDate ? deriveAcademicYearStart() : currentYear}
-                            disabled
-                          >
-                            {cohorts.map((c) => (
-                              <option key={c.value} value={c.value}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </select>
-                          <select className="px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                            <option value="">Tất cả Ngành</option>
-                            {majors.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">
-                          Điểm tích lũy (GPA) tối thiểu
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            className="w-full px-2 py-2 text-xs border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                            placeholder="VD: 2.5"
-                            step="0.1"
-                            type="number"
-                          />
-                          <span className="text-xs font-medium text-slate-400 whitespace-nowrap">/ 4.0</span>
-                        </div>
-                      </div>
-                      <div className="pt-2">
-                        <button className="w-full px-4 py-2 text-xs font-bold transition-all border rounded-md bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-                          Xem trước danh sách (245 SV)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <RosterUploadDropzone
+                    label="Tải danh sách giảng viên"
+                    hint="File .csv / .xlsx chứa mã giảng viên và ngành hướng dẫn."
+                    file={mentorFile}
+                    onSelect={acceptFile(setMentorFile)}
+                    onClear={() => setMentorFile(null)}
+                    disabled={success}
+                  />
                 </div>
-
-                {/* Info Note */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="flex items-start gap-3 p-3 mt-4 border border-blue-100 rounded-md bg-blue-50"
-                >
-                  <span className="material-symbols-outlined text-blue-600 text-[20px] mt-0.5">verified</span>
-                  <p className="text-xs leading-relaxed text-blue-800">
-                    <strong>Lưu ý:</strong> Sau khi xác nhận, hệ thống sẽ tự động gắn thẻ
-                    <span className="px-1.5 py-0.5 bg-blue-100 border border-blue-200 rounded text-[10px] font-bold mx-1">
-                      ĐỦ ĐIỀU KIỆN LÀM ĐỒ ÁN
-                    </span>
-                    cho các sinh viên thuộc danh sách trên. Chỉ những SV này mới có quyền đăng ký đề tài trong kỳ học.
-                  </p>
-                </motion.div>
               </motion.section>
             </div>
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
-              <button
-                onClick={handleDismiss}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800 disabled:opacity-50"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || success}
-                className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>Đang
-                    tạo...
-                  </>
-                ) : (
-                  "Khởi tạo kỳ học"
-                )}
-              </button>
+              {success && createdId != null ? (
+                <>
+                  <button
+                    onClick={handleDismiss}
+                    className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    onClick={goToRoster}
+                    className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">group</span>
+                    Quản lý danh sách
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleDismiss}
+                    disabled={isSubmitting}
+                    className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800 disabled:opacity-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                        Đang tạo...
+                      </>
+                    ) : (
+                      "Khởi tạo kỳ học"
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         </motion.div>

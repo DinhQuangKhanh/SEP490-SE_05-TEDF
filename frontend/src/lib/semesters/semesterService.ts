@@ -2,6 +2,9 @@ import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 import type {
   CreateSemesterRequest,
+  EligibleMentorDto,
+  EligibleStudentDto,
+  ImportRosterResponse,
   SemesterDto,
   SemesterOption,
   UpdateSemesterRequest,
@@ -30,9 +33,30 @@ export const semesterService = {
   deleteSemester: (id: number): Promise<void> => apiClient.delete<void>(routes.admin.semesterById(id)),
 
   /** Upload the eligible-students list (.csv/.xlsx) for a semester. */
-  importEligibleStudents: (id: number, file: File): Promise<unknown> => {
+  importEligibleStudents: (id: number, file: File): Promise<ImportRosterResponse> => {
     const formData = new FormData();
     formData.append("file", file);
-    return apiClient.postForm<unknown>(routes.admin.eligibleStudentsImport(id), formData);
+    return apiClient.postForm<ImportRosterResponse>(routes.admin.eligibleStudentsImport(id), formData);
   },
+
+  /** Upload the supervising-mentors list (.csv/.xlsx) for a semester. */
+  importEligibleMentors: (id: number, file: File): Promise<ImportRosterResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postForm<ImportRosterResponse>(routes.admin.eligibleMentorsImport(id), formData);
+  },
+
+  /** Roster preview tables (admin). */
+  getEligibleStudents: (id: number): Promise<EligibleStudentDto[]> =>
+    apiClient.get<EligibleStudentDto[]>(routes.admin.eligibleStudents(id)),
+
+  getEligibleMentors: (id: number): Promise<EligibleMentorDto[]> =>
+    apiClient.get<EligibleMentorDto[]>(routes.admin.eligibleMentors(id)),
+
+  /** Correct a rostered mentor's assigned program (the inline "Program" edit). */
+  updateEligibleMentorMajor: (id: number, mentorId: string, majorId: number): Promise<void> =>
+    apiClient.put<void>(routes.admin.eligibleMentorMajor(id, mentorId), { majorId }),
+
+  /** Finalize the roster: notify mentors + email eligible students (sent once). */
+  publishRoster: (id: number): Promise<void> => apiClient.post<void>(routes.admin.semesterRosterPublish(id), {}),
 };

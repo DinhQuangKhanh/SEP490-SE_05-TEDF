@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,6 +56,7 @@ const item = {
 
 // ---- Page ----
 export function SemestersPage() {
+  const navigate = useNavigate();
   const [semesters, setSemesters] = useState<SemesterDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -259,6 +261,12 @@ export function SemestersPage() {
 
                       {openDropdownId === semester.id && (
                         <div className="absolute right-0 z-10 w-48 py-1 mt-1 bg-white border rounded-md shadow-lg top-10 border-slate-200">
+                          <button
+                            onClick={() => navigate(`/admin/semesters/${semester.id}/roster`)}
+                            className="flex items-center w-full gap-2 px-4 py-2 text-sm text-left text-slate-700 hover:bg-slate-50"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">group</span> Quản lý danh sách
+                          </button>
                           {semester.status === "Upcoming" && (
                             <>
                               <button
