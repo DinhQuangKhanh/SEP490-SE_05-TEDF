@@ -34,6 +34,15 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
         }
 
+        public async Task<Semester?> GetWithRosterAsync(int id, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Include(s => s.Phases.OrderBy(p => p.Order))
+                .Include(s => s.EligibleStudents)
+                .Include(s => s.EligibleMentors)
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        }
+
         public async Task<Semester?> GetActiveAsync(CancellationToken cancellationToken = default)
         {
             var spec = new ActiveSemesterSpec();
@@ -69,6 +78,17 @@ namespace TEDF.Persistence.SqlServer.Repositories
         {
             var maxId = await _dbSet.MaxAsync(s => (int?)s.Id, cancellationToken);
             return (maxId ?? 0) + 1;
+        }
+
+        public async Task<bool> IsStudentEligibleNowAsync(Guid studentId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            // Eligible on the active or any upcoming semester (i.e. one that hasn't ended yet).
+            return await _context.EligibleStudents
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentId && e.IsEligible)
+                .Join(_context.Semesters.AsNoTracking(), e => e.SemesterId, s => s.Id, (e, s) => s.EndDate)
+                .AnyAsync(endDate => endDate >= now, cancellationToken);
         }
 
         public async Task<IEnumerable<Semester>> GetSemestersWithPhaseStartingInAsync(int days, CancellationToken cancellationToken = default)
@@ -108,7 +128,7 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
         public async Task<Semester?> GetNextSemesterAsync(int? semesterId, CancellationToken cancellationToken)
         {
-            if (semesterId.HasValue) return 
+            if (semesterId.HasValue) return
                     await _context.Semesters
                     .AsNoTracking()
                     .Where(s => s.Id == semesterId)

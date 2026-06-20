@@ -262,6 +262,42 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .CountAsync(cancellationToken);
         }
 
+        public async Task<List<Guid>> GetActiveMentorIdsInSemesterAsync(int semesterId, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Where(p => p.SemesterId == semesterId &&
+                           p.Status != ProjectStatus.Cancelled &&
+                           p.Status != ProjectStatus.Rejected)
+                .SelectMany(p => p.Mentors)
+                .Where(m => m.Status == ProjectMentorStatus.Active)
+                .Select(m => m.MentorId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<(Guid MentorId, int MajorId)>> GetPoolMentorAssignmentsForSemesterAsync(int semesterId, CancellationToken cancellationToken = default)
+        {
+            var rows = await _dbSet
+                .AsNoTracking()
+                .Where(p => p.SourceType == ProjectSourceType.FromPool &&
+                           (p.PoolStatus == PoolTopicStatus.Available || p.PoolStatus == PoolTopicStatus.Reserved) &&
+                           p.Status != ProjectStatus.Cancelled &&
+                           p.Status != ProjectStatus.Rejected &&
+                           (p.ExpirationSemesterId == null || p.ExpirationSemesterId >= semesterId))
+                .SelectMany(p => p.Mentors
+                    .Where(m => m.Status == ProjectMentorStatus.Active)
+                    .Select(m => new { m.MentorId, p.MajorId }))
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            // One major per mentor (first wins) for the eligible-mentor row.
+            return rows
+                .GroupBy(r => r.MentorId)
+                .Select(g => (g.Key, g.First().MajorId))
+                .ToList();
+        }
+
         public async Task<(IEnumerable<Project> Items, int TotalCount)> GetPagedAsync(
             string? search, int? semesterId, ProjectStatus? status, int? majorId,
             int page, int pageSize, CancellationToken ct = default)

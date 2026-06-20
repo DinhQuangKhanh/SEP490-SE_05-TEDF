@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TEDF.Persistence.SqlServer;
 
@@ -11,9 +12,11 @@ using TEDF.Persistence.SqlServer;
 namespace TEDF.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260616101344_AddEligibleMentorsAndRosterPublish")]
+    partial class AddEligibleMentorsAndRosterPublish
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -601,10 +604,6 @@ namespace TEDF.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Division")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -623,7 +622,7 @@ namespace TEDF.Persistence.Migrations
                     b.Property<bool>("IsAssigned")
                         .HasColumnType("bit");
 
-                    b.Property<int?>("MajorId")
+                    b.Property<int>("MajorId")
                         .HasColumnType("int");
 
                     b.Property<Guid>("MentorId")
@@ -1100,10 +1099,6 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
