@@ -4,10 +4,15 @@ using TEDF.API.Extensions;
 using TEDF.Application.Common;
 using TEDF.Application.Features.Semesters.Commands.CreateSemester;
 using TEDF.Application.Features.Semesters.Commands.DeleteSemester;
+using TEDF.Application.Features.Semesters.Commands.ImportEligibleMentors;
 using TEDF.Application.Features.Semesters.Commands.ImportEligibleStudents;
+using TEDF.Application.Features.Semesters.Commands.PublishSemesterRoster;
+using TEDF.Application.Features.Semesters.Commands.UpdateEligibleMentorMajor;
 using TEDF.Application.Features.Semesters.Commands.UpdateSemester;
 using TEDF.Application.Features.Semesters.Queries.GetActiveSemester;
 using TEDF.Application.Features.Semesters.Queries.GetAllSemesters;
+using TEDF.Application.Features.Semesters.Queries.GetEligibleMentors;
+using TEDF.Application.Features.Semesters.Queries.GetEligibleStudents;
 using TEDF.Application.Features.Semesters.Queries.GetSemesterById;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
@@ -27,6 +32,11 @@ public sealed class SemestersEndpoints : IEndpoint
         adminGroup.MapPut("/{id:int}", UpdateSemester).WithTags("Semesters").WithName("UpdateSemester").Produces(204).Produces(400).Produces(401).Produces(404);
         adminGroup.MapDelete("/{id:int}", DeleteSemester).WithTags("Semesters").WithName("DeleteSemester").Produces(204).Produces(400).Produces(401).Produces(404);
         adminGroup.MapPost("/{id:int}/eligible-students/import", ImportEligibleStudents).DisableAntiforgery().WithTags("Semesters").WithName("ImportEligibleStudents").Produces(200).Produces(400).Produces(401);
+        adminGroup.MapPost("/{id:int}/eligible-mentors/import", ImportEligibleMentors).DisableAntiforgery().WithTags("Semesters").WithName("ImportEligibleMentors").Produces(200).Produces(400).Produces(401);
+        adminGroup.MapGet("/{id:int}/eligible-students", GetEligibleStudents).WithTags("Semesters").WithName("GetEligibleStudents").Produces(200).Produces(401).Produces(404);
+        adminGroup.MapGet("/{id:int}/eligible-mentors", GetEligibleMentors).WithTags("Semesters").WithName("GetEligibleMentors").Produces(200).Produces(401).Produces(404);
+        adminGroup.MapPut("/{id:int}/eligible-mentors/{mentorId:guid}/major", UpdateEligibleMentorMajor).WithTags("Semesters").WithName("UpdateEligibleMentorMajor").Produces(204).Produces(400).Produces(401).Produces(404);
+        adminGroup.MapPost("/{id:int}/roster/publish", PublishRoster).WithTags("Semesters").WithName("PublishSemesterRoster").Produces(204).Produces(400).Produces(401).Produces(404);
 
         app.MapGet("/api/semesters/public", GetSemestersPublic).RequireAuthorization().WithTags("Semesters").WithName("GetSemestersPublic").Produces(200).Produces(401);
     }
@@ -73,6 +83,37 @@ public sealed class SemestersEndpoints : IEndpoint
         var result = await sender.Send(command);
         return Results.Ok(result);
     }
+
+    private static async Task<IResult> ImportEligibleMentors(int id, IFormFile file, ISender sender, HttpContext context)
+    {
+        var userId = context.User.GetUserId();
+        using var stream = file.OpenReadStream();
+        var command = new ImportEligibleMentorsCommand(id, stream, file.FileName, userId);
+        var result = await sender.Send(command);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetEligibleStudents(int id, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetEligibleStudentsQuery(id), ct));
+
+    private static async Task<IResult> GetEligibleMentors(int id, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetEligibleMentorsQuery(id), ct));
+
+    private static async Task<IResult> UpdateEligibleMentorMajor(
+        int id, Guid mentorId, UpdateEligibleMentorMajorRequest body, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new UpdateEligibleMentorMajorCommand(id, mentorId, body.MajorId), ct);
+        return NoContent("Cập nhật ngành thành công.");
+    }
+
+    private static async Task<IResult> PublishRoster(int id, ISender sender, HttpContext context, CancellationToken ct)
+    {
+        var userId = context.User.GetUserId();
+        await sender.Send(new PublishSemesterRosterCommand(id, userId), ct);
+        return NoContent("Đã công bố danh sách và gửi thông báo.");
+    }
+
+    public record UpdateEligibleMentorMajorRequest(int MajorId);
 
     private static async Task<IResult> GetSemestersPublic(ISender sender, CancellationToken ct)
     {
