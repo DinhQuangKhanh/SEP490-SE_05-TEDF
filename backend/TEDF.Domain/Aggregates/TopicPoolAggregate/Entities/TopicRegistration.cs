@@ -1,12 +1,15 @@
-﻿using TEDF.Domain.Common.Primitives;
+﻿using TEDF.Domain.Aggregates.TopicPoolAggregate.Events;
+using TEDF.Domain.Common.Primitives;
 using TEDF.Domain.Enums.TopicPool;
 
 namespace TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
 
 /// <summary>
 /// Represents a group's registration request for a project/topic from the pool.
+/// Its own aggregate root so its lifecycle events (requested/confirmed/rejected/cancelled)
+/// are dispatched by the DomainEventInterceptor.
 /// </summary>
-public class TopicRegistration : Entity<Guid>
+public class TopicRegistration : AggregateRoot<Guid>
 {
     #region Properties
 
@@ -81,7 +84,7 @@ public class TopicRegistration : Entity<Guid>
         int priority = 1,
         string? note = null)
     {
-        return new TopicRegistration
+        var registration = new TopicRegistration
         {
             Id = Guid.NewGuid(),
             ProjectId = projectId,
@@ -92,6 +95,11 @@ public class TopicRegistration : Entity<Guid>
             Priority = priority,
             Note = note
         };
+
+        registration.RaiseDomainEvent(
+            new TopicRegistrationRequestedEvent(registration.Id, projectId, groupId, registeredBy));
+
+        return registration;
     }
 
     #endregion
@@ -109,6 +117,8 @@ public class TopicRegistration : Entity<Guid>
         Status = TopicRegistrationStatus.Confirmed;
         ProcessedBy = confirmedBy;
         ProcessedAt = DateTime.UtcNow;
+
+        RaiseDomainEvent(new TopicRegistrationConfirmedEvent(Id, ProjectId, GroupId, confirmedBy));
     }
 
     /// <summary>
@@ -126,6 +136,8 @@ public class TopicRegistration : Entity<Guid>
         ProcessedBy = rejectedBy;
         ProcessedAt = DateTime.UtcNow;
         RejectReason = reason;
+
+        RaiseDomainEvent(new TopicRegistrationRejectedEvent(Id, ProjectId, GroupId, rejectedBy, reason));
     }
 
     /// <summary>
@@ -142,6 +154,8 @@ public class TopicRegistration : Entity<Guid>
         Status = TopicRegistrationStatus.Cancelled;
         ProcessedAt = DateTime.UtcNow;
         RejectReason = reason;
+
+        RaiseDomainEvent(new TopicRegistrationCancelledEvent(Id, ProjectId, GroupId, reason));
     }
 
     #endregion

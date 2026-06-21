@@ -189,8 +189,9 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         project.SetPoolStatus(PoolTopicStatus.Assigned);
         _projectRepository.Update(project);
 
-        // Assign project to group (sets ProjectId + closes join requests)
-        var group = await _groupRepository.GetByIdAsync(registration.GroupId, cancellationToken)
+        // Assign project to group (sets ProjectId + closes join requests).
+        // Must load members so the "min members" rule in AssignProject sees the real count.
+        var group = await _groupRepository.GetWithMembersAsync(registration.GroupId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Group), registration.GroupId);
         group.AssignProject(project.Id);
         _groupRepository.Update(group);
@@ -242,6 +243,48 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Registration rejected: {RegistrationId}, Reason: {Reason}", registrationId, reason);
+    }
+
+    public async Task CancelRegistrationAsync(
+        Guid registrationId,
+        Guid cancelledBy,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        var registration = await _registrationRepository.GetByIdAsync(registrationId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(TopicRegistration), registrationId);
+
+        if (registration.Status != TopicRegistrationStatus.Pending)
+            throw new BusinessRuleValidationException("Only pending registrations can be cancelled.");
+
+        // Authorization: only the leader of the registering group may cancel.
+        var group = await _groupRepository.GetByIdAsync(registration.GroupId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Group), registration.GroupId);
+
+        if (group.LeaderId != cancelledBy)
+            throw new BusinessRuleValidationException("Only the group leader can cancel the registration.");
+
+        registration.Cancel(reason);
+        _registrationRepository.Update(registration);
+
+        // If no other pending registrations remain, free the topic back to Available
+        // (RequestRegistration had reserved it).
+        var otherPendingCount = await _registrationRepository.CountPendingByProjectIdExcludingAsync(
+            registration.ProjectId, registrationId, cancellationToken);
+
+        if (otherPendingCount == 0)
+        {
+            var project = await _projectRepository.GetByIdAsync(registration.ProjectId, cancellationToken);
+            if (project is not null && project.PoolStatus == PoolTopicStatus.Reserved)
+            {
+                project.SetPoolStatus(PoolTopicStatus.Available);
+                _projectRepository.Update(project);
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Registration cancelled: {RegistrationId}", registrationId);
     }
 
     public async Task<TopicPoolStatistics> GetPoolStatisticsAsync(Guid topicPoolId, CancellationToken cancellationToken = default)

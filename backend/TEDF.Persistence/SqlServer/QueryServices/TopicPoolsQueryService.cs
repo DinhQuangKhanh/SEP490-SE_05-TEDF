@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.TopicPools.DTOs;
+using TEDF.Domain.Enums.Group;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
+using TEDF.Domain.Enums.TopicPool;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -183,6 +185,67 @@ public class TopicPoolsQueryService : ITopicPoolsQueryService
             RegisteredTopicsCount = registeredTopics,
             ExpiredTopicsCount = expiredTopics,
         };
+    }
+
+    public async Task<List<GroupRegistrationDto>> GetGroupRegistrationsAsync(
+        Guid groupId,
+        CancellationToken cancellationToken = default)
+    {
+        return await (
+            from r in _context.TopicRegistrations.AsNoTracking()
+            where r.GroupId == groupId
+            join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id into projectJoin
+            from p in projectJoin.DefaultIfEmpty()
+            orderby r.RegisteredAt descending
+            select new GroupRegistrationDto
+            {
+                Id = r.Id,
+                ProjectId = r.ProjectId,
+                // Project value objects are mapped as string columns (NameVi/Code).
+                ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
+                ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
+                MentorName = p == null
+                    ? null
+                    : (from pm in _context.ProjectMentors.AsNoTracking()
+                       where pm.ProjectId == p.Id && pm.Status == ProjectMentorStatus.Active
+                       join u in _context.Users.AsNoTracking() on pm.MentorId equals u.Id
+                       select u.FullName).FirstOrDefault(),
+                Status = r.Status.ToString(),
+                RegisteredAt = r.RegisteredAt,
+                Note = r.Note,
+                RejectReason = r.RejectReason,
+            }
+        ).ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<MentorRegistrationRequestDto>> GetMentorRegistrationsAsync(
+        Guid mentorId,
+        CancellationToken cancellationToken = default)
+    {
+        return await (
+            from r in _context.TopicRegistrations.AsNoTracking()
+            where r.Status == TopicRegistrationStatus.Pending
+            join pm in _context.ProjectMentors.AsNoTracking() on r.ProjectId equals pm.ProjectId
+            where pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active
+            join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id
+            join g in _context.Groups.AsNoTracking() on r.GroupId equals g.Id
+            join u in _context.Users.AsNoTracking() on r.RegisteredBy equals u.Id
+            orderby r.RegisteredAt descending
+            select new MentorRegistrationRequestDto
+            {
+                RegistrationId = r.Id,
+                ProjectId = r.ProjectId,
+                ProjectName = EF.Property<string>(p, "NameVi"),
+                ProjectCode = EF.Property<string>(p, "Code"),
+                GroupId = r.GroupId,
+                GroupName = g.Name,
+                GroupCode = EF.Property<string>(g, "Code"),
+                RegisteredByName = u.FullName,
+                MemberCount = _context.GroupMembers.Count(m => m.GroupId == r.GroupId && m.Status == GroupMemberStatus.Active),
+                Note = r.Note,
+                RegisteredAt = r.RegisteredAt,
+            }
+        ).ToListAsync(cancellationToken);
     }
 
 }

@@ -1,9 +1,12 @@
 using MediatR;
 using TEDF.Application.Features.TopicPools.DTOs;
+using TEDF.Application.Features.TopicPools.Commands.CancelRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ConfirmRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
+using TEDF.Application.Features.TopicPools.Queries.GetGroupRegistrations;
+using TEDF.Application.Features.TopicPools.Queries.GetMentorRegistrations;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -60,6 +63,24 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .WithTags("TopicPools")
             .WithName("RequestTopicRegistration")
             .Produces(201).Produces(400).Produces(401).Produces(403);
+
+        pool.MapGet("/groups/{groupId:guid}/registrations", GetGroupRegistrations)
+            .RequireAuthorization(PolicyNames.GroupMember)
+            .WithTags("TopicPools")
+            .WithName("GetGroupRegistrations")
+            .Produces<List<GroupRegistrationDto>>()
+            .Produces(401).Produces(403);
+
+        pool.MapGet("/registrations/mentor", GetMentorRegistrations)
+            .WithTags("TopicPools")
+            .WithName("GetMentorRegistrations")
+            .Produces<List<MentorRegistrationRequestDto>>()
+            .Produces(401);
+
+        pool.MapPut("/registrations/{id:guid}/cancel", CancelTopicRegistration)
+            .WithTags("TopicPools")
+            .WithName("CancelTopicRegistration")
+            .Produces(204).Produces(400).Produces(401).Produces(404);
 
         pool.MapPut("/registrations/{id:guid}/confirm", ConfirmTopicRegistration)
             .WithTags("TopicPools")
@@ -126,6 +147,18 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     {
         var registrationId = await sender.Send(new RequestTopicRegistrationCommand(body.ProjectId, groupId, body.Note), ct);
         return Created($"/api/topic-pools/registrations/{registrationId}", new { id = registrationId }, "Tạo mới thành công.");
+    }
+
+    private static async Task<IResult> GetGroupRegistrations(Guid groupId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetGroupRegistrationsQuery(groupId), ct));
+
+    private static async Task<IResult> GetMentorRegistrations(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetMentorRegistrationsQuery(), ct));
+
+    private static async Task<IResult> CancelTopicRegistration(Guid id, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new CancelTopicRegistrationCommand(id), ct);
+        return NoContent("Huỷ đăng ký thành công.");
     }
 
     private static async Task<IResult> ConfirmTopicRegistration(Guid id, ISender sender, CancellationToken ct)
