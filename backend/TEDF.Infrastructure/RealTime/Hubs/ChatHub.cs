@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
+using TEDF.Infrastructure.RealTime;
 using TEDF.Infrastructure.RealTime.Models;
 using AppClaimTypes = TEDF.Application.Common.AppClaimTypes;
 
@@ -74,7 +75,7 @@ namespace TEDF.Infrastructure.RealTime.Hubs
                 SentAt: DateTime.UtcNow
             );
 
-            await Clients.Group($"conversation_{conversationId}").SendAsync("NewMessage", message);
+            await Clients.Group($"conversation_{conversationId}").SendAsync(RealtimeEvents.NewMessage, message);
         }
 
         /// <summary>
@@ -91,7 +92,7 @@ namespace TEDF.Infrastructure.RealTime.Hubs
                 IsTyping: isTyping
             );
 
-            await Clients.OthersInGroup($"conversation_{conversationId}").SendAsync("UserTyping", indicator);
+            await Clients.OthersInGroup($"conversation_{conversationId}").SendAsync(RealtimeEvents.UserTyping, indicator);
         }
 
         private Guid? GetUserId()

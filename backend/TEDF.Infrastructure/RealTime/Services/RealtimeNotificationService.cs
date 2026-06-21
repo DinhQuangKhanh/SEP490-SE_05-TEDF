@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using TEDF.Infrastructure.RealTime.Hubs;
 using TEDF.Infrastructure.RealTime.Models;
+using TEDF.Infrastructure.RealTime;
 
 namespace TEDF.Infrastructure.RealTime.Services
 {
@@ -131,31 +132,31 @@ namespace TEDF.Infrastructure.RealTime.Services
         /// <inheritdoc/>
         public async Task SendNotificationAlertAsync(Guid userId, NotificationAlert alert, CancellationToken ct = default)
         {
-            await SendToUserAsync(userId, "ReceiveNotification", alert, ct);
+            await SendToUserAsync(userId, RealtimeEvents.ReceiveNotification, alert, ct);
         }
 
         /// <inheritdoc/>
         public async Task SendProjectStatusUpdateAsync(Guid projectId, ProjectStatusUpdate update, CancellationToken ct = default)
         {
-            await SendToProjectGroupAsync(projectId, "ProjectStatusUpdated", update, ct);
+            await SendToProjectGroupAsync(projectId, RealtimeEvents.ProjectStatusUpdated, update, ct);
         }
 
         /// <inheritdoc/>
         public async Task SendMeetingReminderAsync(IEnumerable<Guid> participantIds, MeetingReminder reminder, CancellationToken ct = default)
         {
-            await SendToUsersAsync(participantIds, "MeetingReminder", reminder, ct);
+            await SendToUsersAsync(participantIds, RealtimeEvents.MeetingReminder, reminder, ct);
         }
 
         /// <inheritdoc/>
         public async Task SendDefenseNotificationAsync(IEnumerable<Guid> recipientIds, DefenseNotification notification, CancellationToken ct = default)
         {
-            await SendToUsersAsync(recipientIds, "DefenseScheduled", notification, ct);
+            await SendToUsersAsync(recipientIds, RealtimeEvents.DefenseScheduled, notification, ct);
         }
 
         /// <inheritdoc/>
         public async Task SendUnreadCountUpdateAsync(Guid userId, long unreadCount, CancellationToken ct = default)
         {
-            await SendToUserAsync(userId, "UnreadCountUpdated", new { count = unreadCount }, ct);
+            await SendToUserAsync(userId, RealtimeEvents.UnreadCountUpdated, new { count = unreadCount }, ct);
         }
 
         #endregion

@@ -8,6 +8,7 @@ import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
+import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 
 const container = {
   hidden: { opacity: 0 },
@@ -201,6 +202,30 @@ export function StudentMyTopicPage() {
         /* silently fail — documents section just shows empty */
       });
   }, []);
+
+  const handleProjectStatusUpdated = useCallback((payload: ProjectStatusUpdatedPayload) => {
+    setMyGroup((prev) => {
+      if (prev?.projectId !== payload.projectId) return prev;
+      topicService
+        .getTopicDetail(payload.projectId)
+        .then(setTopicDetail)
+        .catch(() => {
+          /* silently ignore — UI keeps last known state */
+        });
+      return prev;
+    });
+  }, []);
+
+  const { joinProjectChannel, leaveProjectChannel } = useSignalR({
+    onProjectStatusUpdated: handleProjectStatusUpdated,
+  });
+
+  useEffect(() => {
+    if (!myGroup?.projectId) return;
+    const projectId = myGroup.projectId;
+    joinProjectChannel(projectId);
+    return () => leaveProjectChannel(projectId);
+  }, [myGroup?.projectId, joinProjectChannel, leaveProjectChannel]);
 
   useEffect(() => {
     studentGroupService

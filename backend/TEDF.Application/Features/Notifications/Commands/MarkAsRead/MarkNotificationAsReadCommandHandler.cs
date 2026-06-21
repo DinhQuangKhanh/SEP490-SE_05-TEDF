@@ -21,7 +21,7 @@ public class MarkNotificationAsReadCommandHandler : ICommandHandler<MarkNotifica
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        await _notifications.MarkAsReadAsync(request.NotificationId, cancellationToken);
+        await _notifications.MarkAsReadAsync(request.NotificationId, _currentUser.UserId.Value, cancellationToken);
         return Unit.Value;
     }
 }
