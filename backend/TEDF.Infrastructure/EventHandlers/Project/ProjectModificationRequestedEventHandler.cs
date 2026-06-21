@@ -2,7 +2,6 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
-using TEDF.Infrastructure.RealTime.Models;
 using TEDF.Infrastructure.RealTime.Services;
 
 namespace TEDF.Infrastructure.EventHandlers.Project
@@ -27,19 +26,8 @@ namespace TEDF.Infrastructure.EventHandlers.Project
         {
             try
             {
-                var project = await _projectRepository.GetByIdAsync(notification.ProjectId, cancellationToken);
-                if (project is not null)
-                {
-                    await _realtimeNotificationService.SendProjectStatusUpdateAsync(
-                        notification.ProjectId,
-                        new ProjectStatusUpdate(
-                            notification.ProjectId,
-                            project.NameVi.Value,
-                            "PendingEvaluation",
-                            project.Status.ToString(),
-                            DateTime.UtcNow),
-                        cancellationToken);
-                }
+                await ProjectStatusRealtimeNotifier.NotifyAsync(
+                    _projectRepository, _realtimeNotificationService, notification.ProjectId, "PendingEvaluation", cancellationToken);
 
                 _logger.LogInformation("Project modification requested: {ProjectId}", notification.ProjectId);
             }

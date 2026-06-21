@@ -203,17 +203,17 @@ export function StudentMyTopicPage() {
       });
   }, []);
 
+  const myGroupRef = useRef(myGroup);
+  myGroupRef.current = myGroup;
+
   const handleProjectStatusUpdated = useCallback((payload: ProjectStatusUpdatedPayload) => {
-    setMyGroup((prev) => {
-      if (prev?.projectId !== payload.projectId) return prev;
-      topicService
-        .getTopicDetail(payload.projectId)
-        .then(setTopicDetail)
-        .catch(() => {
-          /* silently ignore — UI keeps last known state */
-        });
-      return prev;
-    });
+    if (myGroupRef.current?.projectId !== payload.projectId) return;
+    topicService
+      .getTopicDetail(payload.projectId)
+      .then(setTopicDetail)
+      .catch(() => {
+        /* silently ignore — UI keeps last known state */
+      });
   }, []);
 
   const { joinProjectChannel, leaveProjectChannel } = useSignalR({

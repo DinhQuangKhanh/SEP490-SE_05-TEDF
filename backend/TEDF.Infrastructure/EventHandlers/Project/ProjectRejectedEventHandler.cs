@@ -4,7 +4,6 @@ using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Infrastructure.Caching;
-using TEDF.Infrastructure.RealTime.Models;
 using TEDF.Infrastructure.RealTime.Services;
 using TEDF.Application.Common.Interfaces;
 
@@ -46,19 +45,8 @@ namespace TEDF.Infrastructure.EventHandlers.Project
                     await _cacheInvalidation.InvalidateEvaluatorCacheAsync(assignment.EvaluatorId, cancellationToken);
                 }
 
-                var project = await _projectRepository.GetByIdAsync(notification.ProjectId, cancellationToken);
-                if (project is not null)
-                {
-                    await _realtimeNotificationService.SendProjectStatusUpdateAsync(
-                        notification.ProjectId,
-                        new ProjectStatusUpdate(
-                            notification.ProjectId,
-                            project.NameVi.Value,
-                            "PendingEvaluation",
-                            project.Status.ToString(),
-                            DateTime.UtcNow),
-                        cancellationToken);
-                }
+                await ProjectStatusRealtimeNotifier.NotifyAsync(
+                    _projectRepository, _realtimeNotificationService, notification.ProjectId, "PendingEvaluation", cancellationToken);
 
                 _logger.LogInformation("Project rejected: {ProjectId}", notification.ProjectId);
             }
