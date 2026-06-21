@@ -60,3 +60,25 @@ export interface UpdatePoolTopicRequest {
   expectedResults?: string | null;
   maxStudents: number;
 }
+
+/** GET /api/topic-pools/registrations/mentor — a pending registration request for the mentor. */
+export interface MentorRegistrationRequestDto {
+  registrationId: string;
+  projectId: string;
+  projectName: string | null;
+  projectCode: string | null;
+  groupId: string;
+  groupName: string | null;
+  groupCode: string | null;
+  registeredByName: string | null;
+  memberCount: number;
+  note: string | null;
+  registeredAt: string;
+}
+
+/** SignalR `ReceiveRegistrationUpdate` payload (real-time mentor registration tab). */
+export interface RegistrationUpdate {
+  action: "added" | "removed";
+  registrationId: string;
+  projectId: string;
+}

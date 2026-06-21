@@ -1,5 +1,6 @@
 import {
   AvailableStudentDto,
+  GroupRegistrationDto,
   InvitationDto,
   JoinRequestDto,
   MentorGroupDto,
@@ -63,4 +64,12 @@ export const studentGroupService = {
       projectId: params.projectId,
       note: params.note,
     }),
+
+  /** Lists the group's topic-pool registrations (newest first) so it can track pending/rejected ones. */
+  getMyRegistrations: (groupId: string) =>
+    apiClient.get<GroupRegistrationDto[]>(routes.studentTopics.myRegistrations(groupId)),
+
+  /** Group leader cancels their own pending registration. */
+  cancelRegistration: (registrationId: string) =>
+    apiClient.put<void>(routes.studentTopics.cancelRegistration(registrationId)),
 };

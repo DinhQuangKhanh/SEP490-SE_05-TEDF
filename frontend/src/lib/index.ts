@@ -16,4 +16,5 @@ export { supportService } from "./supportTickets/supportService";
 export { topicService } from "./topics/topicService";
 export * from "./topics/topicStatus";
 export { topicPoolService } from "./topicPools/topicPoolService";
+export { uploadService } from "./uploads/uploadService";
 export { userService } from "./users/userService";

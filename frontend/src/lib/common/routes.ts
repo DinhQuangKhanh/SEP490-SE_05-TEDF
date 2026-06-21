@@ -74,6 +74,8 @@ export const routes = {
   },
   studentTopics: {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
+    myRegistrations: (groupId: string) => `/api/topic-pools/groups/${groupId}/registrations`,
+    cancelRegistration: (registrationId: string) => `/api/topic-pools/registrations/${registrationId}/cancel`,
     createDirectTopic: (groupId: string) => `/api/direct-topics/${groupId}`,
     updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
     submitDirectTopicToMentor: (groupId: string, projectId: string) =>
@@ -91,6 +93,7 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,
   },
@@ -106,5 +109,8 @@ export const routes = {
     unreadCount: "/api/notifications/unread-count",
     markAllRead: "/api/notifications/read-all",
     markRead: (id: string) => `/api/notifications/${id}/read`,
+  },
+  uploads: {
+    noteAttachment: "/api/uploads/note-attachment",
   },
 } as const;

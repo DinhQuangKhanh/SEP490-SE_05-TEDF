@@ -1,4 +1,10 @@
-import { DepartmentWithPoolsDto, TopicPoolDto, TopicPoolStatisticsDto, UpdatePoolTopicRequest } from "@/types";
+import {
+  DepartmentWithPoolsDto,
+  MentorRegistrationRequestDto,
+  TopicPoolDto,
+  TopicPoolStatisticsDto,
+  UpdatePoolTopicRequest,
+} from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -26,4 +32,16 @@ export const topicPoolService = {
   /** Mentor resubmits a pool topic for evaluation. */
   resubmitPoolTopic: (projectId: string): Promise<void> =>
     apiClient.put<void>(routes.mentor.topicResubmit(projectId)),
+
+  /** Pending registration requests for the current mentor's pool topics. */
+  getMentorRegistrations: (): Promise<MentorRegistrationRequestDto[]> =>
+    apiClient.get<MentorRegistrationRequestDto[]>(routes.topicPools.mentorRegistrations),
+
+  /** Mentor confirms a registration (assigns the group to the topic). */
+  confirmRegistration: (registrationId: string): Promise<void> =>
+    apiClient.put<void>(routes.topicPools.confirmRegistration(registrationId)),
+
+  /** Mentor rejects a registration with a reason. */
+  rejectRegistration: (registrationId: string, reason: string): Promise<void> =>
+    apiClient.put<void>(routes.topicPools.rejectRegistration(registrationId), { reason }),
 };

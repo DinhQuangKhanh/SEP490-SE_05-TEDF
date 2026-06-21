@@ -16,12 +16,16 @@ function getToken(): string | null {
 
 interface UseSignalROptions {
   onReceiveNotification?: (notification: unknown) => void;
+  /** Real-time registration changes for the mentor "Yêu cầu đăng ký" tab. */
+  onRegistrationUpdate?: (update: unknown) => void;
 }
 
-export function useSignalR({ onReceiveNotification }: UseSignalROptions) {
+export function useSignalR({ onReceiveNotification, onRegistrationUpdate }: UseSignalROptions) {
   const connectionRef = useRef<HubConnection | null>(null);
   const callbackRef = useRef(onReceiveNotification);
   callbackRef.current = onReceiveNotification;
+  const registrationCbRef = useRef(onRegistrationUpdate);
+  registrationCbRef.current = onRegistrationUpdate;
 
   const connect = useCallback(() => {
     const token = getToken();
@@ -39,6 +43,10 @@ export function useSignalR({ onReceiveNotification }: UseSignalROptions) {
 
     connection.on("ReceiveNotification", (notification: unknown) => {
       callbackRef.current?.(notification);
+    });
+
+    connection.on("ReceiveRegistrationUpdate", (update: unknown) => {
+      registrationCbRef.current?.(update);
     });
 
     connection
