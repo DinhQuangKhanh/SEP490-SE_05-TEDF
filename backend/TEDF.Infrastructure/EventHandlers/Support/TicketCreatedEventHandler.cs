@@ -48,7 +48,7 @@ public class TicketCreatedEventHandler : INotificationHandler<TicketCreatedEvent
                 $"Ticket {notification.TicketCode} (Ưu tiên: {notification.Priority}) vừa được tạo.",
                 NotificationType.Info,
                 NotificationCategory.Support,
-                $"/admin/supports/{notification.TicketId}",
+                "/admin/support",
                 cancellationToken);
         }
     }

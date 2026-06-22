@@ -45,7 +45,7 @@ public class TicketReopenedEventHandler : INotificationHandler<TicketReopenedEve
                 $"Ticket {ticket.Code.Value}: \"{ticket.Title}\" đã được mở lại và cần xử lý thêm.",
                 NotificationType.Warning,
                 NotificationCategory.Support,
-                $"/admin/supports/{notification.TicketId}",
+                "/admin/support",
                 cancellationToken);
         }
     }

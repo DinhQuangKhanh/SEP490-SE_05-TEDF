@@ -12,8 +12,16 @@ public class NotificationsDomainService : INotificationsDomainService
 
     public NotificationsDomainService(INotificationService notifications) => _notifications = notifications;
 
+<<<<<<< Updated upstream
     public Task MarkAsReadAsync(Guid notificationId, CancellationToken cancellationToken = default)
         => _notifications.MarkAsReadAsync(notificationId, cancellationToken);
+=======
+    public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        await _notifications.MarkAsReadAsync(notificationId, userId, cancellationToken);
+        await PushUnreadCountAsync(userId, cancellationToken);
+    }
+>>>>>>> Stashed changes
 
     public Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
         => _notifications.MarkAllAsReadAsync(userId, cancellationToken);

@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { notificationService } from "@/lib";
 import type { NotificationDto } from "@/types";
 import { useSignalR } from "@/hooks/useSignalR";
+
+/** Only allow navigating to internal app paths — never an absolute/external URL. */
+function isSafeInternalPath(url: string | null): url is string {
+  return !!url && url.startsWith("/") && !url.startsWith("//");
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,11 +61,13 @@ function categoryIcon(category: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function NotificationDropdown({ isNavy = false }: NotificationDropdownProps) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef(false); // prevent duplicate fetch on first open
 
@@ -129,23 +137,49 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const markAsRead = useCallback(async (id: string, targetUrl: string | null) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-    window.dispatchEvent(new Event("notificationRead"));
+  const handleNotificationClick = useCallback(
+    async (notification: NotificationDto) => {
+      const { id, isRead, targetUrl } = notification;
+      if (!id || pendingIds.has(id)) return;
 
-    try {
-      await notificationService.markRead(id);
-    } catch {
-      // optimistic update — revert if it fails
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: false } : n)));
-      setUnreadCount((prev) => prev + 1);
-    }
+      const goToTarget = () => {
+        if (isSafeInternalPath(targetUrl)) {
+          setIsOpen(false);
+          navigate(targetUrl);
+        }
+      };
 
-    if (targetUrl) {
-      window.location.href = targetUrl;
-    }
-  }, []);
+      // Already read — nothing to mark, just navigate.
+      if (isRead) {
+        goToTarget();
+        return;
+      }
+
+      setPendingIds((prev) => new Set(prev).add(id));
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new Event("notificationRead"));
+
+      try {
+        await notificationService.markRead(id);
+      } catch (err) {
+        // Optimistic update failed server-side — revert local state, but the
+        // targetUrl (if any) is still valid, so the user can still navigate.
+        console.error("Failed to mark notification as read:", id, err);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: false } : n)));
+        setUnreadCount((prev) => prev + 1);
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+
+      goToTarget();
+    },
+    [navigate, pendingIds],
+  );
 
   const markAllAsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -247,13 +281,15 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
               ) : (
                 notifications.map((n) => {
                   const colors = typeColors[n.type] ?? typeColors.Info;
+                  const isPending = pendingIds.has(n.id);
                   return (
                     <motion.div
                       key={n.id}
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      onClick={() => markAsRead(n.id, n.targetUrl)}
-                      className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-50/50" : ""}`}
+                      animate={{ opacity: isPending ? 0.6 : 1 }}
+                      onClick={() => handleNotificationClick(n)}
+                      aria-busy={isPending}
+                      className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-50/50" : ""} ${isPending ? "pointer-events-none" : ""}`}
                     >
                       <div className="flex gap-3">
                         <div

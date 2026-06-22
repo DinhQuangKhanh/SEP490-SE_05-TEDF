@@ -40,7 +40,7 @@ namespace TEDF.Infrastructure.EventHandlers.Group
                     $"{inviterName} đã mời bạn tham gia nhóm {notification.GroupCode}. Vui lòng phản hồi trước khi lời mời hết hạn.",
                     NotificationType.Info,
                     NotificationCategory.Group,
-                    "/student/invitations",
+                    "/student/groups",
                     cancellationToken);
             }
             catch (Exception ex)

@@ -92,14 +92,14 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                     {
                         var agreedResult = results[0];
                         await HandleAgreedResultAsync(
-                            agreedResult, projectName, mentorName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
+                            agreedResult, notification.ProjectId, projectName, mentorName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
                     }
                 }
                 else
                 {
                     // Evaluators disagree — CNBM must decide
                     await HandleConflictingResultsAsync(
-                        projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
+                        notification.ProjectId, projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
                 }
 
                 _logger.LogInformation("Evaluation result submitted for project {ProjectId} by {EvaluatorId}: {Result}",
@@ -113,7 +113,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
         }
 
         private async Task HandleAgreedResultAsync(
-            EvaluationResult result, string projectName, string mentorName,
+            EvaluationResult result, Guid projectId, string projectName, string mentorName,
             List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
             CancellationToken ct)
         {
@@ -122,6 +122,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
             allRecipients.AddRange(evaluatorIds);
             if (departmentHeadId.HasValue) allRecipients.Add(departmentHeadId.Value);
             allRecipients = allRecipients.Distinct().ToList();
+            var targetUrl = $"/lecturer/moderate/{projectId}";
 
             switch (result)
             {
@@ -132,7 +133,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                         $"Đề tài '{projectName}' đã được duyệt bởi cả hai người thẩm định.",
                         NotificationType.Success,
                         NotificationCategory.Evaluation,
-                        ct: ct);
+                        targetUrl,
+                        ct);
                     break;
 
                 case EvaluationResult.NeedsModification:
@@ -142,7 +144,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                         $"Đề tài '{projectName}' cần được chỉnh sửa theo yêu cầu của người thẩm định.",
                         NotificationType.Warning,
                         NotificationCategory.Evaluation,
-                        ct: ct);
+                        targetUrl,
+                        ct);
                     break;
 
                 case EvaluationResult.Rejected:
@@ -152,13 +155,14 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                         $"Đề tài '{projectName}' do {mentorName} làm Mentor đã bị từ chối, sẽ được xóa khỏi hệ thống trong 5 phút.",
                         NotificationType.Error,
                         NotificationCategory.Evaluation,
-                        ct: ct);
+                        targetUrl,
+                        ct);
                     break;
             }
         }
 
         private async Task HandleConflictingResultsAsync(
-            string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
+            Guid projectId, string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
             CancellationToken ct)
         {
             // Notify CNBM — they need to make a final decision
@@ -170,7 +174,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                     $"Kết quả thẩm định đề tài '{projectName}' không thống nhất, vui lòng đưa ra quyết định cuối cùng.",
                     NotificationType.Warning,
                     NotificationCategory.Evaluation,
-                    "/department-head/assign",
+                    "/lecturer/assign",
                     ct);
             }
 
@@ -186,7 +190,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 $"Kết quả thẩm định đề tài '{projectName}' đang chờ chủ nhiệm bộ môn quyết định.",
                 NotificationType.Info,
                 NotificationCategory.Evaluation,
-                ct: ct);
+                $"/lecturer/moderate/{projectId}",
+                ct);
         }
 
         private async Task<Guid?> GetDepartmentHeadIdAsync(int majorId, CancellationToken ct)
