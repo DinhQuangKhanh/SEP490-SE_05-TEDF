@@ -25,7 +25,7 @@ public class EligibleMentor : Entity<int>
     private EligibleMentor() { }
 
     internal static EligibleMentor Create(int semesterId, Guid mentorId, string employeeCode, int? majorId,
-        string? email = null, string? phoneNumber = null, string? division = null, Guid? importedBy = null)
+        EligibleMentorSnapshot snapshot)
     {
         return new EligibleMentor
         {
@@ -33,21 +33,21 @@ public class EligibleMentor : Entity<int>
             MentorId = mentorId,
             EmployeeCode = employeeCode,
             MajorId = majorId,
-            Email = email,
-            PhoneNumber = phoneNumber,
-            Division = division,
+            Email = snapshot.Email,
+            PhoneNumber = snapshot.PhoneNumber,
+            Division = snapshot.Division,
             IsAssigned = true,
             ImportedAt = DateTime.UtcNow,
-            ImportedBy = importedBy
+            ImportedBy = snapshot.ImportedBy
         };
     }
 
     /// <summary>Refreshes the snapshotted contact columns from a later (supplementary) import.</summary>
-    internal void UpdateSnapshot(string? email, string? phoneNumber, string? division)
+    internal void UpdateSnapshot(EligibleMentorSnapshot snapshot)
     {
-        if (!string.IsNullOrWhiteSpace(email)) Email = email;
-        if (!string.IsNullOrWhiteSpace(phoneNumber)) PhoneNumber = phoneNumber;
-        if (!string.IsNullOrWhiteSpace(division)) Division = division;
+        if (!string.IsNullOrWhiteSpace(snapshot.Email)) Email = snapshot.Email;
+        if (!string.IsNullOrWhiteSpace(snapshot.PhoneNumber)) PhoneNumber = snapshot.PhoneNumber;
+        if (!string.IsNullOrWhiteSpace(snapshot.Division)) Division = snapshot.Division;
     }
 
     /// <summary>Corrects the assigned program (backs the inline "Program" edit in the admin roster).</summary>
@@ -66,3 +66,6 @@ public class EligibleMentor : Entity<int>
         IsAssigned = true;
     }
 }
+
+/// <summary>Contact + import metadata captured from a roster file, passed to <see cref="EligibleMentor.Create"/> and <see cref="EligibleMentor.UpdateSnapshot"/>.</summary>
+internal record EligibleMentorSnapshot(string? Email = null, string? PhoneNumber = null, string? Division = null, Guid? ImportedBy = null);

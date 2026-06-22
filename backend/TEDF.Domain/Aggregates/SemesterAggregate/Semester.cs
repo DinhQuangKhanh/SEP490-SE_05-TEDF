@@ -204,10 +204,11 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         public void AddEligibleMentor(Guid mentorId, string employeeCode, int? majorId,
             string? email = null, string? phoneNumber = null, string? division = null, Guid? importedBy = null)
         {
+            var snapshot = new EligibleMentorSnapshot(email, phoneNumber, division, importedBy);
             var existing = _eligibleMentors.FirstOrDefault(m => m.MentorId == mentorId);
             if (existing != null)
             {
-                existing.UpdateSnapshot(email, phoneNumber, division);
+                existing.UpdateSnapshot(snapshot);
                 // Chỉ đổi ngành khi import cung cấp giá trị — tránh xóa ngành admin đã chọn.
                 if (majorId.HasValue)
                     existing.ChangeMajor(majorId.Value);
@@ -216,8 +217,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
             }
             else
             {
-                _eligibleMentors.Add(
-                    EligibleMentor.Create(Id, mentorId, employeeCode, majorId, email, phoneNumber, division, importedBy));
+                _eligibleMentors.Add(EligibleMentor.Create(Id, mentorId, employeeCode, majorId, snapshot));
             }
             UpdatedAt = DateTime.UtcNow;
         }
