@@ -12,8 +12,6 @@ using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Semester;
 using TEDF.Domain.Services;
-using IDateTimeService = TEDF.Application.Common.Interfaces.IDateTimeService;
-
 namespace TEDF.Infrastructure.Services.DomainServices;
 
 /// <summary>
@@ -26,7 +24,6 @@ public class SemestersDomainService : ISemestersDomainService
     private readonly IMajorReadRepository _majorRepository;
     private readonly IProjectRepository _projectRepository;
     private readonly IExcelService _excelService;
-    private readonly IDateTimeService _dateTimeService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SemestersDomainService> _logger;
 
@@ -36,7 +33,6 @@ public class SemestersDomainService : ISemestersDomainService
         IMajorReadRepository majorRepository,
         IProjectRepository projectRepository,
         IExcelService excelService,
-        IDateTimeService dateTimeService,
         IUnitOfWork unitOfWork,
         ILogger<SemestersDomainService> logger)
     {
@@ -45,7 +41,6 @@ public class SemestersDomainService : ISemestersDomainService
         _majorRepository = majorRepository;
         _projectRepository = projectRepository;
         _excelService = excelService;
-        _dateTimeService = dateTimeService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -61,7 +56,7 @@ public class SemestersDomainService : ISemestersDomainService
     {
         var semester = await _semesterRepository.GetWithPhasesAsync(semesterId, ct);
         var currentPhase = semester?.Phases.FirstOrDefault(p =>
-            p.StartDate <= _dateTimeService.UtcNow && p.EndDate >= _dateTimeService.UtcNow);
+            p.StartDate <= DateTime.UtcNow && p.EndDate >= DateTime.UtcNow);
         return currentPhase?.Id;
     }
 
@@ -165,15 +160,15 @@ public class SemestersDomainService : ISemestersDomainService
     }
 
     public async Task<EligibleStudentsImportResult> ImportEligibleStudentsAsync(
-        int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken ct = default)
+        int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken cancellationToken = default)
     {
-        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, ct)
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
 
         if (fileStream == null || fileStream.Length == 0)
             throw new BusinessRuleValidationException("File tải lên không hợp lệ hoặc rỗng.");
 
-        var rows = await _excelService.ExtractEligibleStudentRowsAsync(fileStream, fileName, ct);
+        var rows = await _excelService.ExtractEligibleStudentRowsAsync(fileStream, fileName, cancellationToken);
 
         if (rows.Count == 0)
             throw new BusinessRuleValidationException("Không tìm thấy mã sinh viên nào trong file. Đảm bảo file có cột chứa mã sinh viên hợp lệ.");
@@ -184,17 +179,15 @@ public class SemestersDomainService : ISemestersDomainService
 
         foreach (var row in rows)
         {
-            var student = await _userRepository.GetByStudentCodeAsync(row.StudentCode, ct);
+            var student = await _userRepository.GetByStudentCodeAsync(row.StudentCode, cancellationToken);
 
-            // Load the program once: used both for the eligible snapshot and the new account's department.
             var major = string.IsNullOrWhiteSpace(row.ProgramCode)
                 ? null
-                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), ct);
+                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), cancellationToken);
 
             if (student is null)
             {
-                // Tài khoản chưa có → tạo "tài khoản chờ" (liên kết khi đăng nhập Google lần đầu).
-                student = await TryProvisionStudentAsync(row, major, seenEmails, ct);
+                student = await TryProvisionStudentAsync(row, major, seenEmails, cancellationToken);
                 if (student is null)
                 {
                     issues.Add(new ImportRowIssue(row.StudentCode, EmailIssueReason));
@@ -203,19 +196,17 @@ public class SemestersDomainService : ISemestersDomainService
             }
             else if (!InfoMatches(student, row.Email, row.FullName, row.PhoneNumber))
             {
-                // MSSV là duy nhất toàn hệ thống: thông tin lệch ⇒ dữ liệu có vấn đề ⇒ bỏ qua + cảnh báo.
                 issues.Add(new ImportRowIssue(row.StudentCode,
                     "Thông tin (email/họ tên/SĐT) không khớp dữ liệu hệ thống — cần kiểm tra"));
                 continue;
             }
 
-            // Idempotent: existing rows are ignored (snapshot refreshed) — the supplementary-import rule.
             semester.AddEligibleStudent(student.Id, row.StudentCode, row.Email, row.PhoneNumber, major?.Id, importedBy);
             successCount++;
         }
 
         _semesterRepository.Update(semester);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Imported {Count} eligible students for Semester {SemesterId}. Issues: {IssueCount}",
@@ -225,15 +216,15 @@ public class SemestersDomainService : ISemestersDomainService
     }
 
     public async Task<EligibleMentorsImportResult> ImportEligibleMentorsAsync(
-        int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken ct = default)
+        int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken cancellationToken = default)
     {
-        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, ct)
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
 
         if (fileStream == null || fileStream.Length == 0)
             throw new BusinessRuleValidationException("File tải lên không hợp lệ hoặc rỗng.");
 
-        var rows = await _excelService.ExtractEligibleMentorRowsAsync(fileStream, fileName, ct);
+        var rows = await _excelService.ExtractEligibleMentorRowsAsync(fileStream, fileName, cancellationToken);
 
         if (rows.Count == 0)
             throw new BusinessRuleValidationException("Không tìm thấy mã giảng viên nào trong file. Đảm bảo file có cột chứa mã giảng viên và ngành hợp lệ.");
@@ -245,60 +236,23 @@ public class SemestersDomainService : ISemestersDomainService
 
         foreach (var row in rows)
         {
-            // Ngành tùy chọn lúc import: khớp được thì lấy, không thì để trống (admin chọn sau qua dropdown).
             var major = string.IsNullOrWhiteSpace(row.ProgramCode)
                 ? null
-                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), ct);
+                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), cancellationToken);
 
-            var existing = await _userRepository.GetByEmployeeCodeAsync(row.EmployeeCode, ct);
+            var resolved = await ResolveMentorIdentityAsync(row, major, seenCodes, seenEmails, issues, cancellationToken);
+            if (resolved is null) continue;
 
-            User? mentor;
-            string code;
-            string? snapshotEmail = row.Email;
-
-            if (existing is null)
-            {
-                // Mã chưa có → tạo tài khoản với mã/email gốc.
-                mentor = await TryProvisionUserAsync(row.EmployeeCode, row.FullName, row.Email, row.PhoneNumber,
-                    major, DomainRoleNames.Mentor, isStudent: false, seenEmails, ct);
-                if (mentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, EmailIssueReason)); continue; }
-                code = row.EmployeeCode;
-            }
-            else if (!IsDifferentMentor(existing, row.PhoneNumber))
-            {
-                // Cùng người (cùng SĐT, hoặc không đủ SĐT để phân biệt) → dùng tài khoản cũ.
-                mentor = existing;
-                code = row.EmployeeCode;
-            }
-            else
-            {
-                // Trùng mã nhưng KHÁC SĐT ⇒ người khác ⇒ tạo tài khoản mới, thêm số thứ tự cho cả mã lẫn email.
-                if (string.IsNullOrWhiteSpace(row.Email) ||
-                    !row.Email.Trim().EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
-                {
-                    issues.Add(new ImportRowIssue(row.EmployeeCode,
-                        "Trùng mã GV nhưng khác người, thiếu email @fpt.edu.vn để tạo tài khoản mới"));
-                    continue;
-                }
-
-                var (newCode, newEmail) = await NextAvailableSuffixAsync(row.EmployeeCode, row.Email.Trim(), seenCodes, seenEmails, ct);
-                mentor = await TryProvisionUserAsync(newCode, row.FullName, newEmail, row.PhoneNumber,
-                    major, DomainRoleNames.Mentor, isStudent: false, seenEmails, ct);
-                if (mentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, "Không tạo được tài khoản mới (email bị trùng)")); continue; }
-                code = newCode;
-                snapshotEmail = newEmail;
-            }
-
-            seenCodes.Add(code);
-            semester.AddEligibleMentor(mentor.Id, code, major?.Id, snapshotEmail, row.PhoneNumber, row.Division, importedBy);
+            seenCodes.Add(resolved.Code);
+            semester.AddEligibleMentor(resolved.Mentor.Id, resolved.Code, major?.Id,
+                resolved.SnapshotEmail, row.PhoneNumber, row.Division, importedBy);
             successCount++;
         }
 
-        // Mentors who already own a pool topic awaiting registration are assigned automatically.
-        await SyncPoolMentorsAsync(semester, ct);
+        await SyncPoolMentorsAsync(semester, cancellationToken);
 
         _semesterRepository.Update(semester);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Imported {Count} eligible mentors for Semester {SemesterId}. Issues: {IssueCount}",
@@ -307,47 +261,76 @@ public class SemestersDomainService : ISemestersDomainService
         return new EligibleMentorsImportResult(rows.Count, successCount, issues);
     }
 
-    public async Task PublishRosterAsync(int semesterId, Guid publishedBy, CancellationToken ct = default)
+    private sealed record MentorResolution(User Mentor, string Code, string? SnapshotEmail);
+
+    private async Task<MentorResolution?> ResolveMentorIdentityAsync(
+        EligibleMentorRow row, Major? major, HashSet<string> seenCodes, HashSet<string> seenEmails,
+        List<ImportRowIssue> issues, CancellationToken cancellationToken)
     {
-        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, ct)
+        var existing = await _userRepository.GetByEmployeeCodeAsync(row.EmployeeCode, cancellationToken);
+
+        if (existing is null)
+        {
+            var req = new UserProvisionRequest(row.EmployeeCode, row.FullName, row.Email, row.PhoneNumber, major, DomainRoleNames.Mentor, IsStudent: false);
+            var mentor = await TryProvisionUserAsync(req, seenEmails, cancellationToken);
+            if (mentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, EmailIssueReason)); return null; }
+            return new MentorResolution(mentor, row.EmployeeCode, row.Email);
+        }
+
+        if (!IsDifferentMentor(existing, row.PhoneNumber))
+            return new MentorResolution(existing, row.EmployeeCode, row.Email);
+
+        // Trùng mã nhưng KHÁC SĐT ⇒ người khác ⇒ thêm số thứ tự cho cả mã lẫn email.
+        if (string.IsNullOrWhiteSpace(row.Email) ||
+            !row.Email.Trim().EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new ImportRowIssue(row.EmployeeCode, "Trùng mã GV nhưng khác người, thiếu email @fpt.edu.vn để tạo tài khoản mới"));
+            return null;
+        }
+
+        var (newCode, newEmail) = await NextAvailableSuffixAsync(row.EmployeeCode, row.Email.Trim(), seenCodes, seenEmails, cancellationToken);
+        var newReq = new UserProvisionRequest(newCode, row.FullName, newEmail, row.PhoneNumber, major, DomainRoleNames.Mentor, IsStudent: false);
+        var newMentor = await TryProvisionUserAsync(newReq, seenEmails, cancellationToken);
+        if (newMentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, "Không tạo được tài khoản mới (email bị trùng)")); return null; }
+        return new MentorResolution(newMentor, newCode, newEmail);
+    }
+
+    public async Task PublishRosterAsync(int semesterId, Guid publishedBy, CancellationToken cancellationToken = default)
+    {
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
 
-        // Ensure mentors who already own pool topics for this semester are on the roster before notifying.
-        await SyncPoolMentorsAsync(semester, ct);
+        await SyncPoolMentorsAsync(semester, cancellationToken);
 
-        // Raises SemesterRosterPublishedEvent; handlers (notify mentors / enqueue student emails)
-        // run after SaveChanges via DomainEventInterceptor.
         semester.PublishRoster(publishedBy);
 
         _semesterRepository.Update(semester);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Published eligibility roster for Semester {SemesterId} by {PublishedBy}.", semesterId, publishedBy);
     }
 
-    public async Task UpdateEligibleMentorMajorAsync(int semesterId, Guid mentorId, int majorId, CancellationToken ct = default)
+    public async Task UpdateEligibleMentorMajorAsync(int semesterId, Guid mentorId, int majorId, CancellationToken cancellationToken = default)
     {
-        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, ct)
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
 
-        _ = await _majorRepository.GetByIdAsync(majorId, ct)
+        _ = await _majorRepository.GetByIdAsync(majorId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Major), majorId);
 
         semester.UpdateEligibleMentorMajor(mentorId, majorId);
 
         _semesterRepository.Update(semester);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<bool> IsMentorAssignedAsync(Guid mentorId, int semesterId, CancellationToken ct = default)
+    public async Task<bool> IsMentorAssignedAsync(Guid mentorId, int semesterId, CancellationToken cancellationToken = default)
     {
-        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, ct);
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken);
         if (semester is not null && semester.EligibleMentors.Any(m => m.MentorId == mentorId && m.IsAssigned))
             return true;
 
-        // Pool-topic owners qualify even before the roster is published. (Not "active supervision" — that
-        // would circularly pass the very project being approved, which already lists this mentor.)
-        var poolMentors = await _projectRepository.GetPoolMentorAssignmentsForSemesterAsync(semesterId, ct);
+        var poolMentors = await _projectRepository.GetPoolMentorAssignmentsForSemesterAsync(semesterId, cancellationToken);
         return poolMentors.Any(p => p.MentorId == mentorId);
     }
 
@@ -371,55 +354,63 @@ public class SemestersDomainService : ISemestersDomainService
 
     /// <summary>Tìm (mã, email) còn trống bằng cách thêm số thứ tự: LamDQ/lamdq@… → LamDQ1/lamdq1@…, LamDQ2/…</summary>
     private async Task<(string Code, string Email)> NextAvailableSuffixAsync(
-        string baseCode, string baseEmail, HashSet<string> seenCodes, HashSet<string> seenEmails, CancellationToken ct)
+        string baseCode, string baseEmail, HashSet<string> seenCodes, HashSet<string> seenEmails, CancellationToken cancellationToken)
     {
         var at = baseEmail.IndexOf('@');
         var local = at > 0 ? baseEmail[..at] : baseEmail;
         var domain = at > 0 ? baseEmail[at..] : "@fpt.edu.vn"; // gồm '@'
 
-        for (var n = 1; ; n++)
+        for (var n = 1; n <= 1000; n++)
         {
             var candCode = $"{baseCode}{n}";
             var candEmail = $"{local}{n}{domain}".ToLowerInvariant();
             if (seenCodes.Contains(candCode) || seenEmails.Contains(candEmail)) continue;
-            if (await _userRepository.GetByEmployeeCodeAsync(candCode, ct) is not null) continue;
-            if (await _userRepository.ExistsByEmailAsync(candEmail, ct)) continue;
+            if (await _userRepository.GetByEmployeeCodeAsync(candCode, cancellationToken) is not null) continue;
+            if (await _userRepository.ExistsByEmailAsync(candEmail, cancellationToken)) continue;
             return (candCode, candEmail);
         }
+
+        throw new BusinessRuleValidationException($"Không tìm được mã/email khả dụng cho giảng viên '{baseCode}' sau 1000 lần thử.");
     }
 
+    private sealed record UserProvisionRequest(
+        string Code, string? FullName, string? Email, string? Phone,
+        Major? Major, string Role, bool IsStudent);
+
     /// <summary>Tạo "tài khoản chờ" cho sinh viên chưa tồn tại; null nếu không thể tạo (caller báo lỗi).</summary>
-    private Task<User?> TryProvisionStudentAsync(EligibleStudentRow row, Major? major, HashSet<string> seenEmails, CancellationToken ct)
-        => TryProvisionUserAsync(row.StudentCode, row.FullName, row.Email, row.PhoneNumber, major, DomainRoleNames.Student, isStudent: true, seenEmails, ct);
+    private Task<User?> TryProvisionStudentAsync(EligibleStudentRow row, Major? major, HashSet<string> seenEmails, CancellationToken cancellationToken)
+    {
+        var req = new UserProvisionRequest(row.StudentCode, row.FullName, row.Email, row.PhoneNumber, major, DomainRoleNames.Student, IsStudent: true);
+        return TryProvisionUserAsync(req, seenEmails, cancellationToken);
+    }
 
     /// <summary>
     /// Tạo User mới với FirebaseUid tạm ("pending:&lt;mã&gt;") để liên kết khi đăng nhập Google lần đầu.
     /// Yêu cầu email @fpt.edu.vn hợp lệ và không trùng (trong file lẫn trong DB); trả null nếu vi phạm.
     /// </summary>
     private async Task<User?> TryProvisionUserAsync(
-        string code, string? fullName, string? email, string? phone, Major? major, string role, bool isStudent,
-        HashSet<string> seenEmails, CancellationToken ct)
+        UserProvisionRequest req, HashSet<string> seenEmails, CancellationToken cancellationToken)
     {
-        var trimmed = email?.Trim();
+        var trimmed = req.Email?.Trim();
         if (string.IsNullOrWhiteSpace(trimmed) ||
             !trimmed.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
-            return null; // cần email FPT để đăng nhập Google
+            return null;
 
         var normalized = trimmed.ToLowerInvariant();
-        if (!seenEmails.Add(normalized)) return null;                         // trùng email trong cùng file
-        if (await _userRepository.ExistsByEmailAsync(normalized, ct)) return null; // email đã thuộc người khác
+        if (!seenEmails.Add(normalized)) return null;
+        if (await _userRepository.ExistsByEmailAsync(normalized, cancellationToken)) return null;
 
         var user = User.Create(
-            firebaseUid: $"{User.PendingUidPrefix}{code}",
+            firebaseUid: $"{User.PendingUidPrefix}{req.Code}",
             email: normalized,
-            fullName: string.IsNullOrWhiteSpace(fullName) ? code : fullName.Trim(),
-            studentCode: isStudent ? code : null,
-            employeeCode: isStudent ? null : code,
-            departmentId: major?.DepartmentId,
-            phoneNumber: string.IsNullOrWhiteSpace(phone) ? null : phone.Trim());
+            fullName: string.IsNullOrWhiteSpace(req.FullName) ? req.Code : req.FullName.Trim(),
+            studentCode: req.IsStudent ? req.Code : null,
+            employeeCode: req.IsStudent ? null : req.Code,
+            departmentId: req.Major?.DepartmentId,
+            phoneNumber: string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim());
 
-        user.AssignRole(role);
-        await _userRepository.AddAsync(user, ct);
+        user.AssignRole(req.Role);
+        await _userRepository.AddAsync(user, cancellationToken);
         return user;
     }
 
@@ -427,13 +418,13 @@ public class SemestersDomainService : ISemestersDomainService
     /// Adds (idempotently) any mentor who already owns a pool topic awaiting registration for this
     /// semester, using the topic's Major — so they are assigned even if the imported CSV omits them.
     /// </summary>
-    private async Task SyncPoolMentorsAsync(Semester semester, CancellationToken ct)
+    private async Task SyncPoolMentorsAsync(Semester semester, CancellationToken cancellationToken)
     {
-        var poolMentors = await _projectRepository.GetPoolMentorAssignmentsForSemesterAsync(semester.Id, ct);
+        var poolMentors = await _projectRepository.GetPoolMentorAssignmentsForSemesterAsync(semester.Id, cancellationToken);
         foreach (var (mentorId, majorId) in poolMentors)
         {
-            var user = await _userRepository.GetByIdAsync(mentorId, ct);
-            if (user is null || string.IsNullOrEmpty(user.EmployeeCode)) continue; // not a resolvable lecturer
+            var user = await _userRepository.GetByIdAsync(mentorId, cancellationToken);
+            if (user is null || string.IsNullOrEmpty(user.EmployeeCode)) continue;
 
             semester.AddEligibleMentor(mentorId, user.EmployeeCode, majorId, user.Email.Value, user.PhoneNumber, division: null, importedBy: null);
         }

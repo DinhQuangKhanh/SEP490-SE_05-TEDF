@@ -66,65 +66,74 @@ public class ExcelService : IExcelService
         return Task.FromResult(rows);
     }
 
-    /// <summary>
-    /// Reads a CSV/XLSX file into one dictionary per data row, keyed by the normalized header name.
-    /// The first non-empty row is treated as the header. (CSV parsing is simple, comma-split.)
-    /// </summary>
+    /// <summary>Dispatches to the correct parser based on file extension.</summary>
     private static List<Dictionary<string, string>> ReadRows(Stream fileStream, string fileName)
     {
-        var records = new List<Dictionary<string, string>>();
-
         if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return ReadCsvRows(fileStream);
+
+        if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            return ReadXlsxRows(fileStream);
+
+        return [];
+    }
+
+    private static List<Dictionary<string, string>> ReadCsvRows(Stream fileStream)
+    {
+        var records = new List<Dictionary<string, string>>();
+        using var reader = new StreamReader(fileStream);
+        string[]? headers = null;
+
+        while (!reader.EndOfStream)
         {
-            using var reader = new StreamReader(fileStream);
-            string[]? headers = null;
-            while (!reader.EndOfStream)
+            var line = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            if (headers is null)
             {
-                var line = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                if (headers is null)
-                {
-                    headers = line.Split(',').Select(NormalizeHeader).ToArray();
-                    continue;
-                }
-
-                var cols = line.Split(',');
-                var dict = new Dictionary<string, string>();
-                for (int i = 0; i < headers.Length && i < cols.Length; i++)
-                {
-                    if (!string.IsNullOrEmpty(headers[i]) && !dict.ContainsKey(headers[i]))
-                        dict[headers[i]] = cols[i].Trim();
-                }
-                records.Add(dict);
+                headers = line.Split(',').Select(NormalizeHeader).ToArray();
+                continue;
             }
+
+            var cols = line.Split(',');
+            var dict = new Dictionary<string, string>();
+            for (int i = 0; i < headers.Length && i < cols.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(headers[i]) && !dict.ContainsKey(headers[i]))
+                    dict[headers[i]] = cols[i].Trim();
+            }
+            records.Add(dict);
         }
-        else if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+
+        return records;
+    }
+
+    private static List<Dictionary<string, string>> ReadXlsxRows(Stream fileStream)
+    {
+        var records = new List<Dictionary<string, string>>();
+        using var workbook = new XLWorkbook(fileStream);
+        var worksheet = workbook.Worksheets.FirstOrDefault();
+        var usedRows = worksheet?.RangeUsed()?.RowsUsed()?.ToList();
+        if (usedRows is null || usedRows.Count == 0) return records;
+
+        var headerMap = new Dictionary<int, string>(); // column number -> normalized header
+        foreach (var cell in usedRows[0].CellsUsed())
         {
-            using var workbook = new XLWorkbook(fileStream);
-            var worksheet = workbook.Worksheets.FirstOrDefault();
-            var usedRows = worksheet?.RangeUsed()?.RowsUsed()?.ToList();
-            if (usedRows is null || usedRows.Count == 0) return records;
+            var header = NormalizeHeader(cell.GetValue<string>());
+            if (!string.IsNullOrEmpty(header) && !headerMap.ContainsValue(header))
+                headerMap[cell.Address.ColumnNumber] = header;
+        }
 
-            var headerMap = new Dictionary<int, string>(); // column number -> normalized header
-            foreach (var cell in usedRows[0].CellsUsed())
+        foreach (var row in usedRows.Skip(1))
+        {
+            var dict = new Dictionary<string, string>();
+            foreach (var (column, header) in headerMap)
             {
-                var header = NormalizeHeader(cell.GetValue<string>());
-                if (!string.IsNullOrEmpty(header) && !headerMap.ContainsValue(header))
-                    headerMap[cell.Address.ColumnNumber] = header;
+                var value = row.Cell(column).GetValue<string>()?.Trim();
+                if (!string.IsNullOrEmpty(value))
+                    dict[header] = value;
             }
-
-            foreach (var row in usedRows.Skip(1))
-            {
-                var dict = new Dictionary<string, string>();
-                foreach (var (column, header) in headerMap)
-                {
-                    var value = row.Cell(column).GetValue<string>()?.Trim();
-                    if (!string.IsNullOrEmpty(value))
-                        dict[header] = value;
-                }
-                records.Add(dict);
-            }
+            records.Add(dict);
         }
 
         return records;

@@ -17,6 +17,8 @@ namespace TEDF.Infrastructure.Middleware
     {
         private readonly RequestDelegate _next;
 
+        private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
         private static readonly string[] Allowlist =
         [
             "/api/auth",
@@ -71,10 +73,7 @@ namespace TEDF.Infrastructure.Middleware
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
                 var payload = ApiResponse.Fail(decision.Reason ?? "Bạn không có quyền truy cập hệ thống.");
-                var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                var json = JsonSerializer.Serialize(payload, JsonOptions);
                 await context.Response.WriteAsync(json);
                 return;
             }
