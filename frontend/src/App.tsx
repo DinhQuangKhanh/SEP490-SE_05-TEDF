@@ -11,12 +11,10 @@ import { AdminLayout, EvaluatorLayout, MentorLayout, StudentLayout, DepartmentHe
 import {
   LoginPage,
   IneligiblePage,
-  DashboardPage,
   SettingsPage,
   SemestersPage,
   SemesterRosterPage,
   UsersPage,
-  ProjectsPage,
   SupportPage,
   EvaluatorDashboardPage,
   EvaluatorProjectsPage,
@@ -115,13 +113,12 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<DashboardPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route index element={<Navigate to="/admin/semesters" replace />} />
                 <Route path="semesters" element={<SemestersPage />} />
                 <Route path="semesters/:id/roster" element={<SemesterRosterPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="projects" element={<ProjectsPage />} />
                 <Route path="activity-logs" element={<ActivityLogsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="support" element={<SupportPage />} />
               </Route>
 
