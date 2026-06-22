@@ -1,6 +1,9 @@
 // Central API route registry. Paths mirror backend `TEDF.API/Endpoints/` (feature-based).
 // Object keys are kept stable for the services that consume them; only the URL strings track the backend.
 export const routes = {
+  auth: {
+    session: "/api/auth/session",
+  },
   admin: {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
@@ -15,6 +18,11 @@ export const routes = {
     semesterById: (id: number) => `/api/semesters/${id}`,
     activeSemester: "/api/semesters/active",
     eligibleStudentsImport: (id: number) => `/api/semesters/${id}/eligible-students/import`,
+    eligibleMentorsImport: (id: number) => `/api/semesters/${id}/eligible-mentors/import`,
+    eligibleStudents: (id: number) => `/api/semesters/${id}/eligible-students`,
+    eligibleMentors: (id: number) => `/api/semesters/${id}/eligible-mentors`,
+    eligibleMentorMajor: (id: number, mentorId: string) => `/api/semesters/${id}/eligible-mentors/${mentorId}/major`,
+    semesterRosterPublish: (id: number) => `/api/semesters/${id}/roster/publish`,
     settings: "/api/settings",
     settingsTestEmail: "/api/settings/test-email",
     settingsLogo: "/api/settings/logo",

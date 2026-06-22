@@ -7,6 +7,8 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
     {
         Task<Semester?> GetByCodeAsync(SemesterCode code, CancellationToken cancellationToken = default);
         Task<Semester?> GetWithPhasesAsync(int id, CancellationToken cancellationToken = default);
+        /// <summary>Loads a semester with phases and the full eligibility roster (students + mentors) tracked for writes.</summary>
+        Task<Semester?> GetWithRosterAsync(int id, CancellationToken cancellationToken = default);
         Task<Semester?> GetActiveAsync(CancellationToken cancellationToken = default);
         Task<Semester?> GetNextSemesterAsync(int? semesterId, CancellationToken cancellationToken);
         Task<IEnumerable<Semester>> GetByAcademicYearAsync(string academicYear, CancellationToken cancellationToken = default);
@@ -16,5 +18,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         Task<bool> HasOverlappingAsync(DateTime startDate, DateTime endDate, int? excludeId = null, CancellationToken cancellationToken = default);
         Task<int> GetNextIdAsync(CancellationToken cancellationToken = default);
         Task<IEnumerable<Semester>> GetSemestersWithPhaseStartingInAsync(int days, CancellationToken cancellationToken = default);
+        /// <summary>True if the student is on the IsEligible list of any active or upcoming semester (EndDate ≥ now).</summary>
+        Task<bool> IsStudentEligibleNowAsync(Guid studentId, CancellationToken cancellationToken = default);
     }
 }

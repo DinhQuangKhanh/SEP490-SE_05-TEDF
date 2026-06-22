@@ -11,13 +11,16 @@ namespace TEDF.Persistence.SqlServer.Configurations.Semester
             builder.ToTable("EligibleStudents");
 
             builder.HasKey(e => e.Id);
-            
+
             // Auto increment ID
             builder.Property(e => e.Id).ValueGeneratedOnAdd();
-            
+
             builder.Property(e => e.StudentCode)
                 .HasMaxLength(50)
                 .IsRequired();
+
+            builder.Property(e => e.Email).HasMaxLength(256);
+            builder.Property(e => e.PhoneNumber).HasMaxLength(30);
 
             builder.HasIndex(e => new { e.SemesterId, e.StudentId }).IsUnique();
         }

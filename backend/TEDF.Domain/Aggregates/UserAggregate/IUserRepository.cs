@@ -56,6 +56,11 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         Task<User?> GetByStudentCodeAsync(string studentCode, CancellationToken ct = default);
 
         /// <summary>
+        /// Gets a user (mentor/staff) by their employee code.
+        /// </summary>
+        Task<User?> GetByEmployeeCodeAsync(string employeeCode, CancellationToken ct = default);
+
+        /// <summary>
         /// Gets a paginated list of users, optionally filtered by role and search term.
         /// Search matches against FullName, Email, StudentCode, and EmployeeCode.
         /// </summary>

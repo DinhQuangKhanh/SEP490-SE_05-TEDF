@@ -13,6 +13,7 @@ using StackExchange.Redis;
 using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Services;
 using TEDF.Infrastructure.Authentication;
 using TEDF.Infrastructure.Authorization;
@@ -120,6 +121,44 @@ namespace TEDF.Infrastructure
                             .GetRequiredService<IUserRepository>();
 
                         var user = await userRepo.GetByFirebaseUidAsync(firebaseUid);
+                        if (user is null)
+                        {
+                            // First Google login of an imported "pending" account: link it by the
+                            // verified FPT email so the account gets its real FirebaseUid.
+                            var email = context.Principal?.FindFirstValue("email")
+                                ?? context.Principal?.FindFirstValue(ClaimTypes.Email);
+                            var emailVerified = context.Principal?.FindFirstValue("email_verified");
+
+                            if (!string.IsNullOrEmpty(email)
+                                && !string.Equals(emailVerified, "false", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var pending = await userRepo.GetByEmailAsync(email);
+                                if (pending is not null && pending.IsPendingActivation)
+                                {
+                                    pending.LinkFirebaseAccount(firebaseUid);
+                                    await userRepo.UpdateAsync(pending);
+                                    await context.HttpContext.RequestServices
+                                        .GetRequiredService<IUnitOfWork>()
+                                        .SaveChangesAsync();
+
+                                    // Best-effort: push roles to Firebase so later tokens carry custom claims.
+                                    try
+                                    {
+                                        var firebaseAuth = context.HttpContext.RequestServices
+                                            .GetService<IFirebaseAuthService>();
+                                        if (firebaseAuth is not null)
+                                            await firebaseAuth.SetCustomClaimsAsync(firebaseUid, new Dictionary<string, object>
+                                            {
+                                                ["dbUserId"] = pending.Id.ToString(),
+                                                ["roles"] = pending.GetActiveRoles().ToArray()
+                                            });
+                                    }
+                                    catch { /* claims sync is best-effort */ }
+
+                                    user = pending;
+                                }
+                            }
+                        }
                         if (user is null) return;
 
                         var identity = context.Principal!.Identity as ClaimsIdentity;
@@ -144,6 +183,7 @@ namespace TEDF.Infrastructure
             services.AddScoped<IAuthorizationHandler, GroupLeaderAuthorizationHandler>();
             services.AddScoped<IAuthorizationHandler, MentorOfProjectAuthorizationHandler>();
             services.AddScoped<IAuthorizationHandler, DepartmentHeadOfDepartmentAuthorizationHandler>();
+            services.AddScoped<IAccessControlService, AccessControlService>();
 
             // Firebase Auth Service
             services.AddScoped<IFirebaseAuthService, FirebaseAuthService>();
@@ -215,6 +255,7 @@ namespace TEDF.Infrastructure
             services.AddScoped<MeetingReminderJob>();
             services.AddScoped<GroupJoinRequestExpirationJob>();
             services.AddScoped<DataCleanupJob>();
+            services.AddScoped<SendEligibleStudentEmailsJob>();
 
             var hangfireConn = configuration.GetConnectionString("HangfireConnection") ?? configuration.GetConnectionString("DefaultConnection");
             services.AddHangfire(c => c.SetDataCompatibilityLevel(CompatibilityLevel.Version_180).UseSimpleAssemblyNameTypeSerializer().UseRecommendedSerializerSettings().UseSqlServerStorage(hangfireConn));

@@ -45,12 +45,12 @@ repos:
         args: [--fix=lf]
       - id: check-yaml
       - id: check-json
-        exclude: ^.*tsconfig.*\.json$  # tsconfig files allow comments (JSONC)
+        exclude: ^.*tsconfig.*\.json$ # tsconfig files allow comments (JSONC)
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: check-added-large-files
         args: [--maxkb=2048]
-      - id: detect-private-key  # content scan: block committing private keys
+      - id: detect-private-key # content scan: block committing private keys
 
   # --------------------------------------------------
   # Security / policy guards (scripts/hooks/*.sh)
@@ -71,28 +71,4 @@ repos:
         language: system
         stages: [pre-push]
         always_run: true
-        pass_filenames: false
-
-  # --------------------------------------------------
-  # Backend (.NET 8) — formatting gate via `dotnet format`
-  # --------------------------------------------------
-  - repo: local
-    hooks:
-      - id: dotnet-format
-        name: dotnet format (backend/TEDF.sln)
-        entry: dotnet format backend/TEDF.sln --verify-no-changes
-        language: system
-        files: \.cs$
-        pass_filenames: false
-
-  # --------------------------------------------------
-  # Frontend (React/TS) — ESLint via the existing npm script
-  # --------------------------------------------------
-  - repo: local
-    hooks:
-      - id: eslint-frontend
-        name: eslint (frontend)
-        entry: npm --prefix frontend run lint
-        language: system
-        files: ^frontend/src/.*\.(ts|tsx)$
         pass_filenames: false

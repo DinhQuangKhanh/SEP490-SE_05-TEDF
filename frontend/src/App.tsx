@@ -1,5 +1,5 @@
 import { NotFoundPage, AccessDeniedPage } from "@/pages/errors";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -10,11 +10,11 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminLayout, LecturerLayout, StudentLayout } from "@/components/layout";
 import {
   LoginPage,
-  DashboardPage,
+  IneligiblePage,
   SettingsPage,
   SemestersPage,
+  SemesterRosterPage,
   UsersPage,
-  ProjectsPage,
   SupportPage,
   LecturerModerationPage,
   LecturerHistoryPage,
@@ -65,6 +65,15 @@ function RoleBasedRedirect() {
   return <Navigate to={roleHomeMap[activeRole || user.role] ?? "/login"} replace />;
 }
 
+/** When the signed-in account is blocked by the server gate, show the ineligible screen instead of the app. */
+function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
+  const { isAuthenticated, access } = useAuth();
+  if (isAuthenticated && access && !access.allowed) {
+    return <IneligiblePage />;
+  }
+  return <>{children}</>;
+}
+
 function App() {
   // Apply saved theme color on app initialization
   useEffect(() => {
@@ -78,6 +87,7 @@ function App() {
       <AuthProvider>
         <SystemErrorProvider>
           <BrandingProvider>
+          <AccessGate>
           <AnimatePresence mode="wait">
             <Routes>
               {/* Public Routes */}
@@ -94,12 +104,12 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<DashboardPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route index element={<Navigate to="/admin/semesters" replace />} />
                 <Route path="semesters" element={<SemestersPage />} />
+                <Route path="semesters/:id/roster" element={<SemesterRosterPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="projects" element={<ProjectsPage />} />
                 <Route path="activity-logs" element={<ActivityLogsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="support" element={<SupportPage />} />
               </Route>
 
@@ -163,6 +173,7 @@ function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </AnimatePresence>
+          </AccessGate>
           </BrandingProvider>
         </SystemErrorProvider>
       </AuthProvider>
