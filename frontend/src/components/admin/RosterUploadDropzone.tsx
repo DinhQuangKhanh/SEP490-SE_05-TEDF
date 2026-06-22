@@ -28,7 +28,7 @@ export function RosterUploadDropzone({
   templateHref,
   templateLabel = "Tải file mẫu (.csv)",
   disabled = false,
-}: RosterUploadDropzoneProps) {
+}: Readonly<RosterUploadDropzoneProps>) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pick = (f: File | undefined) => {
@@ -47,10 +47,14 @@ export function RosterUploadDropzone({
         onChange={(e) => pick(e.target.files?.[0])}
       />
       <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-label={file ? "Tệp đã chọn, nhấn để xóa hoặc chọn lại" : label}
         className={`border-2 border-dashed rounded-xl p-6 transition-colors group ${
           disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
         } ${file ? "border-green-300 bg-green-50/30" : "border-slate-200 hover:border-primary/50"}`}
         onClick={() => !file && !disabled && inputRef.current?.click()}
+        onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !file && !disabled) inputRef.current?.click(); }}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();

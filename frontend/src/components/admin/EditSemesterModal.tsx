@@ -301,7 +301,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                   onClick={goToRoster}
                   className="flex items-center gap-1 px-3 py-2 text-xs font-bold transition-colors border rounded-md whitespace-nowrap text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
                 >
-                  Quản lý danh sách
+                  Quản lý danh sách{" "}
                   <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                 </button>
               </div>
@@ -323,7 +323,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
               >
                 {isSubmitting ? (
                   <>
-                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}
                     Đang lưu...
                   </>
                 ) : (

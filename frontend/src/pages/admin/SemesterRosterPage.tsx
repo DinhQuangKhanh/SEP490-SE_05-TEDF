@@ -15,7 +15,7 @@ import type {
 
 type Tab = "students" | "mentors";
 
-const ACCEPTED = ["csv", "xlsx", "xls"];
+const ACCEPTED = new Set(["csv", "xlsx", "xls"]);
 const PAGE_SIZE = 20;
 
 /** Gom các dòng lỗi theo lý do để hiển thị gọn. */
@@ -56,6 +56,12 @@ export function SemesterRosterPage() {
 
   const isPublished = !!semester?.rosterPublishedAt;
   const canPublish = semester?.status === "Upcoming" && !isPublished;
+
+  const publishButtonTitle = (() => {
+    if (isPublished) return "Danh sách đã được công bố";
+    if (semester?.status === "Upcoming") return undefined;
+    return "Chỉ công bố được khi kỳ học ở trạng thái Sắp tới";
+  })();
 
   const loadRoster = useCallback(async () => {
     if (!Number.isFinite(semesterId)) {
@@ -108,7 +114,7 @@ export function SemesterRosterPage() {
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!ACCEPTED.includes(ext ?? "")) {
+    if (!ACCEPTED.has(ext ?? "")) {
       setError("Chỉ chấp nhận file .csv, .xlsx hoặc .xls");
       return;
     }
@@ -169,15 +175,6 @@ export function SemesterRosterPage() {
     }
   };
 
-  const statusPill = (active: boolean, onLabel: string, offLabel: string) => (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-        active ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-100 text-slate-500 border-slate-200"
-      }`}
-    >
-      {active ? onLabel : offLabel}
-    </span>
-  );
 
   // Lọc theo tìm kiếm (client).
   const filteredStudents = useMemo(() => {
@@ -251,19 +248,13 @@ export function SemesterRosterPage() {
               title="Làm mới danh sách"
               className="flex items-center gap-2 px-3 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-slate-300 text-slate-700 hover:bg-slate-50"
             >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              <span className="material-symbols-outlined text-[18px]">refresh</span>{" "}
               Làm mới
             </button>
             <button
               onClick={() => setShowPublishConfirm(true)}
               disabled={!canPublish || publishing}
-              title={
-                isPublished
-                  ? "Danh sách đã được công bố"
-                  : semester?.status !== "Upcoming"
-                    ? "Chỉ công bố được khi kỳ học ở trạng thái Sắp tới"
-                    : undefined
-              }
+              title={publishButtonTitle}
               className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[18px]">campaign</span>
@@ -370,113 +361,19 @@ export function SemesterRosterPage() {
 
         {/* Tables */}
         <div className="overflow-x-auto bg-white border rounded-lg border-slate-200">
-          {tab === "students" ? (
-            <table className="w-full text-sm">
-              <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 font-semibold text-left">MSSV</th>
-                  <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
-                  <th className="px-4 py-3 font-semibold text-left">Email</th>
-                  <th className="px-4 py-3 font-semibold text-left">SĐT</th>
-                  <th className="px-4 py-3 font-semibold text-left">Ngành</th>
-                  <th className="px-4 py-3 font-semibold text-left">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                      {totalUnfiltered === 0
-                        ? "Chưa có sinh viên nào. Hãy nhập danh sách từ Excel."
-                        : "Không tìm thấy kết quả phù hợp."}
-                    </td>
-                  </tr>
-                ) : (
-                  pagedStudents.map((s) => (
-                    <tr key={s.studentId} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{s.studentCode}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{s.fullName ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{s.email ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{s.phoneNumber ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{s.programName ?? s.programCode ?? "—"}</td>
-                      <td className="px-4 py-2.5">{statusPill(s.isEligible, "Đủ điều kiện", "Đã thu hồi")}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 font-semibold text-left">Mã GV</th>
-                  <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
-                  <th className="px-4 py-3 font-semibold text-left">Email</th>
-                  <th className="px-4 py-3 font-semibold text-left">SĐT</th>
-                  <th className="px-4 py-3 font-semibold text-left">Bộ môn</th>
-                  <th className="px-4 py-3 font-semibold text-left">Ngành hướng dẫn</th>
-                  <th className="px-4 py-3 font-semibold text-left">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredMentors.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                      {totalUnfiltered === 0
-                        ? "Chưa có giảng viên nào. Hãy nhập danh sách từ Excel."
-                        : "Không tìm thấy kết quả phù hợp."}
-                    </td>
-                  </tr>
-                ) : (
-                  pagedMentors.map((m) => (
-                    <tr key={m.mentorId} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{m.employeeCode}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{m.fullName ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{m.email ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{m.phoneNumber ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-slate-600">
-                        {m.division ? (
-                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-600">
-                            {m.division}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={m.majorId ?? ""}
-                            disabled={savingMentorId === m.mentorId || isPublished}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value) handleMentorMajorChange(m.mentorId, Number(value));
-                            }}
-                            className={`px-2 py-1 text-xs border rounded-md outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60 ${
-                              m.majorId == null ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200"
-                            }`}
-                          >
-                            {m.majorId == null && <option value="">— Chọn ngành —</option>}
-                            {majors.map((maj) => (
-                              <option key={maj.id} value={maj.id}>
-                                {maj.name}
-                              </option>
-                            ))}
-                          </select>
-                          {savingMentorId === m.mentorId && (
-                            <span className="material-symbols-outlined animate-spin text-[16px] text-slate-400">
-                              progress_activity
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">{statusPill(m.isAssigned, "Đã phân công", "Đã thu hồi")}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+          {tab === "students"
+            ? <StudentTable rows={pagedStudents} totalUnfiltered={totalUnfiltered} />
+            : (
+              <MentorTable
+                rows={pagedMentors}
+                totalUnfiltered={totalUnfiltered}
+                majors={majors}
+                savingMentorId={savingMentorId}
+                isPublished={isPublished}
+                onMajorChange={handleMentorMajorChange}
+              />
+            )
+          }
         </div>
 
         {/* Pagination */}
@@ -504,59 +401,181 @@ export function SemesterRosterPage() {
           </div>
         )}
 
-        {/* Publish confirm dialog */}
-        <AnimatePresence>
-          {showPublishConfirm && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => !publishing && setShowPublishConfirm(false)}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl"
-              >
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-amber-600 bg-amber-100 rounded-full">
-                  <span className="material-symbols-outlined text-[26px]">campaign</span>
-                </div>
-                <h3 className="mb-2 text-lg font-bold text-center text-slate-800">Công bố danh sách?</h3>
-                <p className="mb-6 text-sm text-center text-slate-500">
-                  Hành động này sẽ <strong>gửi thông báo cho giảng viên</strong> và <strong>email cho toàn bộ sinh
-                  viên đủ điều kiện</strong>. Bạn không thể hoàn tác.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowPublishConfirm(false)}
-                    disabled={publishing}
-                    className="flex-1 px-4 py-2 text-sm font-semibold transition-colors border rounded-md border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    onClick={handlePublish}
-                    disabled={publishing}
-                    className="flex items-center justify-center flex-1 gap-2 px-4 py-2 text-sm font-bold text-white transition-colors rounded-md bg-primary hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {publishing ? (
-                      <>
-                        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                        Đang công bố...
-                      </>
-                    ) : (
-                      "Xác nhận công bố"
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PublishConfirmDialog
+          open={showPublishConfirm}
+          publishing={publishing}
+          onConfirm={handlePublish}
+          onClose={() => setShowPublishConfirm(false)}
+        />
       </div>
     </div>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function StatusPill({ active, onLabel, offLabel }: Readonly<{ active: boolean; onLabel: string; offLabel: string }>) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+      active ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-100 text-slate-500 border-slate-200"
+    }`}>
+      {active ? onLabel : offLabel}
+    </span>
+  );
+}
+
+function StudentTable({ rows, totalUnfiltered }: Readonly<{ rows: EligibleStudentDto[]; totalUnfiltered: number }>) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
+        <tr>
+          <th className="px-4 py-3 font-semibold text-left">MSSV</th>
+          <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
+          <th className="px-4 py-3 font-semibold text-left">Email</th>
+          <th className="px-4 py-3 font-semibold text-left">SĐT</th>
+          <th className="px-4 py-3 font-semibold text-left">Ngành</th>
+          <th className="px-4 py-3 font-semibold text-left">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {rows.length === 0 ? (
+          <tr>
+            <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+              {totalUnfiltered === 0 ? "Chưa có sinh viên nào. Hãy nhập danh sách từ Excel." : "Không tìm thấy kết quả phù hợp."}
+            </td>
+          </tr>
+        ) : rows.map((s) => (
+          <tr key={s.studentId} className="hover:bg-slate-50">
+            <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{s.studentCode}</td>
+            <td className="px-4 py-2.5 text-slate-700">{s.fullName ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-500">{s.email ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-500">{s.phoneNumber ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-500">{s.programName ?? s.programCode ?? "—"}</td>
+            <td className="px-4 py-2.5"><StatusPill active={s.isEligible} onLabel="Đủ điều kiện" offLabel="Đã thu hồi" /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+interface MentorTableProps {
+  rows: EligibleMentorDto[];
+  totalUnfiltered: number;
+  majors: MajorOption[];
+  savingMentorId: string | null;
+  isPublished: boolean;
+  onMajorChange: (mentorId: string, majorId: number) => void;
+}
+
+function MentorTable({ rows, totalUnfiltered, majors, savingMentorId, isPublished, onMajorChange }: Readonly<MentorTableProps>) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
+        <tr>
+          <th className="px-4 py-3 font-semibold text-left">Mã GV</th>
+          <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
+          <th className="px-4 py-3 font-semibold text-left">Email</th>
+          <th className="px-4 py-3 font-semibold text-left">SĐT</th>
+          <th className="px-4 py-3 font-semibold text-left">Bộ môn</th>
+          <th className="px-4 py-3 font-semibold text-left">Ngành hướng dẫn</th>
+          <th className="px-4 py-3 font-semibold text-left">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {rows.length === 0 ? (
+          <tr>
+            <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+              {totalUnfiltered === 0 ? "Chưa có giảng viên nào. Hãy nhập danh sách từ Excel." : "Không tìm thấy kết quả phù hợp."}
+            </td>
+          </tr>
+        ) : rows.map((m) => (
+          <tr key={m.mentorId} className="hover:bg-slate-50">
+            <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{m.employeeCode}</td>
+            <td className="px-4 py-2.5 text-slate-700">{m.fullName ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-500">{m.email ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-500">{m.phoneNumber ?? "—"}</td>
+            <td className="px-4 py-2.5 text-slate-600">
+              {m.division
+                ? <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-600">{m.division}</span>
+                : "—"
+              }
+            </td>
+            <td className="px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <select
+                  value={m.majorId ?? ""}
+                  disabled={savingMentorId === m.mentorId || isPublished}
+                  onChange={(e) => { if (e.target.value) onMajorChange(m.mentorId, Number(e.target.value)); }}
+                  className={`px-2 py-1 text-xs border rounded-md outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-60 ${m.majorId == null ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200"}`}
+                >
+                  {m.majorId == null && <option value="">— Chọn ngành —</option>}
+                  {majors.map((maj) => <option key={maj.id} value={maj.id}>{maj.name}</option>)}
+                </select>
+                {savingMentorId === m.mentorId && (
+                  <span className="material-symbols-outlined animate-spin text-[16px] text-slate-400">progress_activity</span>
+                )}
+              </div>
+            </td>
+            <td className="px-4 py-2.5"><StatusPill active={m.isAssigned} onLabel="Đã phân công" offLabel="Đã thu hồi" /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+interface PublishConfirmDialogProps {
+  open: boolean;
+  publishing: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+function PublishConfirmDialog({ open, publishing, onConfirm, onClose }: Readonly<PublishConfirmDialogProps>) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => !publishing && onClose()}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl"
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-amber-600 bg-amber-100 rounded-full">
+              <span className="material-symbols-outlined text-[26px]">campaign</span>
+            </div>
+            <h3 className="mb-2 text-lg font-bold text-center text-slate-800">Công bố danh sách?</h3>
+            <p className="mb-6 text-sm text-center text-slate-500">
+              Hành động này sẽ <strong>gửi thông báo cho giảng viên</strong> và{" "}
+              <strong>email cho toàn bộ sinh viên đủ điều kiện</strong>. Bạn không thể hoàn tác.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose} disabled={publishing}
+                className="flex-1 px-4 py-2 text-sm font-semibold transition-colors border rounded-md border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={onConfirm} disabled={publishing}
+                className="flex items-center justify-center flex-1 gap-2 px-4 py-2 text-sm font-bold text-white transition-colors rounded-md bg-primary hover:bg-primary/90 disabled:opacity-50"
+              >
+                {publishing
+                  ? <><span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}Đang công bố...</>
+                  : "Xác nhận công bố"
+                }
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

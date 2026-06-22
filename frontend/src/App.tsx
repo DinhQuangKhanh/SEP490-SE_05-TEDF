@@ -75,7 +75,7 @@ function RoleBasedRedirect() {
 }
 
 /** When the signed-in account is blocked by the server gate, show the ineligible screen instead of the app. */
-function AccessGate({ children }: { children: ReactNode }) {
+function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
   const { isAuthenticated, access } = useAuth();
   if (isAuthenticated && access && !access.allowed) {
     return <IneligiblePage />;

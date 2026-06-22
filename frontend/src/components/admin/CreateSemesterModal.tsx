@@ -460,7 +460,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     onClick={goToRoster}
                     className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90"
                   >
-                    <span className="material-symbols-outlined text-[18px]">group</span>
+                    <span className="material-symbols-outlined text-[18px]">group</span>{" "}
                     Quản lý danh sách
                   </button>
                 </>
@@ -480,7 +480,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                   >
                     {isSubmitting ? (
                       <>
-                        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}
                         Đang tạo...
                       </>
                     ) : (

@@ -8,12 +8,11 @@ export function IneligiblePage() {
   const { access, user, logout } = useAuth();
   const kind = access?.kind ?? null;
 
-  const { title, icon } =
-    kind === "locked"
-      ? { title: "Tài khoản đã bị khóa", icon: "lock" }
-      : kind === "inactive"
-        ? { title: "Tài khoản đã bị vô hiệu hóa", icon: "block" }
-        : { title: "Bạn chưa đủ điều kiện truy cập", icon: "school" };
+  let title: string;
+  let icon: string;
+  if (kind === "locked") { title = "Tài khoản đã bị khóa"; icon = "lock"; }
+  else if (kind === "inactive") { title = "Tài khoản đã bị vô hiệu hóa"; icon = "block"; }
+  else { title = "Bạn chưa đủ điều kiện truy cập"; icon = "school"; }
 
   const reason =
     access?.reason ??
@@ -39,7 +38,7 @@ export function IneligiblePage() {
           onClick={logout}
           className="flex items-center justify-center w-full gap-2 px-4 py-2.5 mt-6 text-sm font-bold text-white transition-colors rounded-md bg-primary hover:bg-primary/90"
         >
-          <span className="material-symbols-outlined text-[18px]">logout</span>
+          <span className="material-symbols-outlined text-[18px]">logout</span>{" "}
           Đăng xuất
         </button>
       </div>
