@@ -96,6 +96,8 @@ function MyGroupContent() {
   const [pendingJoinRequest, setPendingJoinRequest] = useState<PendingJoinRequestDto | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [selectedJoinRequests, setSelectedJoinRequests] = useState<Set<number>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Invite picker (students not yet in a group)
   const [invitableStudents, setInvitableStudents] = useState<AvailableStudentDto[]>([]);
@@ -224,6 +226,60 @@ function MyGroupContent() {
       showError(err instanceof Error ? err.message : "Không thể từ chối yêu cầu");
     }
   };
+
+  const handleSelectAllRequests = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = joinRequests.map((r) => r.id);
+      setSelectedJoinRequests(new Set(allIds));
+    } else {
+      setSelectedJoinRequests(new Set());
+    }
+  };
+
+  const handleSelectRequest = (requestId: number, checked: boolean) => {
+    const newSelected = new Set(selectedJoinRequests);
+    if (checked) {
+      newSelected.add(requestId);
+    } else {
+      newSelected.delete(requestId);
+    }
+    setSelectedJoinRequests(newSelected);
+  };
+
+  const handleBulkApproveRequests = async () => {
+    if (!myGroup || selectedJoinRequests.size === 0) return;
+
+    try {
+      setBulkProcessing(true);
+      const result = await studentGroupService.bulkApproveJoinRequests(myGroup.groupId, Array.from(selectedJoinRequests));
+      setSuccessMessage(result.message);
+      setShowSuccessModal(true);
+      setSelectedJoinRequests(new Set());
+      fetchGroupData();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Có lỗi xảy ra khi chấp nhận hàng loạt");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkRejectRequests = async () => {
+    if (!myGroup || selectedJoinRequests.size === 0) return;
+    try {
+      setBulkProcessing(true);
+      const result = await studentGroupService.bulkRejectJoinRequests(myGroup.groupId, Array.from(selectedJoinRequests));
+      setSuccessMessage(result.message);
+      setShowSuccessModal(true);
+      setSelectedJoinRequests(new Set());
+      fetchGroupData();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Có lỗi xảy ra khi từ chối hàng loạt");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const availableSlots = myGroup ? myGroup.maxMembers - (myGroup.members?.length || 0) : 0;
 
   if (loading) {
     return (
@@ -359,21 +415,60 @@ function MyGroupContent() {
         {/* Join Requests */}
         {joinRequests.length > 0 && (
           <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
-            <h3 className="mb-4 text-lg font-bold text-gray-800">Yêu cầu tham gia ({joinRequests.length})</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  disabled={joinRequests.length > availableSlots}
+                  checked={selectedJoinRequests.size === joinRequests.length && joinRequests.length > 0}
+                  onChange={handleSelectAllRequests}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <h3 className="text-lg font-bold text-gray-800">Yêu cầu tham gia ({joinRequests.length})</h3>
+              </div>
+              {selectedJoinRequests.size > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    disabled={bulkProcessing}
+                    onClick={handleBulkRejectRequests}
+                    className="px-3 py-1.5 text-sm font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    Từ chối đã chọn ({selectedJoinRequests.size})
+                  </button>
+                  <button
+                    disabled={bulkProcessing}
+                    onClick={handleBulkApproveRequests}
+                    className="px-3 py-1.5 text-sm font-semibold text-green-700 transition rounded-lg bg-green-50 hover:bg-green-100 disabled:opacity-50"
+                  >
+                    Chấp nhận đã chọn ({selectedJoinRequests.size})
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="space-y-3">
               {joinRequests.map((request) => (
-                <div key={request.id} className="p-4 border border-yellow-200 rounded-lg bg-yellow-50">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-800">{request.studentName}</p>
-                      <p className="text-sm text-gray-600">{request.studentCode}</p>
-                      {request.message && <p className="mt-2 text-sm italic text-gray-700">"{request.message}"</p>}
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {new Date(request.createdAt).toLocaleDateString("vi-VN")}
-                    </span>
+                <div key={request.id} className="p-4 border border-yellow-200 rounded-lg bg-yellow-50 flex gap-4">
+                  <div className="pt-1">
+                    <input
+                      type="checkbox"
+                      disabled={!selectedJoinRequests.has(request.id) && selectedJoinRequests.size >= availableSlots}
+                      checked={selectedJoinRequests.has(request.id)}
+                      onChange={(e) => handleSelectRequest(request.id, e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-gray-800">{request.studentName}</p>
+                        <p className="text-sm text-gray-600">{request.studentCode}</p>
+                        {request.message && <p className="mt-2 text-sm italic text-gray-700">"{request.message}"</p>}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(request.createdAt).toLocaleDateString("vi-VN")}
+                      </span>
+                    </div>
+                    <div className="flex justify-end gap-2">
                     <button
                       onClick={() => handleRejectRequest(request.id)}
                       className="px-4 py-2 text-sm font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100"
@@ -386,6 +481,7 @@ function MyGroupContent() {
                     >
                       Chấp nhận
                     </button>
+                  </div>
                   </div>
                 </div>
               ))}

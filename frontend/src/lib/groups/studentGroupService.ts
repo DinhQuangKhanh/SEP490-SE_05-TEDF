@@ -1,6 +1,7 @@
 import {
   AvailableStudentDto,
   GroupRegistrationDto,
+  BulkOperationResultDto,
   InvitationDto,
   JoinRequestDto,
   MentorGroupDto,
@@ -57,6 +58,12 @@ export const studentGroupService = {
 
   rejectJoinRequest: (groupId: string, requestId: number) =>
     apiClient.put<void>(`${routes.studentGroups.joinRequests(groupId)}/${requestId}/reject`),
+
+  bulkApproveJoinRequests: (groupId: string, requestIds: number[]) =>
+    apiClient.put<BulkOperationResultDto>(routes.studentGroups.bulkApproveJoinRequests(groupId), { requestIds }),
+
+  bulkRejectJoinRequests: (groupId: string, requestIds: number[]) =>
+    apiClient.put<BulkOperationResultDto>(routes.studentGroups.bulkRejectJoinRequests(groupId), { requestIds }),
 
   /** Group leader registers the group for a topic from the pool. */
   registerTopic: (params: { projectId: string; groupId: string; note?: string }) =>

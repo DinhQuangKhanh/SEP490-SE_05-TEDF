@@ -6,6 +6,7 @@ using TEDF.Application.Features.StudentGroups.Commands.InviteMember;
 using TEDF.Application.Features.StudentGroups.Commands.RequestJoin;
 using TEDF.Application.Features.StudentGroups.Commands.RespondInvitation;
 using TEDF.Application.Features.StudentGroups.Commands.RespondJoinRequest;
+using TEDF.Application.Features.StudentGroups.Commands.BulkRespondJoinRequests;
 using TEDF.Application.Features.StudentGroups.Queries.GetGroupJoinRequests;
 using TEDF.Application.Features.StudentGroups.Queries.GetInvitableStudents;
 using TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
@@ -39,6 +40,9 @@ public sealed class StudentGroupEndpoints : IEndpoint
         group.MapPut("/{groupId:guid}/invitations/{invitationId:int}/reject", RejectInvitation).WithTags("Groups").WithName("RejectInvitation").Produces(204).Produces(401);
         group.MapPut("/{groupId:guid}/join-requests/{requestId:int}/approve", ApproveJoinRequest).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("ApproveJoinRequest").Produces(204).Produces(401);
         group.MapPut("/{groupId:guid}/join-requests/{requestId:int}/reject", RejectJoinRequest).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("RejectJoinRequest").Produces(204).Produces(401);
+
+        group.MapPut("/{groupId:guid}/join-requests/bulk-approve", BulkApproveJoinRequests).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("BulkApproveJoinRequests").Produces(200).Produces(400).Produces(401);
+        group.MapPut("/{groupId:guid}/join-requests/bulk-reject", BulkRejectJoinRequests).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("BulkRejectJoinRequests").Produces(200).Produces(400).Produces(401);
 
         group.MapGet("/mentor", GetMentorGroups).RequireAuthorization(PolicyNames.RequireMentor).WithTags("Groups").WithName("GetMentorGroups").Produces(200).Produces(401);
 
@@ -103,6 +107,18 @@ public sealed class StudentGroupEndpoints : IEndpoint
     {
         await sender.Send(new RespondJoinRequestCommand(groupId, requestId, Approve: false), ct);
         return NoContent("Từ chối yêu cầu tham gia thành công.");
+    }
+
+    private static async Task<IResult> BulkApproveJoinRequests(Guid groupId, [FromBody] BulkRespondJoinRequestsRequest request, ISender sender, CancellationToken ct)
+    {
+        var result = await sender.Send(new BulkRespondJoinRequestsCommand(groupId, request.RequestIds, Approve: true), ct);
+        return Ok(result, result.Message);
+    }
+
+    private static async Task<IResult> BulkRejectJoinRequests(Guid groupId, [FromBody] BulkRespondJoinRequestsRequest request, ISender sender, CancellationToken ct)
+    {
+        var result = await sender.Send(new BulkRespondJoinRequestsCommand(groupId, request.RequestIds, Approve: false), ct);
+        return Ok(result, result.Message);
     }
 
     private static async Task<IResult> GetMentorGroups(int? semesterId, ISender sender, CancellationToken ct)

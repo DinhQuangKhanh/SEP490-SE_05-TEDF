@@ -86,3 +86,16 @@ export interface AvailableStudentDto {
   studentCode: string;
   fullName: string;
 }
+
+export interface BulkOperationResultDto {
+  totalRequested: number;
+  successCount: number;
+  failures: BulkItemFailureDto[];
+  message: string;
+}
+
+export interface BulkItemFailureDto {
+  id: number;
+  error: string;
+}
+

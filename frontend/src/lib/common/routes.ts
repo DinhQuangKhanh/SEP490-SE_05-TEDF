@@ -71,6 +71,8 @@ export const routes = {
     joinRequests: (groupId: string) => `/api/groups/${groupId}/join-requests`,
     invitableStudents: (groupId: string) => `/api/groups/${groupId}/invitable-students`,
     invitations: (groupId: string) => `/api/groups/${groupId}/invitations`,
+    bulkApproveJoinRequests: (groupId: string) => `/api/groups/${groupId}/join-requests/bulk-approve`,
+    bulkRejectJoinRequests: (groupId: string) => `/api/groups/${groupId}/join-requests/bulk-reject`,
   },
   studentTopics: {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
