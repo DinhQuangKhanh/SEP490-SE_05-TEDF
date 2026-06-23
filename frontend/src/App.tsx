@@ -133,6 +133,7 @@ function App() {
                 <Route path="moderate/:id" element={<LecturerReviewPage />} />
                 <Route path="history" element={<LecturerHistoryPage />} />
                 <Route path="support" element={<LecturerSupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
                 {/* Department-Head-only pages */}
                 <Route
                   path="dashboard"
@@ -166,10 +167,12 @@ function App() {
                 <Route path="topics" element={<StudentTopicsPage />} />
                 <Route path="groups" element={<StudentGroupPage />} />
                 <Route path="support" element={<StudentSupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Smart redirect: root goes to role-based home */}
               <Route path="/" element={<RoleBasedRedirect />} />
+
 
               {/* 404 — any unmatched route */}
               <Route path="*" element={<NotFoundPage />} />
