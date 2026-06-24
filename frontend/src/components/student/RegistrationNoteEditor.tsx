@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import DOMPurify from "dompurify";
@@ -10,7 +10,7 @@ import {
   MAX_TOTAL_SIZE_BYTES,
   formatFileSize,
   isSuspiciousDoubleExtension,
-  uploadService,
+  topicPoolService,
 } from "@/lib";
 import type { NoteAttachment } from "@/types";
 
@@ -39,22 +39,24 @@ function fileIcon(name: string): string {
   return FILE_ICON_MAP[getExt(name)] ?? "draft";
 }
 
-const TOOLBAR = [
-  ["bold", "italic", "underline", "strike"],
-  [{ list: "ordered" }, { list: "bullet" }],
-  ["link", "image"],
-  ["clean"],
-];
+const FORMATS_BASE = ["bold", "italic", "underline", "strike", "list", "link"];
 
-const FORMATS = ["bold", "italic", "underline", "strike", "list", "link", "image"];
+function buildToolbar(allowImage: boolean) {
+  return [
+    ["bold", "italic", "underline", "strike"],
+    [{ list: "ordered" }, { list: "bullet" }],
+    allowImage ? ["link", "image"] : ["link"],
+    ["clean"],
+  ];
+}
 
-/** Quill's empty value is "<p><br></p>"; treat as empty when there's no text and no embedded media. */
+/** Quill's empty value is "<p><br></p>"; treat as empty when there's no text and no embedded media.
+ *  Parsed via the DOM (no regex) so there's no backtracking / ReDoS risk on arbitrary HTML. */
 export function isQuillNoteEmpty(html: string): boolean {
-  const hasMedia = /<img|<a\s/i.test(html);
-  const text = html
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .trim();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const hasMedia = doc.body.querySelector("img, a") !== null;
+  // String.trim() also strips non-breaking spaces, so an "&nbsp;"-only note counts as empty.
+  const text = (doc.body.textContent ?? "").trim();
   return !hasMedia && text.length === 0;
 }
 
@@ -103,24 +105,32 @@ export function RegistrationNoteView({ note, className }: { note: string; classN
   const { html, attachments } = parseNote(note);
   const safeHtml = html ? DOMPurify.sanitize(html, { ADD_ATTR: ["target", "rel"] }) : "";
   const [viewerFile, setViewerFile] = useState<ViewerFile | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Clicking an inline image opens it in the preview modal instead of navigating.
-  const handleBodyClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === "IMG") {
-      const src = (target as HTMLImageElement).src;
-      if (src) {
-        e.preventDefault();
-        setViewerFile({ url: src, name: "Hình ảnh" });
+  // Inline images are injected HTML, so delegate clicks via a native listener (no JSX onClick on a
+  // non-interactive container): clicking an image opens it in the preview modal.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "IMG") {
+        const src = (target as HTMLImageElement).src;
+        if (src) {
+          e.preventDefault();
+          setViewerFile({ url: src, name: "Hình ảnh" });
+        }
       }
-    }
-  };
+    };
+    el.addEventListener("click", onClick);
+    return () => el.removeEventListener("click", onClick);
+  }, [safeHtml]);
 
   return (
     <div className={className}>
       {safeHtml && (
         <div
-          onClick={handleBodyClick}
+          ref={bodyRef}
           className="text-sm [&_img]:max-w-full [&_img]:rounded [&_img]:cursor-pointer [&_a]:text-primary [&_a]:underline"
           dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
@@ -155,6 +165,9 @@ interface RegistrationNoteEditorProps {
   attachments: NoteAttachment[];
   onAttachmentsChange: (next: NoteAttachment[]) => void;
   onError?: (message: string) => void;
+  /** Enables inline image insertion + the file-attachment section. Default true (lecturer flow);
+   *  the student registration-note flow passes false (text + link only). */
+  allowAttachments?: boolean;
 }
 
 export function RegistrationNoteEditor({
@@ -163,6 +176,7 @@ export function RegistrationNoteEditor({
   attachments,
   onAttachmentsChange,
   onError,
+  allowAttachments = true,
 }: RegistrationNoteEditorProps) {
   const quillRef = useRef<ReactQuill>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -185,7 +199,7 @@ export function RegistrationNoteEditor({
       }
       try {
         setImageUploading(true);
-        const res = await uploadService.uploadNoteAttachment(file);
+        const res = await topicPoolService.uploadNoteAttachment(file);
         const editor = quillRef.current?.getEditor();
         if (!editor) return;
         const range = editor.getSelection(true);
@@ -208,12 +222,14 @@ export function RegistrationNoteEditor({
   const modules = useMemo(
     () => ({
       toolbar: {
-        container: TOOLBAR,
-        handlers: { image: () => imageHandlerRef.current() },
+        container: buildToolbar(allowAttachments),
+        handlers: allowAttachments ? { image: () => imageHandlerRef.current() } : {},
       },
     }),
-    [],
+    [allowAttachments],
   );
+
+  const formats = useMemo(() => (allowAttachments ? [...FORMATS_BASE, "image"] : FORMATS_BASE), [allowAttachments]);
 
   const handleAddFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
@@ -257,7 +273,7 @@ export function RegistrationNoteEditor({
       setFileUploading(true);
       const uploaded: NoteAttachment[] = [];
       for (const file of accepted) {
-        const res = await uploadService.uploadNoteAttachment(file);
+        const res = await topicPoolService.uploadNoteAttachment(file);
         uploaded.push({ url: res.url, name: res.originalFileName, size: res.fileSize });
       }
       onAttachmentsChange([...attachments, ...uploaded]);
@@ -283,13 +299,14 @@ export function RegistrationNoteEditor({
           value={value}
           onChange={onChange}
           modules={modules}
-          formats={FORMATS}
+          formats={formats}
           placeholder="Ghi chú cho giảng viên"
         />
         {imageUploading && <p className="mt-1 text-xs text-primary">Đang tải ảnh lên...</p>}
       </div>
 
       {/* Attachments */}
+      {allowAttachments && (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-[#58698d] uppercase tracking-wider">Tài liệu đính kèm</span>
@@ -339,6 +356,7 @@ export function RegistrationNoteEditor({
           </p>
         )}
       </div>
+      )}
     </div>
   );
 }

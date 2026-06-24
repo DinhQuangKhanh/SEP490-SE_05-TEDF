@@ -6,6 +6,7 @@ import { TopicCard, TopicCardSkeleton } from "@/components/student/TopicCard";
 import { TopicDetailDrawer } from "@/components/student/TopicDetailDrawer";
 import { WishlistDrawer } from "@/components/student/WishlistDrawer";
 import { RegistrationNoteEditor, buildRegistrationNote } from "@/components/student/RegistrationNoteEditor";
+import { Modal } from "@/components/common/Modal";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +62,7 @@ export function StudentTopicsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [myGroup, setMyGroup] = useState<StudentGroupDto | null>(null);
+  const [hasPendingRegistration, setHasPendingRegistration] = useState(false);
   const [registerTopicId, setRegisterTopicId] = useState<string | null>(null);
   const [registerNote, setRegisterNote] = useState("");
   const [registerAttachments, setRegisterAttachments] = useState<NoteAttachment[]>([]);
@@ -75,11 +77,22 @@ export function StudentTopicsPage() {
   useEffect(() => {
     studentGroupService
       .getMyGroup()
-      .then((g) => setMyGroup(g))
+      .then((g) => {
+        setMyGroup(g);
+        // A group may only have one active registration at a time; if it already has a pending
+        // one, block registering for other topics (reuse the "Đã có đề tài" disabled state).
+        if (g?.groupId && !g.projectId) {
+          studentGroupService
+            .getMyRegistrations(g.groupId)
+            .then((list) => setHasPendingRegistration(list.some((r) => r.status === "Pending")))
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
   }, []);
 
-  const myGroupHasProject = !!myGroup?.projectId;
+  // Group is "occupied" if it already has an assigned project OR a pending pool registration.
+  const myGroupHasProject = !!myGroup?.projectId || hasPendingRegistration;
   // Real login uses the Firebase UID on the client while the API returns the DB Guid for studentId,
   // so match on email too (same approach as StudentMyTopicPage) — otherwise the leader is never
   // recognised and the "Đăng ký đề tài" button stays disabled.
@@ -451,14 +464,7 @@ export function StudentTopicsPage() {
 
       {/* Registration Confirmation Modal */}
       {registerTopicId && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-          onClick={closeRegisterModal}
-        >
-          <div
-            className="w-full max-w-2xl p-6 bg-white shadow-2xl rounded-xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal onClose={closeRegisterModal}>
             <h3 className="text-lg font-bold text-[#101319] mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">app_registration</span>
               Xác nhận đăng ký đề tài
@@ -496,8 +502,7 @@ export function StudentTopicsPage() {
                 Hủy
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );

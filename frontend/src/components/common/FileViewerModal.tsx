@@ -10,8 +10,20 @@ const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"];
 const VIDEO_EXTS = [".mp4", ".webm", ".ogg", ".mov"];
 const OFFICE_EXTS = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"];
 
-function getExt(name: string): string {
-  return `.${name.split(".").pop()?.toLowerCase() ?? ""}`;
+function getExt(value: string): string {
+  // Strip query/hash so storage URLs like ".../{guid}.jpg?token=..." resolve correctly.
+  const clean = value.split("?")[0].split("#")[0];
+  const lastDot = clean.lastIndexOf(".");
+  const lastSlash = clean.lastIndexOf("/");
+  // Only treat as an extension if the dot is in the final path segment.
+  if (lastDot <= lastSlash) return "";
+  return `.${clean.slice(lastDot + 1).toLowerCase()}`;
+}
+
+/** Detect the file extension from the URL (which always carries the real one, e.g.
+ *  inline images whose display name is just "Hình ảnh"), falling back to the name. */
+function resolveExt(file: ViewerFile): string {
+  return getExt(file.url) || getExt(file.name);
 }
 
 function headerIcon(ext: string): string {
@@ -33,7 +45,7 @@ function headerIcon(ext: string): string {
 export function FileViewerModal({ file, onClose }: { file: ViewerFile | null; onClose: () => void }) {
   if (!file) return null;
 
-  const ext = getExt(file.name);
+  const ext = resolveExt(file);
   let body: ReactNode;
 
   if (IMAGE_EXTS.includes(ext)) {

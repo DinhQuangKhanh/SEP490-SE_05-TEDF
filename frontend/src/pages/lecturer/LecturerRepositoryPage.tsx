@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
+import { Modal } from "@/components/common/Modal";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/lecturer";
 import {
@@ -298,6 +300,16 @@ export function LecturerRepositoryPage() {
 
 // ── Tab button + registration requests tab ───────────────────────────────────
 
+/** Drives the repository tab from the URL so notifications can deep-link (/lecturer vs /lecturer/registrations). */
+function useRepoTab() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab: "topics" | "registrations" = location.pathname.endsWith("/registrations") ? "registrations" : "topics";
+  const setActiveTab = (tab: "topics" | "registrations") =>
+    navigate(tab === "registrations" ? "/lecturer/registrations" : "/lecturer");
+  return { activeTab, setActiveTab };
+}
+
 function RepoTabButton({
   active,
   onClick,
@@ -489,11 +501,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
 
       {/* Reject reason modal — same rich-text editor the student uses for the note */}
       {rejectId && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={closeReject}>
-          <div
-            className="w-full max-w-2xl p-6 bg-white shadow-2xl rounded-xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal onClose={closeReject}>
             <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
               <span className="material-symbols-outlined text-red-500">cancel</span>
               Từ chối yêu cầu đăng ký
@@ -531,8 +539,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
                 Hủy
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );
@@ -541,7 +548,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
 // ── Mentor's own topics ──────────────────────────────────────────────────────
 
 function MentorOwnTopicsView() {
-  const [activeTab, setActiveTab] = useState<"topics" | "registrations">("topics");
+  const { activeTab, setActiveTab } = useRepoTab();
   const [pendingCount, setPendingCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailTopic, setDetailTopic] = useState<MentorTopicItem | null>(null);
@@ -814,7 +821,7 @@ function MentorOwnTopicsView() {
 // ── Department-Head view: all topics in the department ───────────────────────
 
 function DepartmentTopicsView() {
-  const [activeTab, setActiveTab] = useState<"topics" | "registrations">("topics");
+  const { activeTab, setActiveTab } = useRepoTab();
   const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<DepartmentProject[]>([]);
   const [loading, setLoading] = useState(true);
