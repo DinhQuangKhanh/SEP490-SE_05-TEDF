@@ -98,6 +98,7 @@ export const routes = {
     mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,
+    noteAttachment: "/api/topic-pools/note-attachment",
   },
   support: {
     base: "/api/support-tickets",
@@ -111,8 +112,5 @@ export const routes = {
     unreadCount: "/api/notifications/unread-count",
     markAllRead: "/api/notifications/read-all",
     markRead: (id: string) => `/api/notifications/${id}/read`,
-  },
-  uploads: {
-    noteAttachment: "/api/uploads/note-attachment",
   },
 } as const;

@@ -1,6 +1,7 @@
 import {
   DepartmentWithPoolsDto,
   MentorRegistrationRequestDto,
+  NoteAttachmentUploadResponse,
   TopicPoolDto,
   TopicPoolStatisticsDto,
   UpdatePoolTopicRequest,
@@ -44,4 +45,11 @@ export const topicPoolService = {
   /** Mentor rejects a registration with a reason. */
   rejectRegistration: (registrationId: string, reason: string): Promise<void> =>
     apiClient.put<void>(routes.topicPools.rejectRegistration(registrationId), { reason }),
+
+  /** Uploads a single image/file for the registration-note editor; returns its public URL. */
+  uploadNoteAttachment: (file: File): Promise<NoteAttachmentUploadResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postForm<NoteAttachmentUploadResponse>(routes.topicPools.noteAttachment, formData);
+  },
 };

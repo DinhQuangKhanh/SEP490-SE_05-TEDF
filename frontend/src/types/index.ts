@@ -15,5 +15,4 @@ export * from "./settings/settings.types";
 export * from "./supportTickets/support.types";
 export * from "./topics/topic.types";
 export * from "./topicPools/topicPool.types";
-export * from "./uploads/upload.types";
 export * from "./users/user.types";
