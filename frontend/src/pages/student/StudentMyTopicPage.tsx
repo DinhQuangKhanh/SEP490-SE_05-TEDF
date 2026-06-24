@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header, NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { Header } from "@/components/layout";
 import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
 import type { StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 
 const container = {
   hidden: { opacity: 0 },
@@ -257,10 +258,7 @@ export function StudentMyTopicPage() {
   // Clicking a notification (e.g. "Giảng viên yêu cầu chỉnh sửa đề tài") while
   // already on this page doesn't trigger a route change, so refetch on the
   // dedicated refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchPageData);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchPageData);
-  }, [fetchPageData]);
+  useNotificationTargetRefresh(fetchPageData);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;

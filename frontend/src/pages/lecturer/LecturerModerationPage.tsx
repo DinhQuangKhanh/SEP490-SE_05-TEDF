@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorFilterOptionsResponse, EvaluatorProjectItemDto, EvaluatorProjectsResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -45,13 +45,10 @@ export function LecturerModerationPage() {
 
   // Clicking a "Chờ quyết định CNBM" notification while already on this page
   // doesn't trigger a route change, so bump a tick to force the fetch effect below to re-run.
-  useEffect(() => {
-    function handleNotificationTargetRefresh() {
-      setRefreshTick((t) => t + 1);
-    }
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
+  const handleNotificationTargetRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
   }, []);
+  useNotificationTargetRefresh(handleNotificationTargetRefresh);
 
   // Fetch filter options once on mount
   useEffect(() => {

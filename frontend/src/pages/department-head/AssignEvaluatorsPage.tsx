@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
-import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
@@ -156,10 +156,7 @@ export function AssignEvaluatorsPage() {
 
   // Clicking a "Cần quyết định thẩm định" notification while already on this page
   // doesn't trigger a route change, so refetch on the dedicated refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchData);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchData);
-  }, [fetchData]);
+  useNotificationTargetRefresh(fetchData);
 
   const getTabData = (tab: TabKey): DepartmentProject[] => {
     if (!grouped) return [];

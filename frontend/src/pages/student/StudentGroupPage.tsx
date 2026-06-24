@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Header, NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { Header } from "@/components/layout";
 import { SuccessModal } from "@/components/common/SuccessModal";
 import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { studentGroupService } from "@/lib";
 import type {
@@ -113,21 +114,6 @@ function MyGroupContent() {
   const [studentSearch, setStudentSearch] = useState("");
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
-  useEffect(() => {
-    fetchGroupData();
-  }, []);
-
-  // Clicking a notification whose targetUrl is this same page doesn't trigger
-  // react-router navigation, so the bell dispatches this event instead — refetch
-  // group/join-request data so it reflects what the notification was about.
-  useEffect(() => {
-    function handleNotificationTargetRefresh() {
-      fetchGroupData();
-    }
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
-  }, []);
-
   // Load the invitable-students list whenever the invite modal opens.
   useEffect(() => {
     if (!showInviteModal || !myGroup) return;
@@ -189,6 +175,15 @@ function MyGroupContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchGroupData();
+  }, []);
+
+  // Clicking a notification whose targetUrl is this same page doesn't trigger
+  // react-router navigation, so the bell dispatches this event instead — refetch
+  // group/join-request data so it reflects what the notification was about.
+  useNotificationTargetRefresh(fetchGroupData);
 
   const handleCreateGroup = async () => {
     if (pendingJoinRequest) {
@@ -987,10 +982,7 @@ function InvitationsContent() {
 
   // Clicking a "Bạn nhận được lời mời tham gia nhóm" notification while already
   // on this tab doesn't trigger a route change, so refetch on the refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchInvitations);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchInvitations);
-  }, []);
+  useNotificationTargetRefresh(fetchInvitations);
 
   const handleAccept = async (groupId: string, invitationId: number) => {
     try {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { Header, type UserRole, NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { Header, type UserRole } from "@/components/layout";
 import { CreateTicketModal } from "@/components/support/CreateTicketModal";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { supportService } from "@/lib";
 import { TicketListDto, TicketResponse, TicketStatsResponse } from "@/types";
 import { container, item, timeAgo, statusLabel, statusClass, priorityDot, StatCard } from "./supportShared";
@@ -65,14 +66,11 @@ export function SupportCenter({
 
   // Clicking a "Phản hồi mới trên ticket" notification while already on this page
   // doesn't trigger a route change, so refetch on the dedicated refresh event.
-  useEffect(() => {
-    function handleNotificationTargetRefresh() {
-      fetchTickets();
-      if (selectedTicketId) fetchTicketDetail(selectedTicketId);
-    }
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
+  const handleNotificationTargetRefresh = useCallback(() => {
+    fetchTickets();
+    if (selectedTicketId) fetchTicketDetail(selectedTicketId);
   }, [fetchTickets, fetchTicketDetail, selectedTicketId]);
+  useNotificationTargetRefresh(handleNotificationTargetRefresh);
   useEffect(() => {
     if (selectedTicketId) fetchTicketDetail(selectedTicketId);
   }, [selectedTicketId, fetchTicketDetail]);

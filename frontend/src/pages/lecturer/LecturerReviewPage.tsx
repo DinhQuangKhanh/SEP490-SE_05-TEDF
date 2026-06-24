@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
 import { evaluatorService } from "@/lib";
 import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 
 export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,10 +52,7 @@ export function LecturerReviewPage() {
 
   // Clicking a "Phân công thẩm định" notification while already on this exact
   // project's page doesn't trigger a route change, so refetch on the refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjectForReview);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjectForReview);
-  }, [fetchProjectForReview]);
+  useNotificationTargetRefresh(fetchProjectForReview);
 
   const handleProjectStatusUpdated = useCallback(
     (payload: ProjectStatusUpdatedPayload) => {

@@ -3,7 +3,7 @@ import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/lecturer";
 import { Header } from "@/components/layout/Header";
-import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   topicService,
@@ -358,10 +358,7 @@ function MentorOwnTopicsView() {
 
   // Clicking a "Đề tài mới cần duyệt" notification while already on this page
   // doesn't trigger a route change, so refetch on the dedicated refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchTopics);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchTopics);
-  }, [fetchTopics]);
+  useNotificationTargetRefresh(fetchTopics);
 
   const totalPages = data?.totalPages ?? 1;
 
@@ -562,10 +559,7 @@ function DepartmentTopicsView() {
 
   // Clicking a "Đề xuất đề tài mới" notification while already on this page
   // doesn't trigger a route change, so refetch on the dedicated refresh event.
-  useEffect(() => {
-    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjects);
-    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjects);
-  }, [fetchProjects]);
+  useNotificationTargetRefresh(fetchProjects);
 
   // Reset to the first page whenever the search term changes.
   useEffect(() => {
