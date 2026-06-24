@@ -4,6 +4,7 @@ export const SignalREvents = {
   ReceiveNotification: "ReceiveNotification",
   UnreadCountUpdated: "UnreadCountUpdated",
   ProjectStatusUpdated: "ProjectStatusUpdated",
+  ReceiveRegistrationUpdate: "ReceiveRegistrationUpdate",
   MeetingReminder: "MeetingReminder",
   DefenseScheduled: "DefenseScheduled",
   NotificationRead: "NotificationRead",
