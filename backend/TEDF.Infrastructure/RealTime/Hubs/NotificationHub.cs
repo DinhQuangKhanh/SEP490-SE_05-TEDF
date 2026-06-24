@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
+using TEDF.Infrastructure.RealTime;
 using AppClaimTypes = TEDF.Application.Common.AppClaimTypes;
 
 namespace TEDF.Infrastructure.RealTime.Hubs
@@ -82,7 +83,7 @@ namespace TEDF.Infrastructure.RealTime.Hubs
         /// </summary>
         public async Task MarkNotificationAsRead(Guid notificationId)
         {
-            await Clients.Caller.SendAsync("NotificationRead", notificationId);
+            await Clients.Caller.SendAsync(RealtimeEvents.NotificationRead, notificationId);
         }
 
         private Guid? GetUserId()

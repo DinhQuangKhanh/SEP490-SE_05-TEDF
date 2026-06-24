@@ -13,6 +13,7 @@
         public const string TopicExpiring = "TopicExpiring";
         public const string PasswordReset = "PasswordReset";
         public const string WelcomeEmail = "WelcomeEmail";
+        public const string EligibleStudentNotice = "EligibleStudentNotice";
 
         /// <summary>
         /// Lazily-initialized, thread-safe singleton dictionary. Avoids re-creating on every call.
@@ -29,7 +30,8 @@
             [DefenseScheduled] = GetDefenseScheduledTemplate(),
             [TopicExpiring] = GetTopicExpiringTemplate(),
             [PasswordReset] = GetPasswordResetTemplate(),
-            [WelcomeEmail] = GetWelcomeEmailTemplate()
+            [WelcomeEmail] = GetWelcomeEmailTemplate(),
+            [EligibleStudentNotice] = GetEligibleStudentNoticeTemplate()
         });
 
         /// <summary>
@@ -155,5 +157,11 @@
             <li>Vai trò: {{Role}}</li>
         </ul>
         <p><a href='{{LoginUrl}}' class='btn'>Đăng nhập ngay</a></p>");
+
+        private static string GetEligibleStudentNoticeTemplate() => GetBaseTemplate(
+            "Đủ điều kiện làm đồ án tốt nghiệp",
+            @"<p>Xin chào {{RecipientName}},</p>
+        <p>Bạn nằm trong danh sách sinh viên <strong>đủ điều kiện</strong> thực hiện đồ án tốt nghiệp trong học kỳ <strong>{{SemesterName}}</strong>.</p>
+        <p>Vui lòng đăng nhập hệ thống TEDF để thành lập nhóm và đăng ký đề tài theo hướng dẫn.</p>");
     }
 }

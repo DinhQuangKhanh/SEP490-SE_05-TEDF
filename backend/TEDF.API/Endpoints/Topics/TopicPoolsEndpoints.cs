@@ -68,10 +68,11 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .Produces(401).Produces(404);
 
         pool.MapPost("/{poolId:guid}/propose", ProposeTopicToPool)
+            .RequireAuthorization(PolicyNames.RequireMentor)
             .DisableAntiforgery()
             .WithTags("TopicPools")
             .WithName("ProposeTopicToPool")
-            .Produces(201).Produces(400).Produces(401).Produces(404).Produces(503);
+            .Produces(201).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
 
         pool.MapPost("/{groupId:guid}/topic-registrations", RequestTopicRegistration)
             .RequireAuthorization(PolicyNames.GroupLeader)

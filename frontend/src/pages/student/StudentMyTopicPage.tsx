@@ -10,6 +10,7 @@ import { useSignalR } from "@/hooks/useSignalR";
 import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
+import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 
 const container = {
   hidden: { opacity: 0 },
@@ -525,6 +526,36 @@ export function StudentMyTopicPage() {
         // both the pending request and the latest rejected one.
         const surfaced = regs.find((r) => r.status === "Pending") ?? (regs[0]?.status === "Rejected" ? regs[0] : null);
         if (surfaced) {
+  const myGroupRef = useRef(myGroup);
+  myGroupRef.current = myGroup;
+
+  const handleProjectStatusUpdated = useCallback((payload: ProjectStatusUpdatedPayload) => {
+    if (myGroupRef.current?.projectId !== payload.projectId) return;
+    topicService
+      .getTopicDetail(payload.projectId)
+      .then(setTopicDetail)
+      .catch(() => {
+        /* silently ignore — UI keeps last known state */
+      });
+  }, []);
+
+  const { joinProjectChannel, leaveProjectChannel } = useSignalR({
+    onProjectStatusUpdated: handleProjectStatusUpdated,
+  });
+
+  useEffect(() => {
+    if (!myGroup?.projectId) return;
+    const projectId = myGroup.projectId;
+    joinProjectChannel(projectId);
+    return () => leaveProjectChannel(projectId);
+  }, [myGroup?.projectId, joinProjectChannel, leaveProjectChannel]);
+
+  useEffect(() => {
+    studentGroupService
+      .getMyGroup()
+      .then(async (group) => {
+        setMyGroup(group);
+        if (group?.projectId) {
           try {
             setTopicDetail(await topicService.getTopicDetail(surfaced.projectId));
           } catch {

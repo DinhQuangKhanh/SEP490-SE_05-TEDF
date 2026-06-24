@@ -15,6 +15,8 @@ public record SemesterDto
     public string? Description { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
+    /// <summary>When the eligibility roster was published &amp; notifications dispatched. Null until published.</summary>
+    public DateTime? RosterPublishedAt { get; init; }
     public List<SemesterPhaseDto> Phases { get; init; } = [];
 }
 

@@ -26,6 +26,21 @@ public interface ISemestersDomainService
 
     Task<EligibleStudentsImportResult> ImportEligibleStudentsAsync(
         int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken cancellationToken = default);
+
+    Task<EligibleMentorsImportResult> ImportEligibleMentorsAsync(
+        int semesterId, Stream fileStream, string fileName, Guid importedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>Finalizes the roster and dispatches mentor notifications + the student-email job.</summary>
+    Task PublishRosterAsync(int semesterId, Guid publishedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>Corrects the assigned program of a rostered mentor (inline admin edit).</summary>
+    Task UpdateEligibleMentorMajorAsync(int semesterId, Guid mentorId, int majorId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether a mentor may supervise/evaluate in the given semester: assigned on the eligible-mentor roster,
+    /// OR already owning a pool topic / active supervision there. Used to gate supervising actions.
+    /// </summary>
+    Task<bool> IsMentorAssignedAsync(Guid mentorId, int semesterId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>A phase to add when creating a semester.</summary>
@@ -34,5 +49,11 @@ public record NewSemesterPhase(string Name, string Type, DateTime StartDate, Dat
 /// <summary>A phase date change when updating a semester.</summary>
 public record SemesterPhaseDateChange(int Id, DateTime StartDate, DateTime EndDate);
 
+/// <summary>A row that was not imported, with the reason (để cảnh báo người dùng).</summary>
+public record ImportRowIssue(string Code, string Reason);
+
 /// <summary>Result of importing eligible students from a spreadsheet.</summary>
-public record EligibleStudentsImportResult(int TotalProcessed, int SuccessfullyImported, IReadOnlyList<string> FailedStudentCodes);
+public record EligibleStudentsImportResult(int TotalProcessed, int SuccessfullyImported, IReadOnlyList<ImportRowIssue> Issues);
+
+/// <summary>Result of importing eligible (supervising) mentors from a spreadsheet.</summary>
+public record EligibleMentorsImportResult(int TotalProcessed, int SuccessfullyImported, IReadOnlyList<ImportRowIssue> Issues);

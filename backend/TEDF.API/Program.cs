@@ -65,7 +65,7 @@ builder.Services.AddCors(options =>
         .Where(origin => !string.IsNullOrWhiteSpace(origin))
         .Select(origin => origin.Trim())
         .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray()!;
+        .ToArray() ?? [];
 
     var allowedOrigins = configuredOrigins;
 
@@ -151,6 +151,21 @@ app.UseHttpsRedirection();
 app.UseInfrastructure();
 
 // CORS
+if (app.Environment.IsProduction())
+{
+    var hasConfiguredOrigins = app.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()?
+        .Any(origin => !string.IsNullOrWhiteSpace(origin)) ?? false;
+
+    if (!hasConfiguredOrigins)
+    {
+        app.Logger.LogWarning(
+            "Cors:AllowedOrigins is empty in Production. No browser origin will be allowed to call this API " +
+            "(SignalR hubs included) until Cors__AllowedOrigins__0 (and __1, ...) are set.");
+    }
+}
+
 app.UseCors("AllowFrontend");
 
 // Apply request timeout and rate limit middleware before mapping endpoints.
@@ -163,6 +178,9 @@ app.UseAuthorization();
 
 // Maintenance mode: block non-admin API calls with 503 when enabled (after auth so roles are known)
 app.UseMaintenanceMode();
+
+// Account access gate: block locked/inactive accounts and ineligible students (after auth so identity is known)
+app.UseAccountAccessGate();
 
 // Health Checks
 app.MapHealthChecks("/health");

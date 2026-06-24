@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Aggregates.UserAggregate.ValueObjects;
 using TEDF.Persistence.Common;
 
 namespace TEDF.Persistence.SqlServer.Repositories
@@ -73,10 +74,18 @@ namespace TEDF.Persistence.SqlServer.Repositories
         }
 
         /// <inheritdoc/>
+        public async Task<User?> GetByEmployeeCodeAsync(string employeeCode, CancellationToken ct = default)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.EmployeeCode == employeeCode, ct);
+        }
+
+        /// <inheritdoc/>
         public async Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default)
         {
-            var normalizedEmail = email.ToLowerInvariant();
-            return await _dbSet.AnyAsync(u => EF.Property<string>(u, "Email") == normalizedEmail, ct);
+            var normalizedEmail = Email.Create(email.Trim().ToLowerInvariant());
+            return await _dbSet.AnyAsync(u => u.Email == normalizedEmail, ct);
         }
 
         /// <inheritdoc/>

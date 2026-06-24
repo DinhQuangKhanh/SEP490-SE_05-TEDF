@@ -1,5 +1,6 @@
 using System.IO;
 using TEDF.Application.Common.Abstractions;
+using TEDF.Domain.Services;
 
 namespace TEDF.Application.Features.Semesters.Commands.ImportEligibleStudents;
 
@@ -12,4 +13,4 @@ public record ImportEligibleStudentsCommand(
 public record ImportEligibleStudentsResponse(
     int TotalProcessed,
     int SuccessfullyImported,
-    List<string> FailedStudentCodes);
+    List<ImportRowIssue> Issues);

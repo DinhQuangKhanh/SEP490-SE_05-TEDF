@@ -1,10 +1,10 @@
 export { LoginPage } from "./auth/LoginPage";
+export { IneligiblePage } from "./auth/IneligiblePage";
 export { MaintenancePage } from "./MaintenancePage";
-export { DashboardPage } from "./admin/DashboardPage";
 export { SettingsPage } from "./admin/SettingsPage";
 export { SemestersPage } from "./admin/SemestersPage";
+export { SemesterRosterPage } from "./admin/SemesterRosterPage";
 export { UsersPage } from "./admin/UsersPage";
-export { ProjectsPage } from "./admin/ProjectsPage";
 export { SupportPage } from "./admin/SupportPage";
 export { ActivityLogsPage } from "./admin/ActivityLogsPage";
 export * from "./lecturer";

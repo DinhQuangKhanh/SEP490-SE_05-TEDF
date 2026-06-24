@@ -22,6 +22,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
     private readonly IProjectRepository _projectRepository;
     private readonly IGroupRepository _groupRepository;
     private readonly ISemesterRepository _semesterRepository;
+    private readonly ISemestersDomainService _semesters;
     private readonly ISystemSettingsService _settings;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -29,12 +30,14 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         IProjectRepository projectRepository,
         IGroupRepository groupRepository,
         ISemesterRepository semesterRepository,
+        ISemestersDomainService semesters,
         ISystemSettingsService settings,
         IUnitOfWork unitOfWork)
     {
         _projectRepository = projectRepository;
         _groupRepository = groupRepository;
         _semesterRepository = semesterRepository;
+        _semesters = semesters;
         _settings = settings;
         _unitOfWork = unitOfWork;
     }
@@ -162,6 +165,10 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         switch (action.ToLowerInvariant())
         {
             case "approve":
+                // A lecturer may only take on supervising if assigned to mentor this project's semester.
+                if (!await _semesters.IsMentorAssignedAsync(mentorUserId, project.SemesterId, ct))
+                    throw new BusinessRuleValidationException(
+                        "Bạn chưa được phân công làm giảng viên hướng dẫn trong học kỳ này nên không thể duyệt đề tài.");
                 project.MentorApproveAndSubmit(mentorUserId);
                 break;
             case "requestmodification":
