@@ -124,6 +124,13 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (group.ProjectId.HasValue)
             throw new BusinessRuleValidationException("This group already has an assigned project.");
 
+        // A group may only have one pending registration at a time — to register another topic
+        // it must cancel the previous request first.
+        var groupRegistrations = await _registrationRepository.GetByGroupIdAsync(groupId, cancellationToken);
+        if (groupRegistrations.Any(r => r.Status == TopicRegistrationStatus.Pending))
+            throw new BusinessRuleValidationException(
+                "Nhóm đang có một yêu cầu đăng ký chờ duyệt. Hãy huỷ yêu cầu đó trước khi đăng ký đề tài khác.");
+
         var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Project), projectId);
 

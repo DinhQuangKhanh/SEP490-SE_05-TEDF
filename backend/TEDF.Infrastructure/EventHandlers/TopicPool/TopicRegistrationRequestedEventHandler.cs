@@ -48,7 +48,7 @@ namespace TEDF.Infrastructure.EventHandlers.TopicPool
                 $"Một nhóm sinh viên đã đăng ký đề tài \"{project.NameVi}\". Vui lòng xem xét và xác nhận.",
                 NotificationType.Info,
                 NotificationCategory.TopicPool,
-                "/lecturer",
+                "/lecturer/registrations",
                 cancellationToken);
 
             foreach (var mentorId in mentorIds)

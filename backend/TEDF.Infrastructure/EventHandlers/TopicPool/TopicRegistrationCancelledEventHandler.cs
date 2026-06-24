@@ -57,7 +57,7 @@ namespace TEDF.Infrastructure.EventHandlers.TopicPool
                 $"Một nhóm sinh viên đã huỷ yêu cầu đăng ký đề tài \"{project.NameVi}\".",
                 NotificationType.Info,
                 NotificationCategory.TopicPool,
-                "/lecturer",
+                "/lecturer/registrations",
                 cancellationToken);
         }
     }
