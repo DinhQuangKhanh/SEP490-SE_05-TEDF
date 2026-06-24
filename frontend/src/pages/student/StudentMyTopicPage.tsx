@@ -2,9 +2,11 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
+import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
 import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
-import type { StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
+import type { GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
+import { useSignalR } from "@/hooks/useSignalR";
 import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
@@ -156,6 +158,294 @@ const FILE_ICON_MAP: Record<string, string> = {
   ".png": "image",
 };
 
+/** Topic content sections (description / objectives / scope+tech / expected results) — shared so the
+ *  pending pool-registration view matches the proposed-topic detail layout. */
+function TopicContentSections({ detail }: { detail: TopicDetail | null }) {
+  const hasContent = !!(detail?.description || detail?.objectives || detail?.scope || detail?.technologies || detail?.expectedResults);
+  if (!detail || !hasContent) return null;
+  return (
+    <div className="space-y-6">
+      {detail.description && (
+        <div>
+          <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
+            <span className="w-1.5 h-6 bg-primary rounded-full" />
+            Tổng quan
+          </h4>
+          <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.description}</p>
+        </div>
+      )}
+      {detail.objectives && (
+        <div>
+          <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
+            <span className="w-1.5 h-6 bg-primary rounded-full" />
+            Mục tiêu đề tài
+          </h4>
+          <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.objectives}</p>
+        </div>
+      )}
+      {(detail.scope || detail.technologies) && (
+        <div>
+          <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
+            <span className="w-1.5 h-6 bg-primary rounded-full" />
+            Phạm vi nghiên cứu
+          </h4>
+          <div className="pl-3.5 space-y-3">
+            {detail.scope && (
+              <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">{detail.scope}</p>
+            )}
+            {detail.technologies && (
+              <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">{detail.technologies}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {detail.expectedResults && (
+        <div>
+          <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
+            <span className="w-1.5 h-6 bg-primary rounded-full" />
+            Kết quả dự kiến
+          </h4>
+          <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.expectedResults}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoPill({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full text-primary">
+        <span className="material-symbols-outlined">{icon}</span>
+      </div>
+      <div>
+        <p className="text-[#58698d] text-xs">{label}</p>
+        <p className="font-bold text-[#101319]">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Right-hand column shared by the pending and rejected pool-registration views: attachments + members. */
+function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; group: StudentGroupDto }) {
+  return (
+    <motion.div variants={item} className="space-y-6">
+      <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm">
+        <div className="p-5 border-b border-[#e9ecf1] flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary">folder</span>
+          <h3 className="font-bold text-[#101319]">Tài liệu đính kèm</h3>
+        </div>
+        <div className="p-5">
+          {documents.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {documents.map((doc) => {
+                const ext = `.${doc.originalFileName.split(".").pop()?.toLowerCase() ?? ""}`;
+                return (
+                  <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50">
+                    <span className="material-symbols-outlined text-primary shrink-0">{FILE_ICON_MAP[ext] ?? "draft"}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-[#101319] truncate">{doc.originalFileName}</p>
+                      <p className="text-[10px] text-[#58698d]">
+                        {formatFileSize(doc.fileSize)} · {formatDate(doc.uploadedAt)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+              <span className="text-3xl text-gray-300 material-symbols-outlined">folder_open</span>
+              <p className="text-xs text-[#58698d]">Chưa có tài liệu đính kèm.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm">
+        <div className="p-5 border-b border-[#e9ecf1] flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary">group</span>
+          <h3 className="font-bold text-[#101319]">Thành viên nhóm</h3>
+        </div>
+        <div className="p-5 flex flex-col gap-3">
+          {group.members.map((m) => (
+            <div key={m.studentId} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                  {(m.fullName ?? "?").charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#101319] truncate">{m.fullName}</p>
+                  <p className="text-[11px] text-[#58698d]">{m.studentCode}</p>
+                </div>
+              </div>
+              {m.role?.toLowerCase() === "leader" && (
+                <span className="text-xs font-semibold text-primary shrink-0">Nhóm trưởng</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
+ * Pool-registration detail — the same full layout for both the pending ("Chờ giảng viên xác nhận")
+ * and rejected ("Đăng ký bị từ chối") states; the variant only changes the status badge, the
+ * header actions, and whether the rejection-reason panel is shown.
+ */
+type PoolRegistrationDetailViewProps = {
+  topicDetail: TopicDetail | null;
+  registration: GroupRegistrationDto;
+  group: StudentGroupDto;
+  documents: TopicDocument[];
+  isLeader: boolean;
+} & (
+  | { variant: "pending"; onCancel: () => void; cancelling: boolean }
+  | { variant: "rejected"; onBrowsePool: () => void; onProposeNew: () => void }
+);
+
+function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
+  const { topicDetail, registration, group, documents, isLeader } = props;
+  const rejected = props.variant === "rejected";
+
+  return (
+    <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
+      <motion.div variants={item}>
+        <div className="flex items-center gap-2 text-sm text-[#58698d] mb-1">
+          <span>Hệ thống</span>
+          <span className="text-sm material-symbols-outlined">chevron_right</span>
+          <span className="font-semibold text-primary">Đề tài của tôi</span>
+        </div>
+        <h2 className="text-2xl font-bold text-[#101319]">Chi tiết Nội dung Đề tài</h2>
+      </motion.div>
+
+      {/* Header card */}
+      <motion.section variants={item} className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm overflow-hidden">
+        <div className="p-8">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+            <div className="max-w-4xl">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {topicDetail?.code && (
+                  <span className="px-3 py-1 text-xs font-bold tracking-wider uppercase bg-blue-100 rounded-full text-primary">
+                    Mã đề tài: {topicDetail.code}
+                  </span>
+                )}
+                {rejected ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-100">
+                    Đăng ký bị từ chối
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                    Chờ giảng viên xác nhận
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#101319] leading-tight mb-4">
+                {topicDetail?.nameVi ?? registration.projectName ?? "—"}
+              </h1>
+              <div className="flex flex-wrap gap-6 text-sm">
+                {registration.mentorName && (
+                  <InfoPill icon="person" label="Giảng viên hướng dẫn" value={registration.mentorName} />
+                )}
+                <InfoPill icon="calendar_today" label="Ngày đăng ký" value={formatDate(registration.registeredAt)} />
+                {topicDetail?.majorName && <InfoPill icon="school" label="Ngành" value={topicDetail.majorName} />}
+              </div>
+            </div>
+            {props.variant === "pending"
+              ? isLeader && (
+                  <button
+                    onClick={props.onCancel}
+                    disabled={props.cancelling}
+                    className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    {props.cancelling ? (
+                      <div className="w-4 h-4 border-2 border-red-500 rounded-full animate-spin border-t-transparent" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">cancel</span>
+                    )}
+                    Huỷ đăng ký
+                  </button>
+                )
+              : (
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={props.onBrowsePool}
+                    className="px-4 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
+                  >
+                    Xem kho đề tài
+                  </button>
+                  {isLeader && (
+                    <button
+                      onClick={props.onProposeNew}
+                      className="px-4 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span className="text-lg material-symbols-outlined">edit_note</span>
+                      Đề xuất đề tài mới
+                    </button>
+                  )}
+                </div>
+              )}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* Left: content */}
+        <motion.div variants={item} className="space-y-6 lg:col-span-2">
+          {rejected && (
+            <div className="bg-white rounded-xl border border-red-100 shadow-sm">
+              <div className="p-5 border-b border-red-100 flex items-center gap-2 bg-red-50/40">
+                <span className="material-symbols-outlined text-red-600">cancel</span>
+                <h3 className="font-bold text-[#101319]">Lý do từ chối từ giảng viên</h3>
+              </div>
+              <div className="p-6">
+                {registration.rejectReason ? (
+                  <RegistrationNoteView note={registration.rejectReason} className="text-[#58698d]" />
+                ) : (
+                  <p className="text-sm text-[#58698d]">Giảng viên không cung cấp lý do cụ thể.</p>
+                )}
+                <p className="mt-4 text-sm text-[#58698d]">
+                  Hãy chọn một đề tài khác từ kho hoặc đề xuất đề tài mới cho giảng viên duyệt.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm flex flex-col">
+            <div className="p-5 border-b border-[#e9ecf1] flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">description</span>
+              <h3 className="font-bold text-[#101319]">Mô tả chi tiết đề tài</h3>
+            </div>
+            <div className="p-8">
+              <TopicContentSections detail={topicDetail} />
+              {!topicDetail && (
+                <p className="text-sm text-[#58698d]">
+                  {rejected ? "Không tải được nội dung đề tài." : "Đang tải nội dung đề tài..."}
+                </p>
+              )}
+            </div>
+          </div>
+          {registration.note && (
+            <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm p-6">
+              <h3 className="font-bold text-[#101319] flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-primary">sticky_note_2</span>
+                Ghi chú đã gửi
+              </h3>
+              <RegistrationNoteView note={registration.note} className="text-[#58698d]" />
+            </div>
+          )}
+        </motion.div>
+
+        {/* Right: documents + members */}
+        <TopicSidePanels documents={documents} group={group} />
+      </div>
+    </motion.div>
+  );
+}
+
 export function StudentMyTopicPage() {
   const navigate = useNavigate();
   const { showError } = useSystemError();
@@ -171,6 +461,8 @@ export function StudentMyTopicPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [submittingToMentor, setSubmittingToMentor] = useState(false);
+  const [registrations, setRegistrations] = useState<GroupRegistrationDto[]>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentUserId = user?.id?.toLowerCase();
@@ -203,6 +495,37 @@ export function StudentMyTopicPage() {
       });
   }, []);
 
+  const loadRegistrations = useCallback((groupId: string) => {
+    return studentGroupService
+      .getMyRegistrations(groupId)
+      .then((list) => {
+        setRegistrations(list);
+        return list;
+      })
+      .catch(() => [] as GroupRegistrationDto[]);
+  }, []);
+
+  const loadMyTopic = useCallback(async () => {
+    try {
+      const group = await studentGroupService.getMyGroup();
+      setMyGroup(group);
+      if (group?.projectId) {
+        setRegistrations([]); // already assigned — no pending registration to surface
+        try {
+          const detail = await topicService.getTopicDetail(group.projectId);
+          setTopicDetail(detail);
+        } catch (err) {
+          console.error("Error fetching topic detail:", err);
+          showError("Không thể tải thông tin đề tài. Vui lòng thử lại sau.");
+        }
+        loadDocuments(group.projectId);
+      } else if (group?.groupId) {
+        // No assigned project yet — surface any pending/rejected pool registration.
+        const regs = await loadRegistrations(group.groupId);
+        // Show the registered topic's full content (same layout as a proposed topic) for
+        // both the pending request and the latest rejected one.
+        const surfaced = regs.find((r) => r.status === "Pending") ?? (regs[0]?.status === "Rejected" ? regs[0] : null);
+        if (surfaced) {
   const myGroupRef = useRef(myGroup);
   myGroupRef.current = myGroup;
 
@@ -234,21 +557,51 @@ export function StudentMyTopicPage() {
         setMyGroup(group);
         if (group?.projectId) {
           try {
-            const detail = await topicService.getTopicDetail(group.projectId);
-            setTopicDetail(detail);
-          } catch (err) {
-            console.error("Error fetching topic detail:", err);
-            showError("Không thể tải thông tin đề tài. Vui lòng thử lại sau.");
+            setTopicDetail(await topicService.getTopicDetail(surfaced.projectId));
+          } catch {
+            setTopicDetail(null);
           }
-          loadDocuments(group.projectId);
+          loadDocuments(surfaced.projectId);
+        } else {
+          setTopicDetail(null);
+          setDocuments([]);
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching group:", err);
-        showError("Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      }
+    } catch (err) {
+      console.error("Error fetching group:", err);
+      showError("Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadDocuments, loadRegistrations, showError]);
+
+  useEffect(() => {
+    loadMyTopic();
+  }, [loadMyTopic]);
+
+  // Real-time: mentor confirmed/rejected (or another member cancelled) → refresh without reload.
+  useSignalR({
+    onRegistrationUpdate: () => {
+      loadMyTopic();
+    },
+  });
+
+  const handleCancelRegistration = async (registrationId: string) => {
+    if (!myGroup?.groupId) return;
+    setCancellingId(registrationId);
+    try {
+      await studentGroupService.cancelRegistration(registrationId);
+      await loadRegistrations(myGroup.groupId);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Huỷ đăng ký thất bại. Vui lòng thử lại sau.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  // Pool registration to surface while the group has no assigned project (backend returns newest first).
+  const pendingRegistration = registrations.find((r) => r.status === "Pending") ?? null;
+  const rejectedRegistration = !pendingRegistration && registrations[0]?.status === "Rejected" ? registrations[0] : null;
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -375,6 +728,30 @@ export function StudentMyTopicPage() {
                 onCancel={() => setShowCreateForm(false)}
               />
             </div>
+          ) : pendingRegistration ? (
+            /* Pending pool registration — same detail layout as a proposed/assigned topic */
+            <PoolRegistrationDetailView
+              variant="pending"
+              topicDetail={topicDetail}
+              registration={pendingRegistration}
+              group={myGroup}
+              documents={documents}
+              onCancel={() => handleCancelRegistration(pendingRegistration.id)}
+              cancelling={cancellingId === pendingRegistration.id}
+              isLeader={isLeader}
+            />
+          ) : rejectedRegistration ? (
+            /* Latest registration was rejected by the mentor — full detail layout */
+            <PoolRegistrationDetailView
+              variant="rejected"
+              topicDetail={topicDetail}
+              registration={rejectedRegistration}
+              group={myGroup}
+              documents={documents}
+              isLeader={isLeader}
+              onBrowsePool={() => navigate("/student/topics")}
+              onProposeNew={() => setShowCreateForm(true)}
+            />
           ) : (
             <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
               <span className="material-symbols-outlined text-5xl text-[#58698d]">topic</span>

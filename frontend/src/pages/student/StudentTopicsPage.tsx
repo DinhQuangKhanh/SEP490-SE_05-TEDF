@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
 import { TopicCard, TopicCardSkeleton } from "@/components/student/TopicCard";
 import { TopicDetailDrawer } from "@/components/student/TopicDetailDrawer";
 import { WishlistDrawer } from "@/components/student/WishlistDrawer";
+import { RegistrationNoteEditor, buildRegistrationNote } from "@/components/student/RegistrationNoteEditor";
+import { Modal } from "@/components/common/Modal";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { topicService, studentGroupService } from "@/lib";
 import { majorService } from "@/lib";
-import type { MajorOption, StudentGroupDto, TopicFilters, TopicsInPoolResponse } from "@/types";
+import type { MajorOption, NoteAttachment, StudentGroupDto, TopicFilters, TopicsInPoolResponse } from "@/types";
 
 // ── Animation variants ───────────────────────────────────────────────────────
 
@@ -57,20 +60,51 @@ export function StudentTopicsPage() {
   const wishlist = useWishlist();
   const { showError } = useSystemError();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [myGroup, setMyGroup] = useState<StudentGroupDto | null>(null);
+  const [hasPendingRegistration, setHasPendingRegistration] = useState(false);
   const [registerTopicId, setRegisterTopicId] = useState<string | null>(null);
   const [registerNote, setRegisterNote] = useState("");
+  const [registerAttachments, setRegisterAttachments] = useState<NoteAttachment[]>([]);
   const [registering, setRegistering] = useState(false);
+
+  const closeRegisterModal = () => {
+    setRegisterTopicId(null);
+    setRegisterNote("");
+    setRegisterAttachments([]);
+  };
 
   useEffect(() => {
     studentGroupService
       .getMyGroup()
-      .then((g) => setMyGroup(g))
+      .then((g) => {
+        setMyGroup(g);
+        // A group may only have one active registration at a time; if it already has a pending
+        // one, block registering for other topics (reuse the "Đã có đề tài" disabled state).
+        if (g?.groupId && !g.projectId) {
+          studentGroupService
+            .getMyRegistrations(g.groupId)
+            .then((list) => setHasPendingRegistration(list.some((r) => r.status === "Pending")))
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
   }, []);
 
-  const myGroupHasProject = !!myGroup?.projectId;
-  const isLeader = myGroup?.members.some((m) => m.studentId === user?.id && m.role === "Leader") ?? false;
+  // Group is "occupied" if it already has an assigned project OR a pending pool registration.
+  const myGroupHasProject = !!myGroup?.projectId || hasPendingRegistration;
+  // Real login uses the Firebase UID on the client while the API returns the DB Guid for studentId,
+  // so match on email too (same approach as StudentMyTopicPage) — otherwise the leader is never
+  // recognised and the "Đăng ký đề tài" button stays disabled.
+  const currentUserId = user?.id?.toLowerCase();
+  const currentUserEmail = user?.email?.toLowerCase();
+  const isLeader =
+    myGroup?.members.some((m) => {
+      if (m.role?.toLowerCase() !== "leader") return false;
+      const idMatched = m.studentId?.toLowerCase() === currentUserId;
+      const emailMatched = m.email?.toLowerCase() === currentUserEmail;
+      return idMatched || emailMatched;
+    }) ?? false;
 
   const handleRegister = async () => {
     if (!registerTopicId || !myGroup?.groupId) return;
@@ -79,15 +113,16 @@ export function StudentTopicsPage() {
       await studentGroupService.registerTopic({
         projectId: registerTopicId,
         groupId: myGroup.groupId,
-        note: registerNote.trim() || undefined,
+        note: buildRegistrationNote(registerNote, registerAttachments),
       });
       setRegisterTopicId(null);
       setRegisterNote("");
+      setRegisterAttachments([]);
       setSelectedTopicId(null);
-      // Refresh group state and re-trigger topic fetch
+      // Refresh group state, then take the student to "My Topic" to track the pending registration.
       const g = await studentGroupService.getMyGroup();
       setMyGroup(g);
-      setFilters((prev) => ({ ...prev }));
+      navigate("/student/my-topic");
     } catch (err) {
       showError(err instanceof Error ? err.message : "Đăng ký thất bại.");
     } finally {
@@ -310,6 +345,9 @@ export function StudentTopicsPage() {
                   onToggleFavorite={() => wishlist.toggle(topic.id, topic)}
                   onViewDetail={() => setSelectedTopicId(topic.id)}
                   groupHasProject={myGroupHasProject}
+                  hasGroup={!!myGroup}
+                  isLeader={isLeader}
+                  onRegister={(topicId) => setRegisterTopicId(topicId)}
                 />
               ))}
             </motion.div>
@@ -426,14 +464,7 @@ export function StudentTopicsPage() {
 
       {/* Registration Confirmation Modal */}
       {registerTopicId && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => {
-            setRegisterTopicId(null);
-            setRegisterNote("");
-          }}
-        >
-          <div className="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={closeRegisterModal}>
             <h3 className="text-lg font-bold text-[#101319] mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">app_registration</span>
               Xác nhận đăng ký đề tài
@@ -442,13 +473,15 @@ export function StudentTopicsPage() {
               Nhóm <span className="font-semibold text-primary">{myGroup?.groupName ?? myGroup?.groupCode}</span> sẽ
               đăng ký đề tài này. Sau khi đăng ký, giảng viên sẽ xem xét và xác nhận.
             </p>
-            <textarea
-              value={registerNote}
-              onChange={(e) => setRegisterNote(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none mb-4"
-              placeholder="Ghi chú cho giảng viên (tùy chọn)..."
-            />
+            <div className="mb-4">
+              <RegistrationNoteEditor
+                value={registerNote}
+                onChange={setRegisterNote}
+                attachments={registerAttachments}
+                onAttachmentsChange={setRegisterAttachments}
+                onError={showError}
+              />
+            </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleRegister}
@@ -463,17 +496,13 @@ export function StudentTopicsPage() {
                 Xác nhận
               </button>
               <button
-                onClick={() => {
-                  setRegisterTopicId(null);
-                  setRegisterNote("");
-                }}
+                onClick={closeRegisterModal}
                 className="px-5 py-2.5 border border-[#e9ecf1] text-[#58698d] rounded-lg text-sm font-semibold hover:bg-gray-50 transition-colors"
               >
                 Hủy
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );

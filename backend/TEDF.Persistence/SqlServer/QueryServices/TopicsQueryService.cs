@@ -42,18 +42,31 @@ public class TopicsQueryService : ITopicsQueryService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
+            // NameVi/NameEn are value objects (value converter) — EF cannot translate string ops on
+            // them. Materialize the names via .Value (a projection that DOES translate) and match
+            // client-side; mentor names match on the plain FullName column.
+            var lower = search.Trim().ToLower();
+            var nameRows = await query
+                .Select(x => new { x.Project.Id, NameVi = x.Project.NameVi.Value, NameEn = x.Project.NameEn.Value })
+                .ToListAsync(cancellationToken);
+            var matchedIds = nameRows
+                .Where(n => (n.NameVi ?? "").ToLower().Contains(lower) || (n.NameEn ?? "").ToLower().Contains(lower))
+                .Select(n => n.Id)
+                .ToHashSet();
+
+            var matchedMentorIds = await _context.Users.AsNoTracking()
+                .Where(u => u.FullName.ToLower().Contains(lower))
+                .Select(u => u.Id)
+                .ToListAsync(cancellationToken);
+
             query = query.Where(x =>
-                EF.Property<string>(x.Project, "NameVi").Contains(term) ||
-                EF.Property<string>(x.Project, "NameEn").Contains(term) ||
-                x.Project.Mentors.Any(pm =>
-                    pm.Status == ProjectMentorStatus.Active &&
-                    _context.Users.Any(u => u.Id == pm.MentorId && u.FullName.Contains(term))));
+                matchedIds.Contains(x.Project.Id) ||
+                x.Project.Mentors.Any(pm => pm.Status == ProjectMentorStatus.Active && matchedMentorIds.Contains(pm.MentorId)));
         }
 
         query = sortBy switch
         {
-            "name" => query.OrderBy(x => EF.Property<string>(x.Project, "NameVi")),
+            "name" => query.OrderBy(x => x.Project.NameVi),
             "mentor" => query.OrderBy(x =>
                 x.Project.Mentors
                     .Where(pm => pm.Status == ProjectMentorStatus.Active)
@@ -248,11 +261,20 @@ public class TopicsQueryService : ITopicsQueryService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
-            query = query.Where(x =>
-                EF.Property<string>(x.Project, "NameVi").Contains(term) ||
-                EF.Property<string>(x.Project, "NameEn").Contains(term) ||
-                EF.Property<string>(x.Project, "Code").Contains(term));
+            // NameVi/NameEn/Code are value objects (value converter) — EF can't translate string ops
+            // on them. Materialize via .Value (translatable) and match client-side, then filter by id.
+            var lower = search.Trim().ToLower();
+            var nameRows = await query
+                .Select(x => new { x.Project.Id, NameVi = x.Project.NameVi.Value, NameEn = x.Project.NameEn.Value, Code = x.Project.Code.Value })
+                .ToListAsync(cancellationToken);
+            var matchedIds = nameRows
+                .Where(n => (n.NameVi ?? "").ToLower().Contains(lower)
+                         || (n.NameEn ?? "").ToLower().Contains(lower)
+                         || (n.Code ?? "").ToLower().Contains(lower))
+                .Select(n => n.Id)
+                .ToHashSet();
+
+            query = query.Where(x => matchedIds.Contains(x.Project.Id));
         }
 
         query = query.OrderByDescending(x => x.Project.CreatedAt);

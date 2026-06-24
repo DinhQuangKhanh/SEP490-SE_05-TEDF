@@ -1,9 +1,12 @@
 using MediatR;
 using TEDF.Application.Features.TopicPools.DTOs;
+using TEDF.Application.Features.TopicPools.Commands.CancelRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ConfirmRegistration;
 using TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
+using TEDF.Application.Features.TopicPools.Queries.GetGroupRegistrations;
+using TEDF.Application.Features.TopicPools.Queries.GetMentorRegistrations;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -13,6 +16,8 @@ using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 using Microsoft.AspNetCore.Mvc;
 using TEDF.API.Common.Security.Abstractions;
+using TEDF.API.Common.Security.Validation;
+using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.TopicPools.Commands.MentorResubmitPoolTopic;
 using TEDF.Application.Features.TopicPools.Commands.MentorUpdatePoolTopic;
@@ -21,9 +26,22 @@ namespace TEDF.API.Endpoints.Topics;
 
 public sealed class TopicPoolsEndpoints : IEndpoint
 {
+    private const long NoteAttachmentMaxBytes = 10 * 1024 * 1024; // 10 MB / file
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var pool = app.MapGroup("/api/topic-pools").RequireAuthorization();
+
+        // Synchronous single-file upload for the registration-note editor (inline images + attachments);
+        // returns a public URL immediately. Format/size validated server-side; no async malware scan.
+        pool.MapPost("/note-attachment", UploadNoteAttachment)
+            .WithTags("TopicPools")
+            .WithName("UploadRegistrationNoteAttachment")
+            .Produces<object>()
+            .Produces(400).Produces(401)
+            .WithMetadata(new RequestSizeLimitAttribute(NoteAttachmentMaxBytes))
+            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = NoteAttachmentMaxBytes })
+            .DisableAntiforgery();
 
         pool.MapGet("", GetTopicPools)
             .WithTags("TopicPools")
@@ -61,6 +79,24 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .WithTags("TopicPools")
             .WithName("RequestTopicRegistration")
             .Produces(201).Produces(400).Produces(401).Produces(403);
+
+        pool.MapGet("/groups/{groupId:guid}/registrations", GetGroupRegistrations)
+            .RequireAuthorization(PolicyNames.GroupMember)
+            .WithTags("TopicPools")
+            .WithName("GetGroupRegistrations")
+            .Produces<List<GroupRegistrationDto>>()
+            .Produces(401).Produces(403);
+
+        pool.MapGet("/registrations/mentor", GetMentorRegistrations)
+            .WithTags("TopicPools")
+            .WithName("GetMentorRegistrations")
+            .Produces<List<MentorRegistrationRequestDto>>()
+            .Produces(401);
+
+        pool.MapPut("/registrations/{id:guid}/cancel", CancelTopicRegistration)
+            .WithTags("TopicPools")
+            .WithName("CancelTopicRegistration")
+            .Produces(204).Produces(400).Produces(401).Produces(404);
 
         pool.MapPut("/registrations/{id:guid}/confirm", ConfirmTopicRegistration)
             .WithTags("TopicPools")
@@ -127,6 +163,47 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     {
         var registrationId = await sender.Send(new RequestTopicRegistrationCommand(body.ProjectId, groupId, body.Note), ct);
         return Created($"/api/topic-pools/registrations/{registrationId}", new { id = registrationId }, "Tạo mới thành công.");
+    }
+
+    private static async Task<IResult> GetGroupRegistrations(Guid groupId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetGroupRegistrationsQuery(groupId), ct));
+
+    private static async Task<IResult> GetMentorRegistrations(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetMentorRegistrationsQuery(), ct));
+
+    private static async Task<IResult> UploadNoteAttachment(
+        HttpContext httpContext,
+        IFileStorageService fileStorage,
+        CancellationToken cancellationToken)
+    {
+        if (!httpContext.Request.HasFormContentType)
+            return Results.BadRequest(ApiResponse.Fail("Request phải là multipart/form-data."));
+
+        var file = httpContext.Request.Form.Files.FirstOrDefault();
+        if (file is null || file.Length == 0)
+            return Results.BadRequest(ApiResponse.Fail("Không có tệp nào được gửi lên."));
+
+        if (!FileUploadValidator.TryValidate([file], NoteAttachmentMaxBytes, maxAttachmentCount: 1, out var error))
+            return Results.BadRequest(ApiResponse.Fail(error));
+
+        await using var stream = file.OpenReadStream();
+        var result = await fileStorage.UploadAsync(stream, file.FileName, "registration-notes", cancellationToken);
+        if (!result.Success || string.IsNullOrWhiteSpace(result.PublicUrl))
+            return Results.BadRequest(ApiResponse.Fail(result.Error ?? "Tải tệp lên thất bại."));
+
+        return Ok(new
+        {
+            url = result.PublicUrl,
+            originalFileName = file.FileName,
+            fileSize = file.Length,
+            contentType = file.ContentType,
+        });
+    }
+
+    private static async Task<IResult> CancelTopicRegistration(Guid id, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new CancelTopicRegistrationCommand(id), ct);
+        return NoContent("Huỷ đăng ký thành công.");
     }
 
     private static async Task<IResult> ConfirmTopicRegistration(Guid id, ISender sender, CancellationToken ct)

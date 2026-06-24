@@ -84,6 +84,8 @@ export const routes = {
   },
   studentTopics: {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
+    myRegistrations: (groupId: string) => `/api/topic-pools/groups/${groupId}/registrations`,
+    cancelRegistration: (registrationId: string) => `/api/topic-pools/registrations/${registrationId}/cancel`,
     createDirectTopic: (groupId: string) => `/api/direct-topics/${groupId}`,
     updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
     submitDirectTopicToMentor: (groupId: string, projectId: string) =>
@@ -101,8 +103,10 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,
+    noteAttachment: "/api/topic-pools/note-attachment",
   },
   support: {
     base: "/api/support-tickets",

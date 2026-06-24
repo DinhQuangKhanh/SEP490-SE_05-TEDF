@@ -51,9 +51,21 @@ interface TopicCardProps {
   onToggleFavorite: () => void;
   onViewDetail: () => void;
   groupHasProject?: boolean;
+  hasGroup?: boolean;
+  isLeader?: boolean;
+  onRegister?: (projectId: string) => void;
 }
 
-export function TopicCard({ topic, isFavorite, onToggleFavorite, onViewDetail, groupHasProject }: TopicCardProps) {
+export function TopicCard({
+  topic,
+  isFavorite,
+  onToggleFavorite,
+  onViewDetail,
+  groupHasProject,
+  hasGroup,
+  isLeader,
+  onRegister,
+}: TopicCardProps) {
   const colors = majorColors[topic.majorCode] ?? defaultColor;
   const techs = parseTechnologies(topic.technologies);
   const isAvailable = topic.poolStatus === 0; // PoolTopicStatus.Available
@@ -152,16 +164,41 @@ export function TopicCard({ topic, isFavorite, onToggleFavorite, onViewDetail, g
           Chi tiết
         </button>
 
-        {groupHasProject ? (
+        {!hasGroup ? (
           <button
             className="flex-1 bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5"
             disabled
+            title="Bạn cần tham gia nhóm trước khi đăng ký"
+          >
+            <span className="text-base material-symbols-outlined">group_add</span>
+            Cần có nhóm
+          </button>
+        ) : groupHasProject ? (
+          <button
+            className="flex-1 bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5"
+            disabled
+            title="Nhóm của bạn đã có đề tài"
           >
             <span className="text-base material-symbols-outlined">block</span>
-            Nhóm đã có đề tài
+            Đã có đề tài
+          </button>
+        ) : !isLeader ? (
+          <button
+            className="flex-1 bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5"
+            disabled
+            title="Chỉ nhóm trưởng được đăng ký đề tài"
+          >
+            <span className="text-base material-symbols-outlined">lock</span>
+            Nhóm trưởng
           </button>
         ) : isAvailable ? (
-          <button className="flex-1 bg-primary text-white py-2 rounded-lg text-xs font-bold hover:bg-primary-light transition-colors flex items-center justify-center gap-1.5">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRegister?.(topic.id);
+            }}
+            className="flex-1 bg-primary text-white py-2 rounded-lg text-xs font-bold hover:bg-primary-light transition-colors flex items-center justify-center gap-1.5"
+          >
             <span className="text-base material-symbols-outlined">app_registration</span>
             Đăng ký
           </button>
@@ -169,6 +206,7 @@ export function TopicCard({ topic, isFavorite, onToggleFavorite, onViewDetail, g
           <button
             className="flex-1 bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5"
             disabled
+            title="Đề tài này đã có nhóm khác đăng ký"
           >
             <span className="text-base material-symbols-outlined">check_circle</span>
             Đã có nhóm

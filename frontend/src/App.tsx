@@ -124,6 +124,7 @@ function App() {
               >
                 {/* Research topic repository (own topics; all topics for DepartmentHead) */}
                 <Route index element={<LecturerRepositoryPage />} />
+                <Route path="registrations" element={<LecturerRepositoryPage />} />
                 <Route path="groups" element={<LecturerGroupsPage />} />
                 <Route path="groups/:id" element={<LecturerGroupDetailPage />} />
                 <Route path="create" element={<TopicCreatePage />} />

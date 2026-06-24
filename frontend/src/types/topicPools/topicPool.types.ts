@@ -60,3 +60,40 @@ export interface UpdatePoolTopicRequest {
   expectedResults?: string | null;
   maxStudents: number;
 }
+
+/** GET /api/topic-pools/registrations/mentor — a pending registration request for the mentor. */
+export interface MentorRegistrationRequestDto {
+  registrationId: string;
+  projectId: string;
+  projectName: string | null;
+  projectCode: string | null;
+  groupId: string;
+  groupName: string | null;
+  groupCode: string | null;
+  registeredByName: string | null;
+  memberCount: number;
+  note: string | null;
+  registeredAt: string;
+}
+
+/** SignalR `ReceiveRegistrationUpdate` payload (real-time mentor registration tab). */
+export interface RegistrationUpdate {
+  action: "added" | "removed";
+  registrationId: string;
+  projectId: string;
+}
+
+/** POST /api/topic-pools/note-attachment — synchronous upload for the registration-note editor. */
+export interface NoteAttachmentUploadResponse {
+  url: string;
+  originalFileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
+/** An attachment already uploaded to storage, kept in the registration-note editor's list. */
+export interface NoteAttachment {
+  url: string;
+  name: string;
+  size: number;
+}

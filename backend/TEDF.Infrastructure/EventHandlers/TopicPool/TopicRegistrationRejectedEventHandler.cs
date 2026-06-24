@@ -1,21 +1,40 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
+using TEDF.Application.Common.Interfaces;
+using TEDF.Domain.Aggregates.GroupAggregate;
+using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Events;
+using TEDF.Domain.Enums.Notification;
+using TEDF.Infrastructure.RealTime.Services;
 
 namespace TEDF.Infrastructure.EventHandlers.TopicPool
 {
-    public class TopicRegistrationRejectedEventHandler : INotificationHandler<TopicRegistrationRejectedEvent>
+    /// <summary>
+    /// When a registration is rejected: drop it from the mentor tab (real-time), and notify the
+    /// student group (bell + real-time refresh of their "Đề tài của tôi" page).
+    /// </summary>
+    public class TopicRegistrationRejectedEventHandler
+        : TopicRegistrationOutcomeEventHandlerBase, INotificationHandler<TopicRegistrationRejectedEvent>
     {
-        private readonly ILogger<TopicRegistrationRejectedEventHandler> _logger;
-
-        public TopicRegistrationRejectedEventHandler(ILogger<TopicRegistrationRejectedEventHandler> logger) => _logger = logger;
-
-        public Task Handle(TopicRegistrationRejectedEvent notification, CancellationToken cancellationToken)
+        public TopicRegistrationRejectedEventHandler(
+            ILogger<TopicRegistrationRejectedEventHandler> logger,
+            INotificationService notificationService,
+            IRealtimeNotificationService realtime,
+            IProjectRepository projectRepository,
+            IGroupRepository groupRepository)
+            : base(logger, notificationService, realtime, projectRepository, groupRepository)
         {
-            _logger.LogInformation("Topic registration rejected: {RegistrationId}, Project: {ProjectId}, Reason: {Reason}",
-                notification.RegistrationId, notification.ProjectId, notification.Reason);
-            // TODO: Notify group about rejection
-            return Task.CompletedTask;
         }
+
+        public Task Handle(TopicRegistrationRejectedEvent notification, CancellationToken cancellationToken) =>
+            NotifyOutcomeAsync(
+                notification.RegistrationId,
+                notification.ProjectId,
+                notification.GroupId,
+                "rejected",
+                "Đăng ký đề tài bị từ chối",
+                "Giảng viên đã từ chối đăng ký đề tài \"{0}\".",
+                NotificationType.Warning,
+                cancellationToken);
     }
 }

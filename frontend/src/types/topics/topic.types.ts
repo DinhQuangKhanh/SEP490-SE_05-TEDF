@@ -111,3 +111,18 @@ export interface MentorTopicFilters {
   page?: number;
   pageSize?: number;
 }
+
+// ── Topic-pool registration made by a student group ─────────────────────────────
+// GET /api/topic-pools/groups/{groupId}/registrations
+export interface GroupRegistrationDto {
+  id: string;
+  projectId: string;
+  projectName: string | null;
+  projectCode: string | null;
+  mentorName: string | null;
+  /** Pending | Confirmed | Rejected | Cancelled */
+  status: string;
+  registeredAt: string;
+  note: string | null;
+  rejectReason: string | null;
+}

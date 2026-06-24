@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
+import { Modal } from "@/components/common/Modal";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/lecturer";
+import {
+  RegistrationNoteEditor,
+  RegistrationNoteView,
+  buildRegistrationNote,
+  isQuillNoteEmpty,
+} from "@/components/student/RegistrationNoteEditor";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemError } from "@/contexts/SystemErrorContext";
+import { useSignalR } from "@/hooks/useSignalR";
 import {
   topicService,
   topicPoolService,
@@ -15,8 +25,11 @@ import {
 } from "@/lib";
 import type {
   DepartmentProject,
+  MentorRegistrationRequestDto,
   MentorTopicItem,
   MentorTopicsResponse,
+  NoteAttachment,
+  RegistrationUpdate,
   SemesterOption,
   TopicDetail,
   TopicDocument,
@@ -285,9 +298,258 @@ export function LecturerRepositoryPage() {
   return isDeptHead ? <DepartmentTopicsView /> : <MentorOwnTopicsView />;
 }
 
+// ── Tab button + registration requests tab ───────────────────────────────────
+
+/** Drives the repository tab from the URL so notifications can deep-link (/lecturer vs /lecturer/registrations). */
+function useRepoTab() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab: "topics" | "registrations" = location.pathname.endsWith("/registrations") ? "registrations" : "topics";
+  const setActiveTab = (tab: "topics" | "registrations") =>
+    navigate(tab === "registrations" ? "/lecturer/registrations" : "/lecturer");
+  return { activeTab, setActiveTab };
+}
+
+function RepoTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  badge,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: string;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
+        active ? "text-primary" : "text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      <span className={`material-symbols-outlined text-[18px] ${active ? "fill-1" : ""}`}>{icon}</span>
+      {label}
+      {badge !== undefined && badge > 0 && (
+        <span className="bg-red-100 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+          {badge}
+        </span>
+      )}
+      {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+    </button>
+  );
+}
+
+/**
+ * Pending registration requests for the mentor, updated in real time via the dedicated
+ * "ReceiveRegistrationUpdate" SignalR broadcast (added → refetch, removed → drop instantly).
+ */
+function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: number) => void }) {
+  const { showError } = useSystemError();
+  const [items, setItems] = useState<MentorRegistrationRequestDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  // Reject modal (rich-text reason, same editor the student uses for the registration note)
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejectAttachments, setRejectAttachments] = useState<NoteAttachment[]>([]);
+  const [rejecting, setRejecting] = useState(false);
+
+  const closeReject = () => {
+    setRejectId(null);
+    setRejectNote("");
+    setRejectAttachments([]);
+  };
+
+  const setItemsAndCount = useCallback(
+    (updater: (prev: MentorRegistrationRequestDto[]) => MentorRegistrationRequestDto[]) => {
+      setItems((prev) => {
+        const next = updater(prev);
+        onCountChange(next.length);
+        return next;
+      });
+    },
+    [onCountChange],
+  );
+
+  const load = useCallback(() => {
+    setLoading(true);
+    topicPoolService
+      .getMentorRegistrations()
+      .then((list) => {
+        setItems(list);
+        onCountChange(list.length);
+      })
+      .catch((err) => showError(err instanceof Error ? err.message : "Không thể tải yêu cầu đăng ký."))
+      .finally(() => setLoading(false));
+  }, [onCountChange, showError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useSignalR({
+    onRegistrationUpdate: (raw) => {
+      const update = raw as RegistrationUpdate;
+      if (update.action === "removed") {
+        setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== update.registrationId));
+      } else if (update.action === "added") {
+        load();
+      }
+    },
+  });
+
+  const remove = (id: string) => setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== id));
+
+  const handleConfirm = async (id: string) => {
+    setProcessingId(id);
+    try {
+      await topicPoolService.confirmRegistration(id);
+      remove(id);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Duyệt yêu cầu thất bại.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const submitReject = async () => {
+    if (!rejectId) return;
+    const reason = buildRegistrationNote(rejectNote, rejectAttachments);
+    if (!reason) {
+      showError("Vui lòng nhập lý do từ chối.");
+      return;
+    }
+    setRejecting(true);
+    try {
+      await topicPoolService.rejectRegistration(rejectId, reason);
+      remove(rejectId);
+      closeReject();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Từ chối yêu cầu thất bại.");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-8 h-8 border-b-2 rounded-full border-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">inbox</span>
+        <p className="font-medium text-slate-500">Chưa có yêu cầu đăng ký nào</p>
+        <p className="text-sm text-slate-400">Khi sinh viên đăng ký đề tài của bạn, yêu cầu sẽ hiện ở đây.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-4">
+      {items.map((r) => (
+        <motion.div
+          key={r.registrationId}
+          variants={item}
+          className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col md:flex-row md:items-start gap-4"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-xs font-mono text-slate-400">{r.projectCode}</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                Chờ duyệt
+              </span>
+            </div>
+            <h3 className="font-bold text-slate-900 truncate">{r.projectName}</h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Nhóm <span className="font-semibold text-slate-700">{r.groupName ?? r.groupCode}</span> · {r.memberCount}{" "}
+              thành viên · {r.registeredByName}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">{formatDate(r.registeredAt)}</p>
+            {r.note && (
+              <RegistrationNoteView note={r.note} className="text-slate-600 mt-2 border-l-2 border-slate-200 pl-3" />
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleConfirm(r.registrationId)}
+              disabled={processingId === r.registrationId}
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[18px]">check</span>
+              Duyệt
+            </button>
+            <button
+              onClick={() => setRejectId(r.registrationId)}
+              disabled={processingId === r.registrationId}
+              className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              Từ chối
+            </button>
+          </div>
+        </motion.div>
+      ))}
+    </motion.div>
+
+      {/* Reject reason modal — same rich-text editor the student uses for the note */}
+      {rejectId && (
+        <Modal onClose={closeReject}>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-500">cancel</span>
+              Từ chối yêu cầu đăng ký
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">Nhập lý do từ chối để gửi cho nhóm sinh viên (bắt buộc).</p>
+            <div className="mb-2">
+              <RegistrationNoteEditor
+                value={rejectNote}
+                onChange={setRejectNote}
+                attachments={rejectAttachments}
+                onAttachmentsChange={setRejectAttachments}
+                onError={showError}
+              />
+            </div>
+            {isQuillNoteEmpty(rejectNote) && rejectAttachments.length === 0 && (
+              <p className="text-xs text-red-500 mb-4">Vui lòng nhập lý do từ chối.</p>
+            )}
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={submitReject}
+                disabled={rejecting || (isQuillNoteEmpty(rejectNote) && rejectAttachments.length === 0)}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {rejecting ? (
+                  <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent" />
+                ) : (
+                  <span className="material-symbols-outlined text-lg">send</span>
+                )}
+                Gửi từ chối
+              </button>
+              <button
+                onClick={closeReject}
+                className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Hủy
+              </button>
+            </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 // ── Mentor's own topics ──────────────────────────────────────────────────────
 
 function MentorOwnTopicsView() {
+  const { activeTab, setActiveTab } = useRepoTab();
+  const [pendingCount, setPendingCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailTopic, setDetailTopic] = useState<MentorTopicItem | null>(null);
 
@@ -302,6 +564,14 @@ function MentorOwnTopicsView() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
+
+  // Initial pending-registration count so the tab badge is correct before the tab is opened.
+  useEffect(() => {
+    topicPoolService
+      .getMentorRegistrations()
+      .then((list) => setPendingCount(list.length))
+      .catch(() => {});
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -367,8 +637,30 @@ function MentorOwnTopicsView() {
         breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
       />
 
+      {/* Tabs */}
+      <div className="px-8 bg-white border-b border-slate-200">
+        <div className="flex gap-1">
+          <RepoTabButton
+            active={activeTab === "topics"}
+            onClick={() => setActiveTab("topics")}
+            icon="inventory_2"
+            label="Đề tài của tôi"
+          />
+          <RepoTabButton
+            active={activeTab === "registrations"}
+            onClick={() => setActiveTab("registrations")}
+            icon="how_to_reg"
+            label="Yêu cầu đăng ký"
+            badge={pendingCount}
+          />
+        </div>
+      </div>
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
+        {activeTab === "registrations" ? (
+          <MentorRegistrationsTab onCountChange={setPendingCount} />
+        ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
           {/* Title & Actions */}
           <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -497,6 +789,7 @@ function MentorOwnTopicsView() {
             )}
           </motion.div>
         </motion.div>
+        )}
       </div>
 
       {/* Register Topic Modal */}
@@ -528,12 +821,22 @@ function MentorOwnTopicsView() {
 // ── Department-Head view: all topics in the department ───────────────────────
 
 function DepartmentTopicsView() {
+  const { activeTab, setActiveTab } = useRepoTab();
+  const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<DepartmentProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [detailProject, setDetailProject] = useState<DepartmentProject | null>(null);
+
+  // Dept-head is also a mentor of their own topics → surface their registration requests too.
+  useEffect(() => {
+    topicPoolService
+      .getMentorRegistrations()
+      .then((list) => setPendingCount(list.length))
+      .catch(() => {});
+  }, []);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -582,7 +885,29 @@ function DepartmentTopicsView() {
         breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
       />
 
+      {/* Tabs */}
+      <div className="px-8 bg-white border-b border-slate-200">
+        <div className="flex gap-1">
+          <RepoTabButton
+            active={activeTab === "topics"}
+            onClick={() => setActiveTab("topics")}
+            icon="inventory_2"
+            label="Đề tài bộ môn"
+          />
+          <RepoTabButton
+            active={activeTab === "registrations"}
+            onClick={() => setActiveTab("registrations")}
+            icon="how_to_reg"
+            label="Yêu cầu đăng ký"
+            badge={pendingCount}
+          />
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
+        {activeTab === "registrations" ? (
+          <MentorRegistrationsTab onCountChange={setPendingCount} />
+        ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
           <motion.div variants={item}>
             <h2 className="text-2xl font-bold text-slate-900">Kho đề tài nghiên cứu</h2>
@@ -679,6 +1004,7 @@ function DepartmentTopicsView() {
             )}
           </motion.div>
         </motion.div>
+        )}
       </div>
 
       <AnimatePresence>

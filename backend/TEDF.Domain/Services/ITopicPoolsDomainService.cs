@@ -62,6 +62,15 @@ public interface ITopicPoolsDomainService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Cancels a pending topic registration. Only the leader of the registering group may cancel.
+    /// </summary>
+    Task CancelRegistrationAsync(
+        Guid registrationId,
+        Guid cancelledBy,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets statistics for a topic pool.
     /// </summary>
     Task<TopicPoolStatistics> GetPoolStatisticsAsync(Guid topicPoolId, CancellationToken cancellationToken = default);

@@ -20,6 +20,18 @@ async function getToken(): Promise<string | null> {
   }
 }
 
+interface UseSignalROptions {
+  onReceiveNotification?: (notification: unknown) => void;
+  /** Real-time registration changes for the mentor "Yêu cầu đăng ký" tab. */
+  onRegistrationUpdate?: (update: unknown) => void;
+}
+
+export function useSignalR({ onReceiveNotification, onRegistrationUpdate }: UseSignalROptions) {
+  const connectionRef = useRef<HubConnection | null>(null);
+  const callbackRef = useRef(onReceiveNotification);
+  callbackRef.current = onReceiveNotification;
+  const registrationCbRef = useRef(onRegistrationUpdate);
+  registrationCbRef.current = onRegistrationUpdate;
 interface UnreadCountUpdatedPayload {
   count: number;
 }
@@ -66,6 +78,13 @@ function ensureConnection(): Promise<void> {
       receiveNotificationListeners.forEach((listener) => listener(notification));
     });
 
+    connection.on("ReceiveRegistrationUpdate", (update: unknown) => {
+      registrationCbRef.current?.(update);
+    });
+
+    connection
+      .start()
+      .catch((err) => console.warn("SignalR connection failed:", err));
     connection.on(SignalREvents.UnreadCountUpdated, (payload: UnreadCountUpdatedPayload) => {
       unreadCountListeners.forEach((listener) => listener(payload));
     });
