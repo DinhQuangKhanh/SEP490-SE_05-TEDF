@@ -1,8 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { notificationService } from "@/lib";
 import type { NotificationDto } from "@/types";
 import { useSignalR } from "@/hooks/useSignalR";
+
+/** Only allow navigating to internal app paths — never an absolute/external URL. */
+function isSafeInternalPath(url: string | null): url is string {
+  return !!url && url.startsWith("/") && !url.startsWith("//");
+}
+
+/**
+ * Fired instead of navigating when a clicked notification's targetUrl matches the
+ * route the user is already on (react-router won't remount/refetch in that case).
+ * Pages whose data can change from a notification (e.g. group join requests) should
+ * listen for this and refetch.
+ */
+export const NOTIFICATION_TARGET_REFRESH_EVENT = "notification-target-refresh";
+
+export interface NotificationTargetRefreshDetail {
+  targetUrl: string;
+  category: string;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,11 +74,14 @@ function categoryIcon(category: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function NotificationDropdown({ isNavy = false }: NotificationDropdownProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef(false); // prevent duplicate fetch on first open
 
@@ -136,23 +158,60 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const markAsRead = useCallback(async (id: string, targetUrl: string | null) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-    window.dispatchEvent(new Event("notificationRead"));
+  const handleNotificationClick = useCallback(
+    async (notification: NotificationDto) => {
+      const { id, isRead, targetUrl, category } = notification;
+      if (!id || pendingIds.has(id)) return;
 
-    try {
-      await notificationService.markRead(id);
-    } catch {
-      // optimistic update — revert if it fails
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: false } : n)));
-      setUnreadCount((prev) => prev + 1);
-    }
+      const goToTarget = () => {
+        if (!isSafeInternalPath(targetUrl)) return;
+        setIsOpen(false);
 
-    if (targetUrl) {
-      window.location.href = targetUrl;
-    }
-  }, []);
+        // Already on the target route — react-router won't remount/refetch on a
+        // no-op navigate, so tell the page to refresh its own data instead.
+        if (location.pathname === targetUrl) {
+          window.dispatchEvent(
+            new CustomEvent<NotificationTargetRefreshDetail>(NOTIFICATION_TARGET_REFRESH_EVENT, {
+              detail: { targetUrl, category },
+            }),
+          );
+          return;
+        }
+
+        navigate(targetUrl);
+      };
+
+      // Already read — nothing to mark, just navigate.
+      if (isRead) {
+        goToTarget();
+        return;
+      }
+
+      setPendingIds((prev) => new Set(prev).add(id));
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new Event("notificationRead"));
+
+      try {
+        await notificationService.markRead(id);
+      } catch (err) {
+        // Optimistic update failed server-side — revert local state, but the
+        // targetUrl (if any) is still valid, so the user can still navigate.
+        console.error("Failed to mark notification as read:", id, err);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: false } : n)));
+        setUnreadCount((prev) => prev + 1);
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+
+      goToTarget();
+    },
+    [navigate, pendingIds, location.pathname],
+  );
 
   const markAllAsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -254,13 +313,15 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
               ) : (
                 notifications.map((n) => {
                   const colors = typeColors[n.type] ?? typeColors.Info;
+                  const isPending = pendingIds.has(n.id);
                   return (
                     <motion.div
                       key={n.id}
                       initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      onClick={() => markAsRead(n.id, n.targetUrl)}
-                      className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-50/50" : ""}`}
+                      animate={{ opacity: isPending ? 0.6 : 1 }}
+                      onClick={() => handleNotificationClick(n)}
+                      aria-busy={isPending}
+                      className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-50/50" : ""} ${isPending ? "pointer-events-none" : ""}`}
                     >
                       <div className="flex gap-3">
                         <div

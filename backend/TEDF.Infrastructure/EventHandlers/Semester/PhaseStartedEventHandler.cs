@@ -71,7 +71,7 @@ public class PhaseStartedEventHandler : INotificationHandler<PhaseStartedEvent>,
                 content: content,
                 type: NotificationType.Info,
                 category: NotificationCategory.System,
-                targetUrl: "/topic-pool", // Default UI routing logic implies registration is heavily tied to topic pool module
+                targetUrl: "/", // Broadcast to mixed roles — "/" lets RoleBasedRedirect send each user to their own home
                 ct: cancellationToken);
 
             _logger.LogInformation(

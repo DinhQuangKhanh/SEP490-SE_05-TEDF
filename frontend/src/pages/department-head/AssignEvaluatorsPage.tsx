@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
@@ -91,8 +93,14 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | "...
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
+function isTabKey(value: string | undefined): value is TabKey {
+  return value === "pending" || value === "in-evaluation" || value === "needs-decision" || value === "completed";
+}
+
 export function AssignEvaluatorsPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("pending");
+  const navigate = useNavigate();
+  const { tab } = useParams<{ tab?: string }>();
+  const activeTab: TabKey = isTabKey(tab) ? tab : "pending";
   const [grouped, setGrouped] = useState<GroupedProjects | null>(null);
   const [evaluators, setEvaluators] = useState<DepartmentEvaluator[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +153,10 @@ export function AssignEvaluatorsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Clicking a "Cần quyết định thẩm định" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useNotificationTargetRefresh(fetchData);
 
   const getTabData = (tab: TabKey): DepartmentProject[] => {
     if (!grouped) return [];
@@ -211,7 +223,7 @@ export function AssignEvaluatorsPage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => navigate(tab.key === "pending" ? "/lecturer/assign" : `/lecturer/assign/${tab.key}`)}
                   className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
                     activeTab === tab.key ? "text-primary" : "text-gray-500 hover:text-gray-700"
                   }`}

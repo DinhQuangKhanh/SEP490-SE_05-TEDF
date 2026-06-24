@@ -38,8 +38,11 @@ namespace TEDF.Persistence.MongoDB.Repositories.Implementation
             return await _collection.CountDocumentsAsync(filter, cancellationToken: ct);
         }
 
-        public async Task MarkAsReadAsync(Guid notificationId, CancellationToken ct = default)
-            => await _collection.UpdateOneAsync(n => n.Id == notificationId, Builders<NotificationDocument>.Update.Set(n => n.IsRead, true).Set(n => n.ReadAt, DateTime.UtcNow), cancellationToken: ct);
+        public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken ct = default)
+            => await _collection.UpdateOneAsync(
+                n => n.Id == notificationId && n.UserId == userId,
+                Builders<NotificationDocument>.Update.Set(n => n.IsRead, true).Set(n => n.ReadAt, DateTime.UtcNow),
+                cancellationToken: ct);
 
         public async Task MarkAllAsReadAsync(Guid userId, CancellationToken ct = default)
             => await _collection.UpdateManyAsync(n => n.UserId == userId && !n.IsRead, Builders<NotificationDocument>.Update.Set(n => n.IsRead, true).Set(n => n.ReadAt, DateTime.UtcNow), cancellationToken: ct);

@@ -56,7 +56,7 @@ namespace TEDF.Infrastructure.BackgroundJobs.Jobs
                     $"Yêu cầu tham gia nhóm {item.grp.Code} đã tự động bị từ chối vì quá 1 giờ chưa được phản hồi.",
                     NotificationType.Warning,
                     NotificationCategory.Group,
-                    "/student/open-groups");
+                    "/student/groups");
             }
 
             _logger.LogInformation("GroupJoinRequestExpirationJob completed: auto-rejected {Count} request(s).", expired.Count);

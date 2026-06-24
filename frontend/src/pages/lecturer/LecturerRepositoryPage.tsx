@@ -11,6 +11,7 @@ import {
   isQuillNoteEmpty,
 } from "@/components/student/RegistrationNoteEditor";
 import { Header } from "@/components/layout/Header";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useSignalR } from "@/hooks/useSignalR";
@@ -625,6 +626,10 @@ function MentorOwnTopicsView() {
     fetchTopics();
   }, [fetchTopics]);
 
+  // Clicking a "Đề tài mới cần duyệt" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useNotificationTargetRefresh(fetchTopics);
+
   const totalPages = data?.totalPages ?? 1;
 
   return (
@@ -854,6 +859,10 @@ function DepartmentTopicsView() {
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  // Clicking a "Đề xuất đề tài mới" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useNotificationTargetRefresh(fetchProjects);
 
   // Reset to the first page whenever the search term changes.
   useEffect(() => {

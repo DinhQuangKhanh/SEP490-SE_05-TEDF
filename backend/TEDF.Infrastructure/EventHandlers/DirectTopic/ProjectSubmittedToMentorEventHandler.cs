@@ -40,7 +40,7 @@ public class ProjectSubmittedToMentorEventHandler : INotificationHandler<Project
             $"Sinh viên đã gửi đề tài \"{project.NameVi}\" cho bạn xem xét.",
             NotificationType.Info,
             NotificationCategory.Project,
-            $"/mentor/topics",
+            "/lecturer",
             cancellationToken);
     }
 }

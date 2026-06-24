@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorFilterOptionsResponse, EvaluatorProjectItemDto, EvaluatorProjectsResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -40,6 +41,14 @@ export function LecturerModerationPage() {
   const [data, setData] = useState<EvaluatorProjectsResponse | null>(null);
   const [filterOptions, setFilterOptions] = useState<EvaluatorFilterOptionsResponse>({ semesters: [], majors: [] });
   const [loading, setLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Clicking a "Chờ quyết định CNBM" notification while already on this page
+  // doesn't trigger a route change, so bump a tick to force the fetch effect below to re-run.
+  const handleNotificationTargetRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+  }, []);
+  useNotificationTargetRefresh(handleNotificationTargetRefresh);
 
   // Fetch filter options once on mount
   useEffect(() => {
@@ -85,7 +94,7 @@ export function LecturerModerationPage() {
     );
 
     return () => clearTimeout(timeout);
-  }, [search, semesterId, majorId, result, page, showError]);
+  }, [search, semesterId, majorId, result, page, showError, refreshTick]);
 
   function clearFilters() {
     setSearchParams({}, { replace: true });

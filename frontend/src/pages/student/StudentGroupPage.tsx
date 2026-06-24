@@ -1,7 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { SuccessModal } from "@/components/common/SuccessModal";
+import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
+import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { studentGroupService } from "@/lib";
 import type {
@@ -27,8 +30,14 @@ const PAGE_SIZE = 9;
 
 // ── Main Page ──────────────────────────────────────────────────────
 
+function isTabKey(value: string | undefined): value is TabKey {
+  return value === "my-group" || value === "open-groups" || value === "invitations";
+}
+
 export function StudentGroupPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("my-group");
+  const navigate = useNavigate();
+  const { tab } = useParams<{ tab?: string }>();
+  const activeTab: TabKey = isTabKey(tab) ? tab : "my-group";
 
   return (
     <>
@@ -40,7 +49,7 @@ export function StudentGroupPage() {
           {tabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => navigate(tab.key === "my-group" ? "/student/groups" : `/student/groups/${tab.key}`)}
               className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab.key ? "text-primary" : "text-gray-500 hover:text-gray-700"
               }`}
@@ -105,10 +114,6 @@ function MyGroupContent() {
   const [studentSearch, setStudentSearch] = useState("");
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
-  useEffect(() => {
-    fetchGroupData();
-  }, []);
-
   // Load the invitable-students list whenever the invite modal opens.
   useEffect(() => {
     if (!showInviteModal || !myGroup) return;
@@ -170,6 +175,15 @@ function MyGroupContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchGroupData();
+  }, []);
+
+  // Clicking a notification whose targetUrl is this same page doesn't trigger
+  // react-router navigation, so the bell dispatches this event instead — refetch
+  // group/join-request data so it reflects what the notification was about.
+  useNotificationTargetRefresh(fetchGroupData);
 
   const handleCreateGroup = async () => {
     if (pendingJoinRequest) {
@@ -948,6 +962,7 @@ function InvitationsContent() {
   const [acting, setActing] = useState<number | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
 
   useEffect(() => {
     fetchInvitations();
@@ -964,6 +979,10 @@ function InvitationsContent() {
       setLoading(false);
     }
   };
+
+  // Clicking a "Bạn nhận được lời mời tham gia nhóm" notification while already
+  // on this tab doesn't trigger a route change, so refetch on the refresh event.
+  useNotificationTargetRefresh(fetchInvitations);
 
   const handleAccept = async (groupId: string, invitationId: number) => {
     try {
@@ -1012,6 +1031,15 @@ function InvitationsContent() {
 
   const isPending = (invitation: InvitationDto) => invitation.status.toLowerCase() === "pending";
   const isExpired = (invitation: InvitationDto) => new Date(invitation.expiresAt) < new Date();
+
+  const HISTORY_PAGE_SIZE = 9;
+  const historyInvitations = invitations.filter((inv) => !isPending(inv));
+  const historyTotalPages = Math.max(1, Math.ceil(historyInvitations.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyTotalPages);
+  const paginatedHistory = historyInvitations.slice(
+    (safeHistoryPage - 1) * HISTORY_PAGE_SIZE,
+    safeHistoryPage * HISTORY_PAGE_SIZE,
+  );
 
   if (loading) {
     return (
@@ -1109,13 +1137,11 @@ function InvitationsContent() {
         )}
 
         {/* Other Invitations */}
-        {invitations.some((inv) => !isPending(inv)) && (
+        {historyInvitations.length > 0 && (
           <div>
             <h2 className="mb-3 text-lg font-bold text-gray-800">Lịch sử lời mời</h2>
             <div className="space-y-3">
-              {invitations
-                .filter((inv) => !isPending(inv))
-                .map((invitation) => {
+              {paginatedHistory.map((invitation) => {
                   const statusInfo = getInvitationStatus(invitation.status);
                   return (
                     <div
@@ -1142,6 +1168,11 @@ function InvitationsContent() {
                   );
                 })}
             </div>
+            {historyTotalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                <EvaluatorPagination page={safeHistoryPage} totalPages={historyTotalPages} onPage={setHistoryPage} />
+              </div>
+            )}
           </div>
         )}
       </div>

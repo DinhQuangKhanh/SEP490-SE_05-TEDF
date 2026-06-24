@@ -139,8 +139,8 @@ namespace TEDF.Infrastructure.Services.Notification
         public async Task<long> GetUnreadCountAsync(Guid userId, NotificationCategory? category = null, CancellationToken ct = default)
             => await _notificationRepository.GetUnreadCountAsync(userId, category, ct);
 
-        public async Task MarkAsReadAsync(Guid notificationId, CancellationToken ct = default)
-            => await _notificationRepository.MarkAsReadAsync(notificationId, ct);
+        public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken ct = default)
+            => await _notificationRepository.MarkAsReadAsync(notificationId, userId, ct);
 
         public async Task MarkAllAsReadAsync(Guid userId, CancellationToken ct = default)
             => await _notificationRepository.MarkAllAsReadAsync(userId, ct);
@@ -170,7 +170,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Đề tài '{projectName}' đã được nộp thành công.",
                 NotificationType.Info,
                 NotificationCategory.Project,
-                $"/projects/{projectId}",
+                "/student/my-topic",
                 ct);
 
         public async Task NotifyProjectApprovedAsync(
@@ -184,7 +184,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Đề tài '{projectName}' đã được duyệt.",
                 NotificationType.Success,
                 NotificationCategory.Project,
-                $"/projects/{projectId}",
+                "/student/my-topic",
                 ct);
 
         public async Task NotifyEvaluationAssignedAsync(
@@ -198,7 +198,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Bạn được phân công thẩm định đề tài '{projectName}'.",
                 NotificationType.Info,
                 NotificationCategory.Evaluation,
-                $"/evaluations/{projectId}",
+                $"/lecturer/moderate/{projectId}",
                 ct);
 
         public async Task SendTopicExpirationWarningAsync(Project topic, CancellationToken ct = default)
@@ -215,7 +215,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Đề tài '{topic.NameVi}' sẽ hết hạn.",
                 NotificationType.Warning,
                 NotificationCategory.Deadline,
-                $"/topics/{topic.Id}",
+                "/lecturer",
                 ct);
         }
 
@@ -230,7 +230,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Lịch hẹn '{meetingTitle}' được duyệt vào {scheduledTime:dd/MM/yyyy HH:mm}.",
                 NotificationType.Success,
                 NotificationCategory.Meeting,
-                "/meetings",
+                null,
                 ct);
 
         public async Task NotifyDefenseScheduledAsync(
@@ -245,7 +245,7 @@ namespace TEDF.Infrastructure.Services.Notification
                 $"Đề tài '{projectName}' bảo vệ vào {defenseTime:dd/MM/yyyy HH:mm} tại {location}.",
                 NotificationType.Info,
                 NotificationCategory.Defense,
-                "/defense",
+                null,
                 ct);
     }
 }
