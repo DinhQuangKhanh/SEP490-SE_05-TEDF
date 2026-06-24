@@ -61,6 +61,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 allRecipients.AddRange(mentorIds);
                 allRecipients.AddRange(evaluatorIds);
                 allRecipients = allRecipients.Distinct().ToList();
+                var targetUrl = "/lecturer/moderate";
 
                 switch (notification.FinalResult)
                 {
@@ -71,7 +72,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                             $"Chủ nhiệm bộ môn đã quyết định duyệt đề tài '{projectName}'.",
                             NotificationType.Success,
                             NotificationCategory.Evaluation,
-                            ct: cancellationToken);
+                            targetUrl,
+                            cancellationToken);
                         break;
 
                     case EvaluationResult.NeedsModification:
@@ -81,7 +83,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                             $"Chủ nhiệm bộ môn đã yêu cầu chỉnh sửa đề tài '{projectName}'.",
                             NotificationType.Warning,
                             NotificationCategory.Evaluation,
-                            ct: cancellationToken);
+                            targetUrl,
+                            cancellationToken);
                         break;
 
                     case EvaluationResult.Rejected:
@@ -91,7 +94,8 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                             $"Đề tài '{projectName}' do {mentorName} làm Mentor đã bị từ chối, sẽ được xóa khỏi hệ thống trong 5 phút.",
                             NotificationType.Error,
                             NotificationCategory.Evaluation,
-                            ct: cancellationToken);
+                            targetUrl,
+                            cancellationToken);
                         break;
                 }
 

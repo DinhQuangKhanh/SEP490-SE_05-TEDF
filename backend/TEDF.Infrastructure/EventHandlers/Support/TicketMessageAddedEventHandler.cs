@@ -64,19 +64,26 @@ public class TicketMessageAddedEventHandler : INotificationHandler<TicketMessage
                     $"{senderName} đã gửi phản hồi trên ticket {ticket.Code.Value}.",
                     NotificationType.Info,
                     NotificationCategory.Support,
-                    $"/admin/supports/{notification.TicketId}",
+                    "/admin/support",
                     cancellationToken);
             }
         }
         else
         {
+            var reporter = await _userRepository.GetByIdAsync(recipientId, cancellationToken);
+            var reporterTargetUrl = reporter is not null && reporter.HasRole("Student")
+                ? "/student/support"
+                : reporter is not null && reporter.HasRole("Admin")
+                    ? "/admin/support"
+                    : "/lecturer/support";
+
             await _notificationService.SendAsync(
                 recipientId,
                 "Phản hồi mới trên ticket",
                 $"{senderName} đã gửi phản hồi trên ticket {ticket.Code.Value}.",
                 NotificationType.Info,
                 NotificationCategory.Support,
-                $"/supports/{notification.TicketId}",
+                reporterTargetUrl,
                 cancellationToken);
         }
     }

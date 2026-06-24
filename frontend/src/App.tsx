@@ -138,6 +138,14 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="assign/:tab"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <AssignEvaluatorsPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               {/* Protected Student Routes */}
@@ -153,6 +161,7 @@ function App() {
                 <Route path="my-topic" element={<StudentMyTopicPage />} />
                 <Route path="topics" element={<StudentTopicsPage />} />
                 <Route path="groups" element={<StudentGroupPage />} />
+                <Route path="groups/:tab" element={<StudentGroupPage />} />
                 <Route path="support" element={<StudentSupportPage />} />
               </Route>
 

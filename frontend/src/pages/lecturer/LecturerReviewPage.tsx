@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
+import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
 import { evaluatorService } from "@/lib";
 import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
@@ -24,7 +25,7 @@ export function LecturerReviewPage() {
   const [loadingSimilarity, setLoadingSimilarity] = useState(false);
   const [expandedCompare, setExpandedCompare] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchProjectForReview = useCallback(() => {
     if (!id) return;
     setLoading(true);
     evaluatorService
@@ -44,6 +45,17 @@ export function LecturerReviewPage() {
       .catch(() => showError("Không thể tải thông tin đề tài. Vui lòng thử lại sau."))
       .finally(() => setLoading(false));
   }, [id, showError]);
+
+  useEffect(() => {
+    fetchProjectForReview();
+  }, [fetchProjectForReview]);
+
+  // Clicking a "Phân công thẩm định" notification while already on this exact
+  // project's page doesn't trigger a route change, so refetch on the refresh event.
+  useEffect(() => {
+    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjectForReview);
+    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjectForReview);
+  }, [fetchProjectForReview]);
 
   const handleProjectStatusUpdated = useCallback(
     (payload: ProjectStatusUpdatedPayload) => {

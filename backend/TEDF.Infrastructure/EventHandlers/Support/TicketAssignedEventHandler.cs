@@ -44,7 +44,7 @@ public class TicketAssignedEventHandler : INotificationHandler<TicketAssignedEve
             $"Bạn đã được giao xử lý ticket {ticket.Code.Value}: \"{ticket.Title}\".",
             NotificationType.Info,
             NotificationCategory.Support,
-            $"/admin/supports/{notification.TicketId}",
+            "/admin/support",
             cancellationToken);
 
         // Notify the reporter about assignment is disabled as per user request.

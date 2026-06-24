@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { Header, type UserRole } from "@/components/layout";
+import { Header, type UserRole, NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
 import { CreateTicketModal } from "@/components/support/CreateTicketModal";
 import { supportService } from "@/lib";
 import { TicketListDto, TicketResponse, TicketStatsResponse } from "@/types";
@@ -62,6 +62,17 @@ export function SupportCenter({
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
+
+  // Clicking a "Phản hồi mới trên ticket" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useEffect(() => {
+    function handleNotificationTargetRefresh() {
+      fetchTickets();
+      if (selectedTicketId) fetchTicketDetail(selectedTicketId);
+    }
+    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
+    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, handleNotificationTargetRefresh);
+  }, [fetchTickets, fetchTicketDetail, selectedTicketId]);
   useEffect(() => {
     if (selectedTicketId) fetchTicketDetail(selectedTicketId);
   }, [selectedTicketId, fetchTicketDetail]);

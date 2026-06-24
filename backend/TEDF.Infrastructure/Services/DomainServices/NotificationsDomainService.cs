@@ -20,7 +20,7 @@ public class NotificationsDomainService : INotificationsDomainService
 
     public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default)
     {
-        await _notifications.MarkAsReadAsync(notificationId, cancellationToken);
+        await _notifications.MarkAsReadAsync(notificationId, userId, cancellationToken);
         await PushUnreadCountAsync(userId, cancellationToken);
     }
 

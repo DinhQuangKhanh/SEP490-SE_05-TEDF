@@ -5,5 +5,5 @@ export { LecturerLayout } from "./LecturerLayout";
 export { LecturerSidebar } from "./LecturerSidebar";
 export { StudentLayout } from "./StudentLayout";
 export { StudentSidebar } from "./StudentSidebar";
-export { NotificationDropdown } from "./NotificationDropdown";
-export type { UserRole } from "./NotificationDropdown";
+export { NotificationDropdown, NOTIFICATION_TARGET_REFRESH_EVENT } from "./NotificationDropdown";
+export type { UserRole, NotificationTargetRefreshDetail } from "./NotificationDropdown";

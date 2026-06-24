@@ -36,7 +36,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                     $"Bạn được phân công thẩm định đề tài '{projectName}'.",
                     NotificationType.Info,
                     NotificationCategory.Evaluation,
-                    "/evaluator/projects",
+                    $"/lecturer/moderate/{notification.ProjectId}",
                     cancellationToken);
 
                 _logger.LogInformation(

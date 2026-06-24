@@ -3,6 +3,7 @@ import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/lecturer";
 import { Header } from "@/components/layout/Header";
+import { NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   topicService,
@@ -355,6 +356,13 @@ function MentorOwnTopicsView() {
     fetchTopics();
   }, [fetchTopics]);
 
+  // Clicking a "Đề tài mới cần duyệt" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useEffect(() => {
+    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchTopics);
+    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchTopics);
+  }, [fetchTopics]);
+
   const totalPages = data?.totalPages ?? 1;
 
   return (
@@ -550,6 +558,13 @@ function DepartmentTopicsView() {
 
   useEffect(() => {
     fetchProjects();
+  }, [fetchProjects]);
+
+  // Clicking a "Đề xuất đề tài mới" notification while already on this page
+  // doesn't trigger a route change, so refetch on the dedicated refresh event.
+  useEffect(() => {
+    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjects);
+    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchProjects);
   }, [fetchProjects]);
 
   // Reset to the first page whenever the search term changes.

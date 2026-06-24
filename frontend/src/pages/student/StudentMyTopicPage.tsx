@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "@/components/layout";
+import { Header, NOTIFICATION_TARGET_REFRESH_EVENT } from "@/components/layout";
 import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
 import type { StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -227,7 +227,7 @@ export function StudentMyTopicPage() {
     return () => leaveProjectChannel(projectId);
   }, [myGroup?.projectId, joinProjectChannel, leaveProjectChannel]);
 
-  useEffect(() => {
+  const fetchPageData = useCallback(() => {
     studentGroupService
       .getMyGroup()
       .then(async (group) => {
@@ -248,7 +248,19 @@ export function StudentMyTopicPage() {
         showError("Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [loadDocuments, showError]);
+
+  useEffect(() => {
+    fetchPageData();
+  }, [fetchPageData]);
+
+  // Clicking a notification (e.g. "Giảng viên yêu cầu chỉnh sửa đề tài") while
+  // already on this page doesn't trigger a route change, so refetch on the
+  // dedicated refresh event.
+  useEffect(() => {
+    window.addEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchPageData);
+    return () => window.removeEventListener(NOTIFICATION_TARGET_REFRESH_EVENT, fetchPageData);
+  }, [fetchPageData]);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
