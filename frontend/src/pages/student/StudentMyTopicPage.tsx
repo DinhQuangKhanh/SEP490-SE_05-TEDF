@@ -289,24 +289,26 @@ function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; gro
   );
 }
 
-/** Pending pool-registration rendered with the same detail layout as an assigned/proposed topic. */
-function RegisteredTopicView({
-  topicDetail,
-  registration,
-  group,
-  documents,
-  onCancel,
-  cancelling,
-  isLeader,
-}: {
+/**
+ * Pool-registration detail — the same full layout for both the pending ("Chờ giảng viên xác nhận")
+ * and rejected ("Đăng ký bị từ chối") states; the variant only changes the status badge, the
+ * header actions, and whether the rejection-reason panel is shown.
+ */
+type PoolRegistrationDetailViewProps = {
   topicDetail: TopicDetail | null;
   registration: GroupRegistrationDto;
   group: StudentGroupDto;
   documents: TopicDocument[];
-  onCancel: () => void;
-  cancelling: boolean;
   isLeader: boolean;
-}) {
+} & (
+  | { variant: "pending"; onCancel: () => void; cancelling: boolean }
+  | { variant: "rejected"; onBrowsePool: () => void; onProposeNew: () => void }
+);
+
+function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
+  const { topicDetail, registration, group, documents, isLeader } = props;
+  const rejected = props.variant === "rejected";
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
       <motion.div variants={item}>
@@ -329,9 +331,15 @@ function RegisteredTopicView({
                     Mã đề tài: {topicDetail.code}
                   </span>
                 )}
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
-                  Chờ giảng viên xác nhận
-                </span>
+                {rejected ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-100">
+                    Đăng ký bị từ chối
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                    Chờ giảng viên xác nhận
+                  </span>
+                )}
               </div>
               <h1 className="text-2xl font-extrabold text-[#101319] leading-tight mb-4">
                 {topicDetail?.nameVi ?? registration.projectName ?? "—"}
@@ -344,20 +352,40 @@ function RegisteredTopicView({
                 {topicDetail?.majorName && <InfoPill icon="school" label="Ngành" value={topicDetail.majorName} />}
               </div>
             </div>
-            {isLeader && (
-              <button
-                onClick={onCancel}
-                disabled={cancelling}
-                className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
-              >
-                {cancelling ? (
-                  <div className="w-4 h-4 border-2 border-red-500 rounded-full animate-spin border-t-transparent" />
-                ) : (
-                  <span className="material-symbols-outlined text-[18px]">cancel</span>
-                )}
-                Huỷ đăng ký
-              </button>
-            )}
+            {props.variant === "pending"
+              ? isLeader && (
+                  <button
+                    onClick={props.onCancel}
+                    disabled={props.cancelling}
+                    className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    {props.cancelling ? (
+                      <div className="w-4 h-4 border-2 border-red-500 rounded-full animate-spin border-t-transparent" />
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">cancel</span>
+                    )}
+                    Huỷ đăng ký
+                  </button>
+                )
+              : (
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={props.onBrowsePool}
+                    className="px-4 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
+                  >
+                    Xem kho đề tài
+                  </button>
+                  {isLeader && (
+                    <button
+                      onClick={props.onProposeNew}
+                      className="px-4 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span className="text-lg material-symbols-outlined">edit_note</span>
+                      Đề xuất đề tài mới
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </motion.section>
@@ -366,131 +394,24 @@ function RegisteredTopicView({
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         {/* Left: content */}
         <motion.div variants={item} className="space-y-6 lg:col-span-2">
-          <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm flex flex-col">
-            <div className="p-5 border-b border-[#e9ecf1] flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">description</span>
-              <h3 className="font-bold text-[#101319]">Mô tả chi tiết đề tài</h3>
-            </div>
-            <div className="p-8">
-              <TopicContentSections detail={topicDetail} />
-              {!topicDetail && <p className="text-sm text-[#58698d]">Đang tải nội dung đề tài...</p>}
-            </div>
-          </div>
-          {registration.note && (
-            <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm p-6">
-              <h3 className="font-bold text-[#101319] flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-primary">sticky_note_2</span>
-                Ghi chú đã gửi
-              </h3>
-              <RegistrationNoteView note={registration.note} className="text-[#58698d]" />
+          {rejected && (
+            <div className="bg-white rounded-xl border border-red-100 shadow-sm">
+              <div className="p-5 border-b border-red-100 flex items-center gap-2 bg-red-50/40">
+                <span className="material-symbols-outlined text-red-600">cancel</span>
+                <h3 className="font-bold text-[#101319]">Lý do từ chối từ giảng viên</h3>
+              </div>
+              <div className="p-6">
+                {registration.rejectReason ? (
+                  <RegistrationNoteView note={registration.rejectReason} className="text-[#58698d]" />
+                ) : (
+                  <p className="text-sm text-[#58698d]">Giảng viên không cung cấp lý do cụ thể.</p>
+                )}
+                <p className="mt-4 text-sm text-[#58698d]">
+                  Hãy chọn một đề tài khác từ kho hoặc đề xuất đề tài mới cho giảng viên duyệt.
+                </p>
+              </div>
             </div>
           )}
-        </motion.div>
-
-        {/* Right: documents + members */}
-        <TopicSidePanels documents={documents} group={group} />
-      </div>
-    </motion.div>
-  );
-}
-
-/** Rejected pool-registration rendered with the same detail layout as a proposed/assigned topic. */
-function RejectedTopicView({
-  topicDetail,
-  registration,
-  group,
-  documents,
-  isLeader,
-  onBrowsePool,
-  onProposeNew,
-}: {
-  topicDetail: TopicDetail | null;
-  registration: GroupRegistrationDto;
-  group: StudentGroupDto;
-  documents: TopicDocument[];
-  isLeader: boolean;
-  onBrowsePool: () => void;
-  onProposeNew: () => void;
-}) {
-  return (
-    <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
-      <motion.div variants={item}>
-        <div className="flex items-center gap-2 text-sm text-[#58698d] mb-1">
-          <span>Hệ thống</span>
-          <span className="text-sm material-symbols-outlined">chevron_right</span>
-          <span className="font-semibold text-primary">Đề tài của tôi</span>
-        </div>
-        <h2 className="text-2xl font-bold text-[#101319]">Chi tiết Nội dung Đề tài</h2>
-      </motion.div>
-
-      {/* Header card */}
-      <motion.section variants={item} className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm overflow-hidden">
-        <div className="p-8">
-          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
-            <div className="max-w-4xl">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                {topicDetail?.code && (
-                  <span className="px-3 py-1 text-xs font-bold tracking-wider uppercase bg-blue-100 rounded-full text-primary">
-                    Mã đề tài: {topicDetail.code}
-                  </span>
-                )}
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-100">
-                  Đăng ký bị từ chối
-                </span>
-              </div>
-              <h1 className="text-2xl font-extrabold text-[#101319] leading-tight mb-4">
-                {topicDetail?.nameVi ?? registration.projectName ?? "—"}
-              </h1>
-              <div className="flex flex-wrap gap-6 text-sm">
-                {registration.mentorName && (
-                  <InfoPill icon="person" label="Giảng viên hướng dẫn" value={registration.mentorName} />
-                )}
-                <InfoPill icon="calendar_today" label="Ngày đăng ký" value={formatDate(registration.registeredAt)} />
-                {topicDetail?.majorName && <InfoPill icon="school" label="Ngành" value={topicDetail.majorName} />}
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 shrink-0">
-              <button
-                onClick={onBrowsePool}
-                className="px-4 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
-              >
-                Xem kho đề tài
-              </button>
-              {isLeader && (
-                <button
-                  onClick={onProposeNew}
-                  className="px-4 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <span className="text-lg material-symbols-outlined">edit_note</span>
-                  Đề xuất đề tài mới
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.section>
-
-      {/* Main grid */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Left: content */}
-        <motion.div variants={item} className="space-y-6 lg:col-span-2">
-          {/* Rejection reason */}
-          <div className="bg-white rounded-xl border border-red-100 shadow-sm">
-            <div className="p-5 border-b border-red-100 flex items-center gap-2 bg-red-50/40">
-              <span className="material-symbols-outlined text-red-600">cancel</span>
-              <h3 className="font-bold text-[#101319]">Lý do từ chối từ giảng viên</h3>
-            </div>
-            <div className="p-6">
-              {registration.rejectReason ? (
-                <RegistrationNoteView note={registration.rejectReason} className="text-[#58698d]" />
-              ) : (
-                <p className="text-sm text-[#58698d]">Giảng viên không cung cấp lý do cụ thể.</p>
-              )}
-              <p className="mt-4 text-sm text-[#58698d]">
-                Hãy chọn một đề tài khác từ kho hoặc đề xuất đề tài mới cho giảng viên duyệt.
-              </p>
-            </div>
-          </div>
 
           <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm flex flex-col">
             <div className="p-5 border-b border-[#e9ecf1] flex items-center gap-2">
@@ -499,7 +420,11 @@ function RejectedTopicView({
             </div>
             <div className="p-8">
               <TopicContentSections detail={topicDetail} />
-              {!topicDetail && <p className="text-sm text-[#58698d]">Không tải được nội dung đề tài.</p>}
+              {!topicDetail && (
+                <p className="text-sm text-[#58698d]">
+                  {rejected ? "Không tải được nội dung đề tài." : "Đang tải nội dung đề tài..."}
+                </p>
+              )}
             </div>
           </div>
           {registration.note && (
@@ -774,7 +699,8 @@ export function StudentMyTopicPage() {
             </div>
           ) : pendingRegistration ? (
             /* Pending pool registration — same detail layout as a proposed/assigned topic */
-            <RegisteredTopicView
+            <PoolRegistrationDetailView
+              variant="pending"
               topicDetail={topicDetail}
               registration={pendingRegistration}
               group={myGroup}
@@ -785,7 +711,8 @@ export function StudentMyTopicPage() {
             />
           ) : rejectedRegistration ? (
             /* Latest registration was rejected by the mentor — full detail layout */
-            <RejectedTopicView
+            <PoolRegistrationDetailView
+              variant="rejected"
               topicDetail={topicDetail}
               registration={rejectedRegistration}
               group={myGroup}
