@@ -108,6 +108,19 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         Task<int> CountMentorActiveProjectsInSemesterAsync(Guid mentorId, int semesterId, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Returns the distinct ids of mentors who are an active ProjectMentor on a non-cancelled/rejected
+        /// project in the given semester (i.e. mentors "currently supervising" that semester).
+        /// </summary>
+        Task<List<Guid>> GetActiveMentorIdsInSemesterAsync(int semesterId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Returns (MentorId, MajorId) for mentors who own a pool topic still awaiting registration for the
+        /// given semester (FromPool, PoolStatus Available/Reserved, not expired, active ProjectMentor).
+        /// One major per mentor; used to auto-include them in the eligible-mentor roster.
+        /// </summary>
+        Task<List<(Guid MentorId, int MajorId)>> GetPoolMentorAssignmentsForSemesterAsync(int semesterId, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Gets a paginated list of projects with optional filters.
         /// Search matches against NameVi, NameEn, Code, and NameAbbr.
         /// </summary>

@@ -46,6 +46,11 @@ namespace TEDF.Persistence.SqlServer.Configurations.Semester
                 .HasForeignKey(e => e.SemesterId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            builder.HasMany(s => s.EligibleMentors)
+                .WithOne()
+                .HasForeignKey(e => e.SemesterId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Indexes
             builder.HasIndex(s => s.Code).IsUnique();
             builder.HasIndex(s => s.AcademicYear);
@@ -56,6 +61,7 @@ namespace TEDF.Persistence.SqlServer.Configurations.Semester
             builder.Ignore(s => s.CurrentPhase);
             builder.Ignore(s => s.IsActive);
             builder.Ignore(s => s.Status);
+            builder.Ignore(s => s.IsRosterPublished);
         }
     }
 }

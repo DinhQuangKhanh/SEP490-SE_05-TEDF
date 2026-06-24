@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TopicDetail } from "@/types";
+import { TopicDetail, TopicDocument } from "@/types";
 import { topicService } from "@/lib";
 
 // ── Major color mapping ──────────────────────────────────────────────────────
@@ -41,6 +41,36 @@ function parseTechnologies(tech: string | null): string[] {
     .filter(Boolean);
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.ceil(bytes / 1024)} KB`;
+}
+
+const FILE_ICON_MAP: Record<string, string> = {
+  ".pdf": "picture_as_pdf",
+  ".doc": "description",
+  ".docx": "description",
+  ".xls": "table_chart",
+  ".xlsx": "table_chart",
+  ".ppt": "slideshow",
+  ".pptx": "slideshow",
+  ".zip": "folder_zip",
+  ".rar": "folder_zip",
+  ".jpg": "image",
+  ".jpeg": "image",
+  ".png": "image",
+};
+
+function fileIcon(originalFileName: string): string {
+  const ext = `.${originalFileName.split(".").pop()?.toLowerCase() ?? ""}`;
+  return FILE_ICON_MAP[ext] ?? "draft";
+}
+
+function formatDate(isoString: string | null | undefined): string {
+  if (!isoString) return "—";
+  return new Date(isoString).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface TopicDetailDrawerProps {
@@ -67,6 +97,7 @@ export function TopicDetailDrawer({
   onRegister,
 }: TopicDetailDrawerProps) {
   const [detail, setDetail] = useState<TopicDetail | null>(null);
+  const [documents, setDocuments] = useState<TopicDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,11 +105,17 @@ export function TopicDetailDrawer({
     if (!projectId || !isOpen) return;
     setLoading(true);
     setError(null);
+    setDocuments([]);
     topicService
       .getTopicDetail(projectId)
       .then(setDetail)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+    // Attachments are a separate endpoint; failures just leave the list empty.
+    topicService
+      .getTopicDocuments(projectId)
+      .then(setDocuments)
+      .catch(() => setDocuments([]));
   }, [projectId, isOpen]);
 
   const isAvailable = detail?.poolStatus === 0;
@@ -128,6 +165,11 @@ export function TopicDetailDrawer({
                   {loading ? "Đang tải..." : (detail?.nameVi ?? "Đề tài")}
                 </h2>
                 {detail?.nameEn && <p className="text-xs text-slate-400 mt-0.5 italic">{detail.nameEn}</p>}
+                {detail?.nameAbbr && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Tên viết tắt: <span className="font-semibold text-slate-600">{detail.nameAbbr}</span>
+                  </p>
+                )}
               </div>
               <button
                 onClick={onClose}
@@ -233,6 +275,32 @@ export function TopicDetailDrawer({
                       </div>
                     </Section>
                   )}
+
+                  {/* Tài liệu đính kèm */}
+                  <Section title="Tài liệu đính kèm" icon="attach_file">
+                    {documents.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {documents.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                          >
+                            <span className="text-xl material-symbols-outlined text-primary shrink-0">
+                              {fileIcon(doc.originalFileName)}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-[#101319] truncate">{doc.originalFileName}</p>
+                              <p className="text-[10px] text-slate-500">
+                                {formatFileSize(doc.fileSize)} · {formatDate(doc.uploadedAt)} · {doc.uploadedByName}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-400">Chưa có tài liệu đính kèm.</p>
+                    )}
+                  </Section>
                 </div>
               )}
             </div>

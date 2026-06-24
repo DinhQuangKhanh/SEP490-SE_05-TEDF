@@ -1,6 +1,9 @@
 // Central API route registry. Paths mirror backend `TEDF.API/Endpoints/` (feature-based).
 // Object keys are kept stable for the services that consume them; only the URL strings track the backend.
 export const routes = {
+  auth: {
+    session: "/api/auth/session",
+  },
   admin: {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
@@ -15,6 +18,11 @@ export const routes = {
     semesterById: (id: number) => `/api/semesters/${id}`,
     activeSemester: "/api/semesters/active",
     eligibleStudentsImport: (id: number) => `/api/semesters/${id}/eligible-students/import`,
+    eligibleMentorsImport: (id: number) => `/api/semesters/${id}/eligible-mentors/import`,
+    eligibleStudents: (id: number) => `/api/semesters/${id}/eligible-students`,
+    eligibleMentors: (id: number) => `/api/semesters/${id}/eligible-mentors`,
+    eligibleMentorMajor: (id: number, mentorId: string) => `/api/semesters/${id}/eligible-mentors/${mentorId}/major`,
+    semesterRosterPublish: (id: number) => `/api/semesters/${id}/roster/publish`,
     settings: "/api/settings",
     settingsTestEmail: "/api/settings/test-email",
     settingsLogo: "/api/settings/logo",
@@ -76,6 +84,8 @@ export const routes = {
   },
   studentTopics: {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
+    myRegistrations: (groupId: string) => `/api/topic-pools/groups/${groupId}/registrations`,
+    cancelRegistration: (registrationId: string) => `/api/topic-pools/registrations/${registrationId}/cancel`,
     createDirectTopic: (groupId: string) => `/api/direct-topics/${groupId}`,
     updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
     submitDirectTopicToMentor: (groupId: string, projectId: string) =>
@@ -93,8 +103,10 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,
+    noteAttachment: "/api/topic-pools/note-attachment",
   },
   support: {
     base: "/api/support-tickets",

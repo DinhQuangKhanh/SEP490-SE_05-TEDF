@@ -6,15 +6,12 @@ import { useBranding } from "@/contexts/SettingsContext";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 
 const navItems = [
-  { label: "Dashboard", icon: "dashboard", path: "/admin" },
   { label: "Quản lý kỳ học", icon: "school", path: "/admin/semesters" },
-  { label: "Đề tài & Dự án", icon: "library_books", path: "/admin/projects" },
-  { label: "Người dùng", icon: "group", path: "/admin/users" },
+  { label: "Quản lý người dùng", icon: "group", path: "/admin/users" },
   { label: "Nhật ký hoạt động", icon: "history", path: "/admin/activity-logs" },
 ];
 
 const systemItems = [
-  { label: "Báo cáo", icon: "analytics", path: "/admin/reports" },
   { label: "Cấu hình", icon: "settings", path: "/admin/settings" },
   { label: "Yêu cầu hỗ trợ", icon: "support_agent", path: "/admin/support" },
 ];
@@ -26,12 +23,7 @@ export function Sidebar() {
   const unreadSupportCount = useUnreadSupportCount();
   const [isHovered, setIsHovered] = useState(false);
 
-  const isActive = (path: string) => {
-    if (path === "/admin") {
-      return location.pathname === "/admin";
-    }
-    return location.pathname.startsWith(path);
-  };
+  const isActive = (path: string) => location.pathname.startsWith(path);
 
   return (
     <motion.aside
@@ -70,12 +62,12 @@ export function Sidebar() {
       {/* Footer */}
       <div className={`p-4 border-t border-[#e9ecf1] ${isHovered ? "" : "px-2"}`}>
         {systemItems.map((item) => (
-          <NavItem 
-            key={item.path} 
-            {...item} 
+          <NavItem
+            key={item.path}
+            {...item}
             badge={item.path === "/admin/support" && unreadSupportCount > 0 ? unreadSupportCount.toString() : undefined}
-            active={isActive(item.path)} 
-            expanded={isHovered} 
+            active={isActive(item.path)}
+            expanded={isHovered}
           />
         ))}
         {/* User Profile */}

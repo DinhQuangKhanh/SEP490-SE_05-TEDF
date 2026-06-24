@@ -1,6 +1,7 @@
 // Barrel — every shared type re-exported for `@/types`. Folders mirror the backend feature set.
 export * from "./common/api.types";
 export * from "./common/pagination.types";
+export * from "./auth/auth.types";
 export * from "./activityLogs/activityLog.types";
 export * from "./archives/archive.types";
 export * from "./dashboard/dashboard.types";

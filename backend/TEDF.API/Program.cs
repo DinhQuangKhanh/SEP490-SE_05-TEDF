@@ -179,6 +179,9 @@ app.UseAuthorization();
 // Maintenance mode: block non-admin API calls with 503 when enabled (after auth so roles are known)
 app.UseMaintenanceMode();
 
+// Account access gate: block locked/inactive accounts and ineligible students (after auth so identity is known)
+app.UseAccountAccessGate();
+
 // Health Checks
 app.MapHealthChecks("/health");
 

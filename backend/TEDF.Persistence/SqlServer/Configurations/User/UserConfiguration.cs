@@ -36,6 +36,9 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
             builder.Property(u => u.EmployeeCode)
                 .HasMaxLength(20);
 
+            builder.Property(u => u.PhoneNumber)
+                .HasMaxLength(30);
+
             builder.Property(u => u.AcademicTitle)
                 .HasMaxLength(50);
 

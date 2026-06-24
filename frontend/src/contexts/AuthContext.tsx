@@ -9,6 +9,8 @@ import {
     type User as FirebaseUser,
 } from 'firebase/auth'
 import { auth } from '@/config/firebase'
+import { authService } from '@/lib/auth/authService'
+import type { SessionAccess } from '@/types'
 
 type UserRole = 'admin' | 'mentor' | 'evaluator' | 'student' | 'departmenthead'
 
@@ -32,6 +34,8 @@ interface AuthContextType {
     switchRole: (role: UserRole) => void
     logout: () => void
     isLoading: boolean
+    /** Server access gate (account status + student eligibility); null until resolved or signed out. */
+    access: SessionAccess | null
 }
 
 const useFirebase = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' ||
@@ -93,6 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     const [isLoading, setIsLoading] = useState(!!useFirebase)
     const navigate = useNavigate()
+    const [access, setAccess] = useState<SessionAccess | null>(null)
+
+    // Fetch the server access gate (account status + student eligibility) after sign-in.
+    const refreshAccess = async () => {
+        try {
+            const session = await authService.getSession()
+            setAccess(session.access)
+        } catch {
+            // Fail-open on transient errors; the server middleware still enforces access.
+            setAccess({ allowed: true, kind: null, reason: null })
+        }
+    }
 
     // Listen for Firebase auth state changes
     useEffect(() => {
@@ -108,9 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setActiveRole(appUser.role)
                     localStorage.setItem('activeRole', appUser.role)
                 }
+                await refreshAccess()
             } else {
                 setUser(null)
                 setActiveRole(null)
+                setAccess(null)
                 localStorage.removeItem('user')
                 localStorage.removeItem('activeRole')
             }
@@ -129,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setActiveRole(appUser.role)
             localStorage.setItem('user', JSON.stringify(appUser))
             localStorage.setItem('activeRole', appUser.role)
+            await refreshAccess()
             return true
         } catch (err) {
             console.error('Email/password login failed:', err)
@@ -147,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setActiveRole(appUser.role)
             localStorage.setItem('user', JSON.stringify(appUser))
             localStorage.setItem('activeRole', appUser.role)
+            await refreshAccess()
             return true
         } catch (err) {
             console.error('Google login failed:', err)
@@ -182,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (username) {
             setUser(mockUser)
             setActiveRole(mockUser.role)
+            setAccess({ allowed: true, kind: null, reason: null })
             localStorage.setItem('user', JSON.stringify(mockUser))
             localStorage.setItem('activeRole', mockUser.role)
             return true
@@ -210,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(null)
         setActiveRole(null)
+        setAccess(null)
         localStorage.removeItem('user')
         localStorage.removeItem('activeRole')
         navigate('/login')
@@ -226,6 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             switchRole,
             logout,
             isLoading,
+            access,
         }}>
             {children}
         </AuthContext.Provider>

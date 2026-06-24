@@ -1,7 +1,9 @@
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Semesters.DTOs;
 using TEDF.Domain.Aggregates.SemesterAggregate;
+using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
+using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Semester;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
@@ -12,10 +14,17 @@ namespace TEDF.Persistence.SqlServer.QueryServices;
 public class SemestersQueryService : ISemestersQueryService
 {
     private readonly ISemesterRepository _semesterRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IMajorReadRepository _majorRepository;
 
-    public SemestersQueryService(ISemesterRepository semesterRepository)
+    public SemestersQueryService(
+        ISemesterRepository semesterRepository,
+        IUserRepository userRepository,
+        IMajorReadRepository majorRepository)
     {
         _semesterRepository = semesterRepository;
+        _userRepository = userRepository;
+        _majorRepository = majorRepository;
     }
 
     public async Task<SemesterDto?> GetActiveAsync(CancellationToken cancellationToken = default)
@@ -54,6 +63,77 @@ public class SemestersQueryService : ISemestersQueryService
         return MapToDto(semester);
     }
 
+    public async Task<List<EligibleStudentDto>> GetEligibleStudentsAsync(int semesterId, CancellationToken cancellationToken = default)
+    {
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+
+        var rows = semester.EligibleStudents.ToList();
+        if (rows.Count == 0) return [];
+
+        var users = (await _userRepository.GetByIdsAsync(rows.Select(r => r.StudentId).Distinct(), cancellationToken))
+            .ToDictionary(u => u.Id);
+        var majors = (await _majorRepository.GetAllAsync(cancellationToken)).ToDictionary(m => m.Id);
+
+        return rows
+            .OrderBy(r => r.StudentCode)
+            .Select(r =>
+            {
+                users.TryGetValue(r.StudentId, out var user);
+                var major = r.MajorId.HasValue && majors.TryGetValue(r.MajorId.Value, out var m) ? m : null;
+                return new EligibleStudentDto
+                {
+                    StudentId = r.StudentId,
+                    StudentCode = r.StudentCode,
+                    FullName = user?.FullName,
+                    Email = r.Email ?? user?.Email.Value,
+                    PhoneNumber = r.PhoneNumber,
+                    MajorId = r.MajorId,
+                    ProgramCode = major?.Code,
+                    ProgramName = major?.Name,
+                    IsEligible = r.IsEligible,
+                    ImportedAt = r.ImportedAt
+                };
+            })
+            .ToList();
+    }
+
+    public async Task<List<EligibleMentorDto>> GetEligibleMentorsAsync(int semesterId, CancellationToken cancellationToken = default)
+    {
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+
+        var rows = semester.EligibleMentors.ToList();
+        if (rows.Count == 0) return [];
+
+        var users = (await _userRepository.GetByIdsAsync(rows.Select(r => r.MentorId).Distinct(), cancellationToken))
+            .ToDictionary(u => u.Id);
+        var majors = (await _majorRepository.GetAllAsync(cancellationToken)).ToDictionary(m => m.Id);
+
+        return rows
+            .OrderBy(r => r.EmployeeCode)
+            .Select(r =>
+            {
+                users.TryGetValue(r.MentorId, out var user);
+                var major = r.MajorId is int mid && majors.TryGetValue(mid, out var m) ? m : null;
+                return new EligibleMentorDto
+                {
+                    MentorId = r.MentorId,
+                    EmployeeCode = r.EmployeeCode,
+                    FullName = user?.DisplayName,
+                    Email = r.Email ?? user?.Email.Value,
+                    PhoneNumber = r.PhoneNumber,
+                    Division = r.Division,
+                    MajorId = r.MajorId,
+                    ProgramCode = major?.Code,
+                    ProgramName = major?.Name,
+                    IsAssigned = r.IsAssigned,
+                    ImportedAt = r.ImportedAt
+                };
+            })
+            .ToList();
+    }
+
     private static SemesterDto MapToDto(Semester s) => new()
     {
         Id = s.Id,
@@ -66,6 +146,7 @@ public class SemestersQueryService : ISemestersQueryService
         Description = s.Description,
         CreatedAt = s.CreatedAt,
         UpdatedAt = s.UpdatedAt,
+        RosterPublishedAt = s.RosterPublishedAt,
         Phases = s.Phases.OrderBy(p => p.Order).Select(p => new SemesterPhaseDto
         {
             Id = p.Id,

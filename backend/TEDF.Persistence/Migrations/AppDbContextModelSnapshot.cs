@@ -593,6 +593,57 @@ namespace TEDF.Persistence.Migrations
                     b.ToTable("Projects", (string)null);
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Entities.EligibleMentor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Division")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ImportedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsAssigned")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("MajorId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("MentorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId", "MentorId")
+                        .IsUnique();
+
+                    b.ToTable("EligibleMentors", (string)null);
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Entities.EligibleStudent", b =>
                 {
                     b.Property<int>("Id")
@@ -600,6 +651,10 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime>("ImportedAt")
                         .HasColumnType("datetime2");
@@ -609,6 +664,13 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<bool>("IsEligible")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("MajorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("SemesterId")
                         .HasColumnType("int");
@@ -704,6 +766,9 @@ namespace TEDF.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("RosterPublishedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -832,8 +897,7 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
@@ -856,8 +920,7 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("RejectReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1035,6 +1098,10 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1593,6 +1660,15 @@ namespace TEDF.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Entities.EligibleMentor", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.SemesterAggregate.Semester", null)
+                        .WithMany("EligibleMentors")
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Entities.EligibleStudent", b =>
                 {
                     b.HasOne("TEDF.Domain.Aggregates.SemesterAggregate.Semester", null)
@@ -1818,6 +1894,8 @@ namespace TEDF.Persistence.Migrations
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Semester", b =>
                 {
+                    b.Navigation("EligibleMentors");
+
                     b.Navigation("EligibleStudents");
 
                     b.Navigation("Phases");

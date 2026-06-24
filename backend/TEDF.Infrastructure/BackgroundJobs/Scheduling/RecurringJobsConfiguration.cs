@@ -48,6 +48,10 @@ namespace TEDF.Infrastructure.BackgroundJobs.Scheduling
                 "data-cleanup",
                 job => job.ExecuteAsync(),
                 Cron.Weekly(DayOfWeek.Sunday, 2));
+
+            // Removed: mentor access is no longer revoked at semester end (lecturers keep the Mentor role for
+            // login + proposing topics; supervising/evaluation is gated per-semester via the eligible-mentor list).
+            RecurringJob.RemoveIfExists("mentor-access-expiry");
         }
     }
 }

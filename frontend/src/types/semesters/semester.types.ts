@@ -20,7 +20,50 @@ export interface SemesterDto {
   description: string | null;
   createdAt: string;
   updatedAt: string | null;
+  rosterPublishedAt: string | null;
   phases: SemesterPhaseDto[];
+}
+
+// ── Eligibility roster (students + mentors) ────────────────────────────────────
+export interface EligibleStudentDto {
+  studentId: string;
+  studentCode: string;
+  fullName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  majorId: number | null;
+  programCode: string | null;
+  programName: string | null;
+  isEligible: boolean;
+  importedAt: string;
+}
+
+export interface EligibleMentorDto {
+  mentorId: string;
+  employeeCode: string;
+  fullName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  /** Bộ môn giảng viên đang dạy (SE/CF/AI/IA…), snapshot từ file. */
+  division: string | null;
+  majorId: number | null;
+  programCode: string | null;
+  programName: string | null;
+  isAssigned: boolean;
+  importedAt: string;
+}
+
+/** Một dòng không được nhập, kèm lý do (để cảnh báo người dùng). */
+export interface ImportRowIssue {
+  code: string;
+  reason: string;
+}
+
+/** Result returned by the eligible-students / eligible-mentors import endpoints. */
+export interface ImportRosterResponse {
+  totalProcessed: number;
+  successfullyImported: number;
+  issues: ImportRowIssue[];
 }
 
 /** Lightweight semester option for dropdowns (mentor topics filter, etc.). */

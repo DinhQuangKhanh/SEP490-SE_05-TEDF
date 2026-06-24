@@ -15,6 +15,9 @@ public class TopicRegistrationConfiguration : IEntityTypeConfiguration<TopicRegi
 
         builder.HasKey(tr => tr.Id);
 
+        // TopicRegistration is now an aggregate root; domain events are not persisted.
+        builder.Ignore(tr => tr.DomainEvents);
+
         builder.Property(tr => tr.ProjectId)
             .IsRequired();
 
@@ -36,11 +39,11 @@ public class TopicRegistrationConfiguration : IEntityTypeConfiguration<TopicRegi
             .IsRequired()
             .HasDefaultValue(1);
 
-        builder.Property(tr => tr.Note)
-            .HasMaxLength(500);
+        // Note and RejectReason hold rich HTML (formatting + embedded image/file URLs),
+        // which easily exceeds a few hundred chars, so store them as nvarchar(max).
+        builder.Property(tr => tr.Note);
 
-        builder.Property(tr => tr.RejectReason)
-            .HasMaxLength(500);
+        builder.Property(tr => tr.RejectReason);
 
         // Indexes
         builder.HasIndex(tr => tr.ProjectId)

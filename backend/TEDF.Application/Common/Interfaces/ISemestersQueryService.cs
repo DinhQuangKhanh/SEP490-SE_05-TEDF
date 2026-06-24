@@ -11,4 +11,6 @@ public interface ISemestersQueryService
     Task<SemesterDto?> GetActiveAsync(CancellationToken cancellationToken = default);
     Task<List<SemesterDto>> GetAllAsync(string? status, CancellationToken cancellationToken = default);
     Task<SemesterDto> GetByIdAsync(int semesterId, CancellationToken cancellationToken = default);
+    Task<List<EligibleStudentDto>> GetEligibleStudentsAsync(int semesterId, CancellationToken cancellationToken = default);
+    Task<List<EligibleMentorDto>> GetEligibleMentorsAsync(int semesterId, CancellationToken cancellationToken = default);
 }

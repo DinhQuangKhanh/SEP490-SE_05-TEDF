@@ -16,6 +16,6 @@ public class ImportEligibleStudentsCommandHandler : ICommandHandler<ImportEligib
             request.SemesterId, request.FileStream, request.FileName, request.ImportedBy, cancellationToken);
 
         return new ImportEligibleStudentsResponse(
-            result.TotalProcessed, result.SuccessfullyImported, result.FailedStudentCodes.ToList());
+            result.TotalProcessed, result.SuccessfullyImported, result.Issues.ToList());
     }
 }
