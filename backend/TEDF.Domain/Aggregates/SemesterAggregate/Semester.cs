@@ -222,6 +222,22 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
             UpdatedAt = DateTime.UtcNow;
         }
 
+        /// <summary>Permanently removes eligible students from the roster.</summary>
+        public void RemoveEligibleStudents(IEnumerable<Guid> studentIds)
+        {
+            var ids = new HashSet<Guid>(studentIds);
+            _eligibleStudents.RemoveAll(s => ids.Contains(s.StudentId));
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>Permanently removes eligible mentors from the roster.</summary>
+        public void RemoveEligibleMentors(IEnumerable<Guid> mentorIds)
+        {
+            var ids = new HashSet<Guid>(mentorIds);
+            _eligibleMentors.RemoveAll(m => ids.Contains(m.MentorId));
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         /// <summary>Corrects the assigned program of a rostered mentor (the inline "Program" edit).</summary>
         public void UpdateEligibleMentorMajor(Guid mentorId, int majorId)
         {

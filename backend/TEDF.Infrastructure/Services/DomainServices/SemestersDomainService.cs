@@ -324,6 +324,28 @@ public class SemestersDomainService : ISemestersDomainService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RemoveEligibleStudentsAsync(int semesterId, IReadOnlyList<Guid> studentIds, CancellationToken cancellationToken = default)
+    {
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+
+        semester.RemoveEligibleStudents(studentIds);
+
+        _semesterRepository.Update(semester);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveEligibleMentorsAsync(int semesterId, IReadOnlyList<Guid> mentorIds, CancellationToken cancellationToken = default)
+    {
+        var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+
+        semester.RemoveEligibleMentors(mentorIds);
+
+        _semesterRepository.Update(semester);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<bool> IsMentorAssignedAsync(Guid mentorId, int semesterId, CancellationToken cancellationToken = default)
     {
         var semester = await _semesterRepository.GetWithRosterAsync(semesterId, cancellationToken);
