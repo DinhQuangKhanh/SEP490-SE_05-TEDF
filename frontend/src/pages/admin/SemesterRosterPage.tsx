@@ -52,6 +52,11 @@ export function SemesterRosterPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
+  // Xóa hàng loạt.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<"selected" | "all" | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isPublished = !!semester?.rosterPublishedAt;
@@ -107,6 +112,7 @@ export function SemesterRosterPage() {
     setLastResult(null);
     setSearch("");
     setPage(1);
+    setSelectedIds(new Set());
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -176,6 +182,31 @@ export function SemesterRosterPage() {
   };
 
 
+  const handleDelete = async () => {
+    if (!Number.isFinite(semesterId) || !showDeleteConfirm) return;
+    setDeleting(true);
+    try {
+      if (tab === "students") {
+        const ids = showDeleteConfirm === "all" ? students.map((s) => s.studentId) : [...selectedIds];
+        await semesterService.removeEligibleStudents(semesterId, ids);
+        const idSet = new Set(ids);
+        setStudents((prev) => prev.filter((s) => !idSet.has(s.studentId)));
+      } else {
+        const ids = showDeleteConfirm === "all" ? mentors.map((m) => m.mentorId) : [...selectedIds];
+        await semesterService.removeEligibleMentors(semesterId, ids);
+        const idSet = new Set(ids);
+        setMentors((prev) => prev.filter((m) => !idSet.has(m.mentorId)));
+      }
+      setSelectedIds(new Set());
+      setShowDeleteConfirm(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Xóa thất bại.");
+      setShowDeleteConfirm(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Lọc theo tìm kiếm (client).
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -200,6 +231,26 @@ export function SemesterRosterPage() {
   const sliceStart = (currentPage - 1) * PAGE_SIZE;
   const pagedStudents = filteredStudents.slice(sliceStart, sliceStart + PAGE_SIZE);
   const pagedMentors = filteredMentors.slice(sliceStart, sliceStart + PAGE_SIZE);
+
+  const currentPageIds = tab === "students"
+    ? pagedStudents.map((s) => s.studentId)
+    : pagedMentors.map((m) => m.mentorId);
+  const allPageSelected = currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.has(id));
+
+  const toggleOne = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const togglePage = (checked: boolean) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) currentPageIds.forEach((id) => next.add(id));
+      else currentPageIds.forEach((id) => next.delete(id));
+      return next;
+    });
 
   if (loading) {
     return (
@@ -308,16 +359,27 @@ export function SemesterRosterPage() {
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
-          <button
-            onClick={handleImportClick}
-            disabled={importing}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-[18px] ${importing ? "animate-spin" : ""}`}>
-              {importing ? "progress_activity" : "upload_file"}
-            </span>
-            {importing ? "Đang nhập..." : "Nhập bổ sung"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleImportClick}
+              disabled={importing}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <span className={`material-symbols-outlined text-[18px] ${importing ? "animate-spin" : ""}`}>
+                {importing ? "progress_activity" : "upload_file"}
+              </span>
+              {importing ? "Đang nhập..." : "Nhập bổ sung"}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm("all")}
+              disabled={isPublished || totalUnfiltered === 0 || deleting || importing}
+              title={isPublished ? "Không thể xóa sau khi đã công bố" : "Xóa toàn bộ danh sách tab này"}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors bg-white border rounded-md border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[18px]">delete_sweep</span>{" "}
+              Xóa tất cả
+            </button>
+          </div>
         </div>
 
         {/* Import result */}
@@ -349,6 +411,7 @@ export function SemesterRosterPage() {
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
+                setSelectedIds(new Set());
               }}
               placeholder={
                 tab === "students" ? "Tìm theo MSSV, họ tên, email…" : "Tìm theo mã GV, họ tên, email…"
@@ -356,14 +419,35 @@ export function SemesterRosterPage() {
               className="py-2 pl-9 pr-3 text-sm bg-white border rounded-md outline-none w-72 border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
-          <p className="text-xs text-slate-500">{filteredCount} kết quả</p>
+          <div className="flex items-center gap-3">
+            {selectedIds.size > 0 && !isPublished && (
+              <button
+                onClick={() => setShowDeleteConfirm("selected")}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors bg-white border rounded-md border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete</span>{" "}
+                Xóa ({selectedIds.size})
+              </button>
+            )}
+            <p className="text-xs text-slate-500 whitespace-nowrap">{filteredCount} kết quả</p>
+          </div>
         </div>
 
         {/* Tables */}
         <div className="overflow-x-auto bg-white border rounded-lg border-slate-200">
           {tab === "students"
-            ? <StudentTable rows={pagedStudents} totalUnfiltered={totalUnfiltered} />
-            : (
+            ? (
+              <StudentTable
+                rows={pagedStudents}
+                totalUnfiltered={totalUnfiltered}
+                selectedIds={selectedIds}
+                allPageSelected={allPageSelected}
+                onToggle={toggleOne}
+                onTogglePage={togglePage}
+                disabled={isPublished}
+              />
+            ) : (
               <MentorTable
                 rows={pagedMentors}
                 totalUnfiltered={totalUnfiltered}
@@ -371,6 +455,11 @@ export function SemesterRosterPage() {
                 savingMentorId={savingMentorId}
                 isPublished={isPublished}
                 onMajorChange={handleMentorMajorChange}
+                selectedIds={selectedIds}
+                allPageSelected={allPageSelected}
+                onToggle={toggleOne}
+                onTogglePage={togglePage}
+                disabled={isPublished}
               />
             )
           }
@@ -407,6 +496,15 @@ export function SemesterRosterPage() {
           onConfirm={handlePublish}
           onClose={() => setShowPublishConfirm(false)}
         />
+
+        <DeleteConfirmDialog
+          mode={showDeleteConfirm}
+          count={showDeleteConfirm === "all" ? totalUnfiltered : selectedIds.size}
+          tab={tab}
+          deleting={deleting}
+          onConfirm={handleDelete}
+          onClose={() => setShowDeleteConfirm(null)}
+        />
       </div>
     </div>
   );
@@ -424,11 +522,32 @@ function StatusPill({ active, onLabel, offLabel }: Readonly<{ active: boolean; o
   );
 }
 
-function StudentTable({ rows, totalUnfiltered }: Readonly<{ rows: EligibleStudentDto[]; totalUnfiltered: number }>) {
+interface SelectionProps {
+  selectedIds: Set<string>;
+  allPageSelected: boolean;
+  onToggle: (id: string) => void;
+  onTogglePage: (checked: boolean) => void;
+  disabled: boolean;
+}
+
+function StudentTable({
+  rows, totalUnfiltered, selectedIds, allPageSelected, onToggle, onTogglePage, disabled,
+}: Readonly<{ rows: EligibleStudentDto[]; totalUnfiltered: number } & SelectionProps>) {
   return (
     <table className="w-full text-sm">
       <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
         <tr>
+          <th className="w-10 px-3 py-3">
+            {!disabled && (
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={(e) => onTogglePage(e.target.checked)}
+                className="w-4 h-4 rounded accent-primary"
+                title="Chọn tất cả trang này"
+              />
+            )}
+          </th>
           <th className="px-4 py-3 font-semibold text-left">MSSV</th>
           <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
           <th className="px-4 py-3 font-semibold text-left">Email</th>
@@ -440,12 +559,22 @@ function StudentTable({ rows, totalUnfiltered }: Readonly<{ rows: EligibleStuden
       <tbody className="divide-y divide-slate-100">
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+            <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
               {totalUnfiltered === 0 ? "Chưa có sinh viên nào. Hãy nhập danh sách từ Excel." : "Không tìm thấy kết quả phù hợp."}
             </td>
           </tr>
         ) : rows.map((s) => (
-          <tr key={s.studentId} className="hover:bg-slate-50">
+          <tr key={s.studentId} className={`hover:bg-slate-50 ${selectedIds.has(s.studentId) ? "bg-red-50/40" : ""}`}>
+            <td className="px-3 py-2.5">
+              {!disabled && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(s.studentId)}
+                  onChange={() => onToggle(s.studentId)}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+              )}
+            </td>
             <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{s.studentCode}</td>
             <td className="px-4 py-2.5 text-slate-700">{s.fullName ?? "—"}</td>
             <td className="px-4 py-2.5 text-slate-500">{s.email ?? "—"}</td>
@@ -468,11 +597,25 @@ interface MentorTableProps {
   onMajorChange: (mentorId: string, majorId: number) => void;
 }
 
-function MentorTable({ rows, totalUnfiltered, majors, savingMentorId, isPublished, onMajorChange }: Readonly<MentorTableProps>) {
+function MentorTable({
+  rows, totalUnfiltered, majors, savingMentorId, isPublished, onMajorChange,
+  selectedIds, allPageSelected, onToggle, onTogglePage,
+}: Readonly<MentorTableProps & SelectionProps>) {
   return (
     <table className="w-full text-sm">
       <thead className="text-xs uppercase border-b text-slate-500 bg-slate-50 border-slate-200">
         <tr>
+          <th className="w-10 px-3 py-3">
+            {!isPublished && (
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={(e) => onTogglePage(e.target.checked)}
+                className="w-4 h-4 rounded accent-primary"
+                title="Chọn tất cả trang này"
+              />
+            )}
+          </th>
           <th className="px-4 py-3 font-semibold text-left">Mã GV</th>
           <th className="px-4 py-3 font-semibold text-left">Họ tên</th>
           <th className="px-4 py-3 font-semibold text-left">Email</th>
@@ -485,12 +628,22 @@ function MentorTable({ rows, totalUnfiltered, majors, savingMentorId, isPublishe
       <tbody className="divide-y divide-slate-100">
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+            <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
               {totalUnfiltered === 0 ? "Chưa có giảng viên nào. Hãy nhập danh sách từ Excel." : "Không tìm thấy kết quả phù hợp."}
             </td>
           </tr>
         ) : rows.map((m) => (
-          <tr key={m.mentorId} className="hover:bg-slate-50">
+          <tr key={m.mentorId} className={`hover:bg-slate-50 ${selectedIds.has(m.mentorId) ? "bg-red-50/40" : ""}`}>
+            <td className="px-3 py-2.5">
+              {!isPublished && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(m.mentorId)}
+                  onChange={() => onToggle(m.mentorId)}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+              )}
+            </td>
             <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{m.employeeCode}</td>
             <td className="px-4 py-2.5 text-slate-700">{m.fullName ?? "—"}</td>
             <td className="px-4 py-2.5 text-slate-500">{m.email ?? "—"}</td>
@@ -570,6 +723,65 @@ function PublishConfirmDialog({ open, publishing, onConfirm, onClose }: Readonly
                 {publishing
                   ? <><span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}Đang công bố...</>
                   : "Xác nhận công bố"
+                }
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+interface DeleteConfirmDialogProps {
+  mode: "selected" | "all" | null;
+  count: number;
+  tab: Tab;
+  deleting: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+function DeleteConfirmDialog({ mode, count, tab, deleting, onConfirm, onClose }: Readonly<DeleteConfirmDialogProps>) {
+  const noun = tab === "students" ? "sinh viên" : "giảng viên";
+  const title = mode === "all" ? `Xóa toàn bộ ${count} ${noun}?` : `Xóa ${count} ${noun} đã chọn?`;
+
+  return (
+    <AnimatePresence>
+      {mode !== null && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => !deleting && onClose()}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl"
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 text-red-600 bg-red-100 rounded-full">
+              <span className="material-symbols-outlined text-[26px]">delete_forever</span>
+            </div>
+            <h3 className="mb-2 text-lg font-bold text-center text-slate-800">{title}</h3>
+            <p className="mb-6 text-sm text-center text-slate-500">
+              Các {noun} bị xóa sẽ <strong>không còn trong danh sách đủ điều kiện</strong> của kỳ học này. Hành động này không thể hoàn tác.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose} disabled={deleting}
+                className="flex-1 px-4 py-2 text-sm font-semibold transition-colors border rounded-md border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={onConfirm} disabled={deleting}
+                className="flex items-center justify-center flex-1 gap-2 px-4 py-2 text-sm font-bold text-white transition-colors rounded-md bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting
+                  ? <><span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}Đang xóa...</>
+                  : "Xác nhận xóa"
                 }
               </button>
             </div>
