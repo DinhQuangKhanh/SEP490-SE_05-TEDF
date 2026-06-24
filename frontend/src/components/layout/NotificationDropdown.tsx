@@ -89,7 +89,14 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     setTimeout(() => setPulse(false), 2000);
   }, []);
 
-  useSignalR({ onReceiveNotification: handleReceiveNotification });
+  const handleUnreadCountUpdated = useCallback((payload: { count: number }) => {
+    setUnreadCount(Math.max(0, Number(payload?.count ?? 0)));
+  }, []);
+
+  useSignalR({
+    onReceiveNotification: handleReceiveNotification,
+    onUnreadCountUpdated: handleUnreadCountUpdated,
+  });
 
   // ── Fetch notifications list when dropdown opens ──────────────────────────
   const fetchNotifications = useCallback(async () => {

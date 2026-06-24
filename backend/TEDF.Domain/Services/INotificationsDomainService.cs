@@ -5,6 +5,6 @@ namespace TEDF.Domain.Services;
 /// </summary>
 public interface INotificationsDomainService
 {
-    Task MarkAsReadAsync(Guid notificationId, CancellationToken cancellationToken = default);
+    Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default);
     Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default);
 }

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService } from "@/lib";
 import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
+import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 
 export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +44,26 @@ export function LecturerReviewPage() {
       .catch(() => showError("Không thể tải thông tin đề tài. Vui lòng thử lại sau."))
       .finally(() => setLoading(false));
   }, [id, showError]);
+
+  const handleProjectStatusUpdated = useCallback(
+    (payload: ProjectStatusUpdatedPayload) => {
+      if (payload.projectId !== id) return;
+      evaluatorService.getProjectForReview(payload.projectId).then(setProject).catch(() => {
+        /* silently ignore — UI keeps last known state */
+      });
+    },
+    [id],
+  );
+
+  const { joinProjectChannel, leaveProjectChannel } = useSignalR({
+    onProjectStatusUpdated: handleProjectStatusUpdated,
+  });
+
+  useEffect(() => {
+    if (!id) return;
+    joinProjectChannel(id);
+    return () => leaveProjectChannel(id);
+  }, [id, joinProjectChannel, leaveProjectChannel]);
 
   const handleCheckSimilarity = useCallback(async () => {
     if (!id) return;

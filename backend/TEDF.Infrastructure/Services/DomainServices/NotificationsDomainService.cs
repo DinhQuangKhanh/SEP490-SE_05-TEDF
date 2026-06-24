@@ -1,5 +1,6 @@
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Services;
+using TEDF.Infrastructure.RealTime.Services;
 
 namespace TEDF.Infrastructure.Services.DomainServices;
 
@@ -9,12 +10,29 @@ namespace TEDF.Infrastructure.Services.DomainServices;
 public class NotificationsDomainService : INotificationsDomainService
 {
     private readonly INotificationService _notifications;
+    private readonly IRealtimeNotificationService _realtime;
 
-    public NotificationsDomainService(INotificationService notifications) => _notifications = notifications;
+    public NotificationsDomainService(INotificationService notifications, IRealtimeNotificationService realtime)
+    {
+        _notifications = notifications;
+        _realtime = realtime;
+    }
 
-    public Task MarkAsReadAsync(Guid notificationId, CancellationToken cancellationToken = default)
-        => _notifications.MarkAsReadAsync(notificationId, cancellationToken);
+    public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        await _notifications.MarkAsReadAsync(notificationId, cancellationToken);
+        await PushUnreadCountAsync(userId, cancellationToken);
+    }
 
-    public Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
-        => _notifications.MarkAllAsReadAsync(userId, cancellationToken);
+    public async Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        await _notifications.MarkAllAsReadAsync(userId, cancellationToken);
+        await PushUnreadCountAsync(userId, cancellationToken);
+    }
+
+    private async Task PushUnreadCountAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var count = await _notifications.GetUnreadCountAsync(userId, category: null, cancellationToken);
+        await _realtime.SendUnreadCountUpdateAsync(userId, count, cancellationToken);
+    }
 }

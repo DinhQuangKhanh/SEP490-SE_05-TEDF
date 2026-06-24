@@ -1,8 +1,10 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
+using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Infrastructure.Caching;
+using TEDF.Infrastructure.RealTime.Services;
 using TEDF.Application.Common.Interfaces;
 
 namespace TEDF.Infrastructure.EventHandlers.Project
@@ -11,17 +13,23 @@ namespace TEDF.Infrastructure.EventHandlers.Project
     {
         private readonly INotificationService _notificationService;
         private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
+        private readonly IProjectRepository _projectRepository;
+        private readonly IRealtimeNotificationService _realtimeNotificationService;
         private readonly ICacheInvalidationService _cacheInvalidation;
         private readonly ILogger<ProjectRejectedEventHandler> _logger;
 
         public ProjectRejectedEventHandler(
             INotificationService notificationService,
             IProjectEvaluatorAssignmentRepository assignmentRepository,
+            IProjectRepository projectRepository,
+            IRealtimeNotificationService realtimeNotificationService,
             ICacheInvalidationService cacheInvalidation,
             ILogger<ProjectRejectedEventHandler> logger)
         {
             _notificationService = notificationService;
             _assignmentRepository = assignmentRepository;
+            _projectRepository = projectRepository;
+            _realtimeNotificationService = realtimeNotificationService;
             _cacheInvalidation = cacheInvalidation;
             _logger = logger;
         }
@@ -36,6 +44,9 @@ namespace TEDF.Infrastructure.EventHandlers.Project
                 {
                     await _cacheInvalidation.InvalidateEvaluatorCacheAsync(assignment.EvaluatorId, cancellationToken);
                 }
+
+                await ProjectStatusRealtimeNotifier.NotifyAsync(
+                    _projectRepository, _realtimeNotificationService, notification.ProjectId, "PendingEvaluation", cancellationToken);
 
                 _logger.LogInformation("Project rejected: {ProjectId}", notification.ProjectId);
             }
