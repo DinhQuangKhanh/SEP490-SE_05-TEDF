@@ -4,6 +4,9 @@ export const routes = {
   auth: {
     session: "/api/auth/session",
   },
+  users: {
+    me: "/api/users/me",
+  },
   admin: {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
