@@ -17,8 +17,10 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         public string? StudentCode { get; private set; }
         public string? EmployeeCode { get; private set; }
         public string? PhoneNumber { get; private set; }
+        public DateOnly? BirthDate { get; private set; }
         public string? AcademicTitle { get; private set; }
         public int? DepartmentId { get; private set; }
+        public string? PrivacySettings { get; private set; }
         public UserStatus Status { get; private set; }
         public string FirebaseUid { get; private set; } = string.Empty;
         public DateTime CreatedAt { get; private set; }
@@ -42,7 +44,8 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             string? employeeCode = null,
             string? academicTitle = null,
             int? departmentId = null,
-            string? phoneNumber = null)
+            string? phoneNumber = null,
+            DateOnly? birthDate = null)
         {
             var emailValueObject = Email.Create(email);
 
@@ -56,6 +59,7 @@ namespace TEDF.Domain.Aggregates.UserAggregate
                 StudentCode = studentCode,
                 EmployeeCode = employeeCode,
                 PhoneNumber = phoneNumber,
+                BirthDate = birthDate,
                 AcademicTitle = academicTitle,
                 DepartmentId = departmentId,
                 Status = UserStatus.Active,
@@ -98,7 +102,10 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             string? studentCode = null,
             string? employeeCode = null,
             string? academicTitle = null,
-            int? departmentId = null)
+            int? departmentId = null,
+            string? phoneNumber = null,
+            DateOnly? birthDate = null,
+            string? privacySettings = null)
         {
             if (!string.IsNullOrWhiteSpace(fullName))
                 FullName = fullName;
@@ -117,6 +124,15 @@ namespace TEDF.Domain.Aggregates.UserAggregate
 
             if (departmentId.HasValue)
                 DepartmentId = departmentId;
+
+            if (!string.IsNullOrWhiteSpace(phoneNumber))
+                PhoneNumber = phoneNumber;
+
+            if (birthDate.HasValue)
+                BirthDate = birthDate;
+
+            if (privacySettings != null)
+                PrivacySettings = privacySettings;
 
             UpdatedAt = DateTime.UtcNow;
         }

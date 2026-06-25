@@ -56,4 +56,36 @@ public class UsersQueryService : IUsersQueryService
 
         return new GetUsersQueryResult(items, totalCount, page, pageSize, totalPages);
     }
+
+    public async Task<MyProfileDto> GetMyProfileAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new TEDF.Domain.Common.Exceptions.EntityNotFoundException(nameof(User), userId);
+
+        string? deptName = null;
+        if (user.DepartmentId.HasValue)
+        {
+            var dept = await _departmentRepository.GetByIdAsync(user.DepartmentId.Value, cancellationToken);
+            deptName = dept?.Name;
+        }
+
+        return new MyProfileDto(
+            Id: user.Id,
+            FullName: user.FullName,
+            Email: user.Email.Value,
+            AvatarUrl: user.AvatarUrl,
+            StudentCode: user.StudentCode,
+            EmployeeCode: user.EmployeeCode,
+            PhoneNumber: user.PhoneNumber,
+            BirthDate: user.BirthDate,
+            PrivacySettings: user.PrivacySettings,
+            AcademicTitle: user.AcademicTitle,
+            DepartmentId: user.DepartmentId,
+            DepartmentName: deptName,
+            Status: user.Status.ToString(),
+            Roles: user.GetActiveRoles().ToList(),
+            CreatedAt: user.CreatedAt,
+            LastLoginAt: user.LastLoginAt
+        );
+    }
 }
