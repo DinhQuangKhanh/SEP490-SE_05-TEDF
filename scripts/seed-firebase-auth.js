@@ -26,7 +26,7 @@ process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
 admin.initializeApp({ projectId: 'unithesis-38c38' });
 
 const auth = getAuth();
-const DEFAULT_PASSWORD = 'Test@123456';
+const DEFAULT_PASSWORD = 'Test@123456'; // NOSONAR: This is a dummy password for local emulator testing only
 
 // ─── ID / naming helpers (must match LoadTestDataSeeder.cs) ───
 
@@ -134,32 +134,20 @@ const STUDENT_COUNT  = 510;
 function buildAllUsers() {
     const users = [];
 
-    for (let i = 1; i <= ADMIN_COUNT; i++) {
-        users.push({
-            uid: adminUid(i),
-            email: adminEmail(i),
-            password: DEFAULT_PASSWORD,
-            displayName: `Admin LoadTest ${i}`,
-        });
-    }
+    const addUsers = (count, uidFn, emailFn, namePrefix) => {
+        for (let i = 1; i <= count; i++) {
+            users.push({
+                uid: uidFn(i),
+                email: emailFn(i),
+                password: DEFAULT_PASSWORD,
+                displayName: `${namePrefix} ${i}`,
+            });
+        }
+    };
 
-    for (let i = 1; i <= LECTURER_COUNT; i++) {
-        users.push({
-            uid: lecturerUid(i),
-            email: lecturerEmail(i),
-            password: DEFAULT_PASSWORD,
-            displayName: `Lecturer LoadTest ${i}`,
-        });
-    }
-
-    for (let i = 1; i <= STUDENT_COUNT; i++) {
-        users.push({
-            uid: studentUid(i),
-            email: studentEmail(i),
-            password: DEFAULT_PASSWORD,
-            displayName: `Student LoadTest ${i}`,
-        });
-    }
+    addUsers(ADMIN_COUNT, adminUid, adminEmail, 'Admin LoadTest');
+    addUsers(LECTURER_COUNT, lecturerUid, lecturerEmail, 'Lecturer LoadTest');
+    addUsers(STUDENT_COUNT, studentUid, studentEmail, 'Student LoadTest');
 
     for (const s of realStudents) {
         users.push({
