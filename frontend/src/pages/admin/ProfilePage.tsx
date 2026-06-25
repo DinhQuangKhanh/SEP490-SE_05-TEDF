@@ -72,7 +72,7 @@ export function ProfilePage() {
         if (profile?.privacySettings) {
             try {
                 hiddenFields = JSON.parse(profile.privacySettings)
-            } catch (e) {
+            } catch {
                 // Ignore
             }
         }
@@ -89,7 +89,9 @@ export function ProfilePage() {
             })
             // Update local state
             setProfile(prev => prev ? { ...prev, privacySettings: JSON.stringify(newHiddenFields) } : prev)
-        } catch (e: any) {
+        } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const e = err as any;
             console.error('Update failed:', e.response?.data || e.message || e);
             alert(`Có lỗi xảy ra khi cập nhật: ${e.response?.data?.title || e.response?.data?.message || e.message}`);
         }
@@ -104,7 +106,9 @@ export function ProfilePage() {
                 privacySettings: profile?.privacySettings
             })
             setProfile(prev => prev ? { ...prev, ...updatedData } : prev)
-        } catch (e: any) {
+        } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const e = err as any;
             console.error('Update profile failed:', e)
             alert('Lỗi cập nhật thông tin!')
             throw e
@@ -126,7 +130,6 @@ export function ProfilePage() {
     const roles = (profile?.roles || authUser.roles || []).map((r: string) => r.toLowerCase())
     const isStudent = roles.includes('student')
     const isLecturer = roles.includes('mentor') || roles.includes('evaluator') || roles.includes('departmenthead')
-    const isAdmin = roles.includes('admin')
 
     const initials = (profile?.fullName || authUser.name)
         .split(' ')
@@ -140,7 +143,7 @@ export function ProfilePage() {
     if (profile?.privacySettings) {
         try {
             hiddenFields = JSON.parse(profile.privacySettings)
-        } catch (e) {
+        } catch {
             console.error('Failed to parse privacy settings')
         }
     }
@@ -493,18 +496,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
-            >
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-800">Đổi Mật Khẩu</h3>
-                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100">
-                        <span className="material-symbols-outlined">close</span>
-                    </button>
-                </div>
+        <ModalWrapper title="Đổi Mật Khẩu" onClose={onClose}>
                 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
@@ -529,8 +521,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                         </button>
                     </div>
                 </form>
-            </motion.div>
-        </div>
+        </ModalWrapper>
     )
 }
 
@@ -573,7 +564,7 @@ function ProfileEditModal({
                 birthDate: birthDate || undefined
             })
             onClose()
-        } catch (error) {
+        } catch {
             // Error is handled in onSave
         } finally {
             setIsSaving(false)
@@ -581,18 +572,7 @@ function ProfileEditModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
-            >
-                <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
-                    <h3 className="font-bold text-lg text-slate-800">Chỉnh sửa thông tin</h3>
-                    <button onClick={onClose} className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors">
-                        <span className="material-symbols-outlined text-[20px]">close</span>
-                    </button>
-                </div>
+        <ModalWrapper title="Chỉnh sửa thông tin" onClose={onClose}>
                 
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
@@ -641,7 +621,6 @@ function ProfileEditModal({
                         </button>
                     </div>
                 </form>
-            </motion.div>
-        </div>
+        </ModalWrapper>
     )
 }
