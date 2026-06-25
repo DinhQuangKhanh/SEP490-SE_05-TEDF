@@ -255,22 +255,6 @@ export function ProfilePage() {
                                             isPrivate={hiddenFields.includes('narrowMajor')}
                                             onTogglePrivacy={() => togglePrivacy('narrowMajor')}
                                         />
-                                        <InfoRow
-                                            icon="cake"
-                                            label="Ngày sinh"
-                                            value={profile?.birthDate || "Chưa cập nhật"}
-                                            placeholder={!profile?.birthDate}
-                                            isPrivate={hiddenFields.includes('birthDate')}
-                                            onTogglePrivacy={() => togglePrivacy('birthDate')}
-                                        />
-                                        <InfoRow
-                                            icon="call"
-                                            label="SĐT liên hệ"
-                                            value={profile?.phoneNumber || "Chưa cập nhật"}
-                                            placeholder={!profile?.phoneNumber}
-                                            isPrivate={hiddenFields.includes('phoneNumber')}
-                                            onTogglePrivacy={() => togglePrivacy('phoneNumber')}
-                                        />
                                     </>
                                 )}
                                 {isLecturer && (
@@ -283,6 +267,10 @@ export function ProfilePage() {
                                             isPrivate={hiddenFields.includes('department')}
                                             onTogglePrivacy={() => togglePrivacy('department')}
                                         />
+                                    </>
+                                )}
+                                {(isStudent || isLecturer) && (
+                                    <>
                                         <InfoRow
                                             icon="cake"
                                             label="Ngày sinh"
@@ -365,7 +353,7 @@ export function ProfilePage() {
                                             </div>
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 rounded text-xs font-medium border border-green-500/20">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                                Đang kích hoạt
+                                                {' '}Đang kích hoạt
                                             </span>
                                         </div>
                                     ))}
@@ -500,16 +488,16 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu hiện tại</label>
-                        <input type="password" required className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                        <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu hiện tại</label>
+                        <input id="currentPassword" type="password" required className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu mới</label>
-                        <input type="password" required minLength={6} className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                        <label htmlFor="newPassword" className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu mới</label>
+                        <input id="newPassword" type="password" required minLength={6} className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
-                        <input type="password" required minLength={6} className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
+                        <input id="confirmPassword" type="password" required minLength={6} className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
                     </div>
                     
                     <div className="pt-4 flex gap-3">
@@ -576,8 +564,9 @@ function ProfileEditModal({
                 
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Số điện thoại</label>
+                        <label htmlFor="editPhone" className="block text-sm font-semibold text-slate-700 mb-1.5">Số điện thoại</label>
                         <input
+                            id="editPhone"
                             type="tel"
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
@@ -587,8 +576,9 @@ function ProfileEditModal({
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Ngày sinh</label>
+                        <label htmlFor="editBirthDate" className="block text-sm font-semibold text-slate-700 mb-1.5">Ngày sinh</label>
                         <input
+                            id="editBirthDate"
                             type="date"
                             value={birthDate}
                             onChange={(e) => setBirthDate(e.target.value)}
