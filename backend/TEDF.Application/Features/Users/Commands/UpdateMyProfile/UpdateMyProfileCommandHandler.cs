@@ -1,26 +1,21 @@
 using TEDF.Application.Common.Abstractions;
 using TEDF.Application.Common.Interfaces;
-using TEDF.Domain.Aggregates.UserAggregate;
-using TEDF.Domain.Common.Exceptions;
-using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Services;
 using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserService;
 
 namespace TEDF.Application.Features.Users.Commands.UpdateMyProfile;
 
 public class UpdateMyProfileCommandHandler : ICommandHandler<UpdateMyProfileCommand>
 {
-    private readonly IUserRepository _userRepository;
+    private readonly IUsersDomainService _users;
     private readonly ICurrentUserService _currentUser;
-    private readonly IUnitOfWork _unitOfWork;
 
     public UpdateMyProfileCommandHandler(
-        IUserRepository userRepository,
-        ICurrentUserService currentUser,
-        IUnitOfWork unitOfWork)
+        IUsersDomainService users,
+        ICurrentUserService currentUser)
     {
-        _userRepository = userRepository;
+        _users = users;
         _currentUser = currentUser;
-        _unitOfWork = unitOfWork;
     }
 
     public async Task<MediatR.Unit> Handle(UpdateMyProfileCommand request, CancellationToken cancellationToken)
@@ -28,16 +23,12 @@ public class UpdateMyProfileCommandHandler : ICommandHandler<UpdateMyProfileComm
         var userId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
-            ?? throw new EntityNotFoundException(nameof(User), userId);
-
-        user.UpdateProfile(
-            phoneNumber: request.PhoneNumber,
-            birthDate: request.BirthDate,
-            privacySettings: request.PrivacySettings);
-
-        await _userRepository.UpdateAsync(user, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _users.UpdateMyProfileAsync(
+            userId,
+            request.PhoneNumber,
+            request.BirthDate,
+            request.PrivacySettings,
+            cancellationToken);
 
         return MediatR.Unit.Value;
     }

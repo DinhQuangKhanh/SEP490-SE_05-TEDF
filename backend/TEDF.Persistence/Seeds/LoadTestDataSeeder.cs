@@ -323,8 +323,9 @@ public static class LoadTestDataSeeder
                 var pEmployeeCode = $"@p{paramIndex++}";
                 var pFirebaseUid = $"@p{paramIndex++}";
                 var pDate = $"@p{paramIndex++}";
-
-                valueClauses.Add($"({pId}, {pEmail}, {pName}, NULL, {pStudentCode}, {pEmployeeCode}, NULL, 1, 0, {pFirebaseUid}, {pDate}, NULL, NULL)");
+                var pPrivacy = $"@p{paramIndex++}";
+                
+                valueClauses.Add($"({pId}, {pEmail}, {pName}, NULL, {pStudentCode}, {pEmployeeCode}, NULL, 1, 0, {pFirebaseUid}, {pDate}, NULL, NULL, {pPrivacy})");
 
                 parameters.Add(u.Id);
                 parameters.Add(u.Email);
@@ -333,10 +334,12 @@ public static class LoadTestDataSeeder
                 parameters.Add(u.EmployeeCode);
                 parameters.Add(u.FirebaseUid);
                 parameters.Add(SeedDate);
+                // Mock privacy settings (hidden phone and DOB by default for mock)
+                parameters.Add("[\"phoneNumber\",\"birthDate\"]");
             }
 
             var sql = $@"
-                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt)
+                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings)
                 VALUES {string.Join(",\n                       ", valueClauses)};";
 
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
@@ -872,18 +875,19 @@ public static class LoadTestDataSeeder
             foreach (var s in students)
             {
                 var pId = $"@p{pi++}"; var pEmail = $"@p{pi++}"; var pName = $"@p{pi++}";
-                var pCode = $"@p{pi++}"; var pUid = $"@p{pi++}"; var pDate = $"@p{pi++}";
-                values.Add($"({pId}, {pEmail}, {pName}, NULL, {pCode}, NULL, NULL, 1, 0, {pUid}, {pDate}, NULL, NULL)");
+                var pCode = $"@p{pi++}"; var pUid = $"@p{pi++}"; var pDate = $"@p{pi++}"; var pPrivacy = $"@p{pi++}";
+                values.Add($"({pId}, {pEmail}, {pName}, NULL, {pCode}, NULL, NULL, 1, 0, {pUid}, {pDate}, NULL, NULL, {pPrivacy})");
                 parameters.Add(RealStudentId(s.Idx));
                 parameters.Add(RealStudentEmail(s.Roll));
                 parameters.Add(s.FullName);
                 parameters.Add(s.Roll);
                 parameters.Add(RealStudentFirebaseUid(s.Roll));
                 parameters.Add(SeedDate);
+                parameters.Add("[\"phoneNumber\",\"birthDate\"]");
             }
 
             var sql = $@"
-                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt)
+                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings)
                 VALUES {string.Join(",\n                       ", values)};";
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }

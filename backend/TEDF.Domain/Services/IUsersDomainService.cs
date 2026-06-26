@@ -15,4 +15,7 @@ public interface IUsersDomainService
 
     /// <summary>Assigns a lecturer (Mentor/Evaluator) as head of a department, replacing the previous head.</summary>
     Task AssignDepartmentHeadAsync(int departmentId, Guid userId, Guid assignedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the profile of a user.</summary>
+    Task UpdateMyProfileAsync(Guid userId, string? phoneNumber, DateOnly? birthDate, string? privacySettings, CancellationToken cancellationToken = default);
 }
