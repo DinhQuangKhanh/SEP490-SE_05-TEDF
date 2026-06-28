@@ -47,8 +47,8 @@ public sealed class DirectTopicEndpoints : IEndpoint
             .Produces(204).Produces(400).Produces(401);
     }
 
-    private static async Task<IResult> GetAvailableMentors(int? majorId, ISender sender, CancellationToken ct)
-        => Ok(await sender.Send(new GetAvailableMentorsQuery(majorId), ct));
+    private static async Task<IResult> GetAvailableMentors(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetAvailableMentorsQuery(), ct));
 
     private static async Task<IResult> CreateDirectTopic(Guid groupId, [FromBody] CreateDirectTopicRequest request, ISender sender, CancellationToken ct)
     {

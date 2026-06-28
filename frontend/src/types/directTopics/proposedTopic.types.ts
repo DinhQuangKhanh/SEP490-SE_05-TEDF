@@ -10,8 +10,8 @@ export interface CreateProposedTopicRequest {
   expectedResults?: string;
   mentorId: string;
   groupId: string;
+  /** The student's own program (read-only on the form); validated server-side. */
   majorId: number;
-  maxStudents: number;
 }
 
 export interface AvailableMentor {
@@ -21,6 +21,13 @@ export interface AvailableMentor {
   academicTitle: string | null;
   currentGroupCount: number;
   maxGroups: number;
+}
+
+/** GET /api/direct-topics/available-mentors — the student's program + mentors rostered for it. */
+export interface AvailableMentorsResponse {
+  majorId: number;
+  majorName: string;
+  mentors: AvailableMentor[];
 }
 
 /** PUT /api/mentor/direct-registration/{projectId}/review */

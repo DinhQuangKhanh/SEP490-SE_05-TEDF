@@ -20,5 +20,11 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         Task<IEnumerable<Semester>> GetSemestersWithPhaseStartingInAsync(int days, CancellationToken cancellationToken = default);
         /// <summary>True if the student is on the IsEligible list of any active or upcoming semester (EndDate ≥ now).</summary>
         Task<bool> IsStudentEligibleNowAsync(Guid studentId, CancellationToken cancellationToken = default);
+
+        /// <summary>The student's assigned program (Major) on the eligible-student roster of the given semester, or null if not rostered / not yet assigned.</summary>
+        Task<int?> GetEligibleStudentMajorAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
+
+        /// <summary>Ids of mentors assigned to supervise the given major on the eligible-mentor roster of the given semester.</summary>
+        Task<List<Guid>> GetEligibleMentorIdsByMajorAsync(int semesterId, int majorId, CancellationToken cancellationToken = default);
     }
 }

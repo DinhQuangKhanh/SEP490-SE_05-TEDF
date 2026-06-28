@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
-import { majorService, proposedTopicService } from "@/lib";
-import { AvailableMentor, CreateProposedTopicRequest, MajorOption } from "@/types";
+import { proposedTopicService } from "@/lib";
+import { AvailableMentor, CreateProposedTopicRequest } from "@/types";
 
 interface Props {
   groupId: string;
@@ -11,7 +11,7 @@ interface Props {
 
 export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props) {
   const [mentors, setMentors] = useState<AvailableMentor[]>([]);
-  const [majors, setMajors] = useState<MajorOption[]>([]);
+  const [majorName, setMajorName] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,17 +27,18 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
     expectedResults: "",
     mentorId: "",
     majorId: 0,
-    maxStudents: 5,
   });
 
   useEffect(() => {
-    Promise.all([proposedTopicService.getAvailableMentors(), majorService.getMajors()])
-      .then(([m, maj]) => {
-        setMentors(m);
-        setMajors(maj);
-        if (maj.length === 1) setForm((f) => ({ ...f, majorId: maj[0].id }));
+    // The student's program is fixed by the roster; the form only displays it (read-only).
+    proposedTopicService
+      .getAvailableMentors()
+      .then((res) => {
+        setMentors(res.mentors);
+        setMajorName(res.majorName);
+        setForm((f) => ({ ...f, majorId: res.majorId }));
       })
-      .catch(() => setError("Không thể tải danh sách giảng viên."))
+      .catch((err) => setError(err instanceof Error ? err.message : "Không thể tải danh sách giảng viên."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -84,7 +85,6 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
         mentorId: form.mentorId,
         groupId,
         majorId: form.majorId,
-        maxStudents: form.maxStudents,
       };
       await proposedTopicService.createProposedTopic(payload);
       onCreated();
@@ -127,23 +127,16 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
       <div className="p-6 space-y-5">
         {error && <div className="p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">{error}</div>}
 
-        {/* Major */}
+        {/* Major — read-only: a student may only propose within their own program */}
         <div>
-          <label className="block text-sm font-semibold text-[#101319] mb-1.5">
-            Chuyên ngành <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={form.majorId}
-            onChange={(e) => update("majorId", Number(e.target.value))}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-          >
-            <option value={0}>Chọn chuyên ngành</option>
-            {majors.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.code})
-              </option>
-            ))}
-          </select>
+          <label className="block text-sm font-semibold text-[#101319] mb-1.5">Chuyên ngành</label>
+          <input
+            value={majorName}
+            disabled
+            readOnly
+            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm bg-gray-50 text-[#58698d] cursor-not-allowed outline-none"
+          />
+          <p className="mt-1 text-xs text-[#58698d]">Đề tài thuộc chuyên ngành bạn đang theo học, không thể thay đổi.</p>
         </div>
 
         {/* Name Vi */}
@@ -247,22 +240,6 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
             className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Kết quả kỳ vọng sau khi hoàn thành..."
           />
-        </div>
-
-        {/* Max Students */}
-        <div>
-          <label className="block text-sm font-semibold text-[#101319] mb-1.5">Số sinh viên tối đa</label>
-          <select
-            value={form.maxStudents}
-            onChange={(e) => update("maxStudents", Number(e.target.value))}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-          >
-            {[3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n} sinh viên
-              </option>
-            ))}
-          </select>
         </div>
 
         {/* Mentor Selection */}

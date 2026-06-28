@@ -85,6 +85,17 @@ public class TopicRegistrationRepository : BaseRepository<TopicRegistration, Gui
                              tr.Id != excludeRegistrationId, cancellationToken);
     }
 
+    public async Task<int> CountPendingByMentorIdAsync(Guid mentorId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Join(_context.Projects,
+                tr => tr.ProjectId,
+                p => p.Id,
+                (tr, p) => new { Registration = tr, Project = p })
+            .CountAsync(x => x.Registration.Status == TopicRegistrationStatus.Pending &&
+                             x.Project.Mentors.Any(m => m.MentorId == mentorId && m.IsActive), cancellationToken);
+    }
+
     public async Task<Dictionary<TopicRegistrationStatus, int>> GetRegistrationStatusCountsByProjectIdsAsync(IEnumerable<Guid> projectIds, CancellationToken cancellationToken = default)
     {
         return await _dbSet
