@@ -12,11 +12,16 @@ public class UsersQueryService : IUsersQueryService
 {
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
+    private readonly IMajorReadRepository _majorRepository;
 
-    public UsersQueryService(IUserRepository userRepository, IDepartmentRepository departmentRepository)
+    public UsersQueryService(
+        IUserRepository userRepository,
+        IDepartmentRepository departmentRepository,
+        IMajorReadRepository majorRepository)
     {
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
+        _majorRepository = majorRepository;
     }
 
     public async Task<GetUsersQueryResult> GetUsersAsync(
@@ -69,6 +74,13 @@ public class UsersQueryService : IUsersQueryService
             deptName = dept?.Name;
         }
 
+        string? majorName = null;
+        if (user.MajorId.HasValue)
+        {
+            var major = await _majorRepository.GetByIdAsync(user.MajorId.Value, cancellationToken);
+            majorName = major?.Name;
+        }
+
         return new MyProfileDto(
             Id: user.Id,
             FullName: user.FullName,
@@ -82,6 +94,9 @@ public class UsersQueryService : IUsersQueryService
             AcademicTitle: user.AcademicTitle,
             DepartmentId: user.DepartmentId,
             DepartmentName: deptName,
+            MajorId: user.MajorId,
+            MajorName: majorName,
+            Division: user.Division,
             Status: user.Status.ToString(),
             Roles: user.GetActiveRoles().ToList(),
             CreatedAt: user.CreatedAt,

@@ -20,6 +20,10 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         public DateOnly? BirthDate { get; private set; }
         public string? AcademicTitle { get; private set; }
         public int? DepartmentId { get; private set; }
+        /// <summary>Chuyên ngành (Major) the user studies — set for students.</summary>
+        public int? MajorId { get; private set; }
+        /// <summary>Bộ môn đang giảng dạy (SE/CF/AI/IA/IC) — set for lecturers. Display-only snapshot, mirrors EligibleMentor.Division.</summary>
+        public string? Division { get; private set; }
         public string? PrivacySettings { get; private set; }
         public UserStatus Status { get; private set; }
         public string FirebaseUid { get; private set; } = string.Empty;
