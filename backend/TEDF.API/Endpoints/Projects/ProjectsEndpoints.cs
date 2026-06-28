@@ -1,5 +1,6 @@
 using MediatR;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
+using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
@@ -23,6 +24,11 @@ public sealed class ProjectsEndpoints : IEndpoint
             .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
             .WithTags("Projects").WithName("GetDepartmentProjects")
             .Produces(200).Produces(401).Produces(403);
+
+        // Mentor: projects the current user supervises (for the profile supervision history).
+        group.MapGet("/supervised", GetMySupervisedProjects)
+            .WithTags("Projects").WithName("GetMySupervisedProjects")
+            .Produces(200).Produces(401);
     }
 
     private static async Task<IResult> GetProjects(
@@ -38,4 +44,7 @@ public sealed class ProjectsEndpoints : IEndpoint
 
     private static async Task<IResult> GetDepartmentProjects(ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetDepartmentProjectsQuery(), ct));
+
+    private static async Task<IResult> GetMySupervisedProjects(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetMySupervisedProjectsQuery(), ct));
 }

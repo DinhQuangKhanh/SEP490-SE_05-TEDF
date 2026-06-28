@@ -7,6 +7,7 @@ using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Entities;
+using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
@@ -240,5 +241,44 @@ public class ProjectsQueryService : IProjectsQueryService
             NeedsFinalDecisionCount = items.Count(i => i.NeedsFinalDecision),
             CompletedCount = items.Count(i => i.StatusValue != (int)ProjectStatus.PendingEvaluation)
         };
+    }
+
+    public async Task<GetMySupervisedProjectsResult> GetMySupervisedProjectsAsync(
+        Guid mentorId, CancellationToken cancellationToken = default)
+    {
+        var projects = await _context.Projects
+            .AsNoTracking()
+            .Where(p => p.Mentors.Any(m => m.MentorId == mentorId && m.Status == ProjectMentorStatus.Active))
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        if (projects.Count == 0)
+            return new GetMySupervisedProjectsResult([], 0);
+
+        var semesterIds = projects.Select(p => p.SemesterId).Distinct().ToList();
+        var semesterNames = await _context.Semesters
+            .Where(s => semesterIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken);
+
+        var groupIds = projects.Where(p => p.GroupId.HasValue).Select(p => p.GroupId!.Value).Distinct().ToList();
+        var groups = await _context.Set<Group>()
+            .Where(g => groupIds.Contains(g.Id))
+            .ToListAsync(cancellationToken);
+        var groupCodes = groups.ToDictionary(g => g.Id, g => g.Code.Value);
+
+        var items = projects.Select(p => new SupervisedProjectDto(
+            p.Id,
+            p.Code.Value,
+            p.NameVi.Value,
+            p.NameEn?.Value,
+            p.Status.ToString(),
+            (int)p.Status,
+            semesterNames.GetValueOrDefault(p.SemesterId, "N/A"),
+            p.GroupId.HasValue ? groupCodes.GetValueOrDefault(p.GroupId.Value) : null,
+            p.StartDate,
+            p.Deadline,
+            p.CreatedAt)).ToList();
+
+        return new GetMySupervisedProjectsResult(items, items.Count);
     }
 }
