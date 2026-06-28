@@ -3,7 +3,9 @@ import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
 import { useAuth } from '@/contexts/AuthContext'
 import { profileService } from '@/services/users/profileService'
+import { projectService } from '@/lib/projects/projectService'
 import { MyProfile } from '@/types/users/user.types'
+import { SupervisedProject } from '@/types'
 
 const container = {
     hidden: { opacity: 0 },
@@ -44,12 +46,39 @@ const roleIcons: Record<string, string> = {
     departmenthead: 'supervisor_account',
 }
 
+// ProjectStatus enum (backend) → Vietnamese label + badge colour.
+const projectStatusLabels: Record<number, string> = {
+    0: 'Nháp',
+    1: 'Chờ thẩm định',
+    2: 'Cần chỉnh sửa',
+    3: 'Đã duyệt',
+    4: 'Bị từ chối',
+    5: 'Đang thực hiện',
+    6: 'Hoàn thành',
+    7: 'Đã hủy',
+    8: 'Chờ GV duyệt',
+}
+
+const projectStatusColors: Record<number, string> = {
+    0: 'bg-slate-100 text-slate-600 border-slate-200',
+    1: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+    2: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+    3: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+    4: 'bg-red-500/10 text-red-600 border-red-500/20',
+    5: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+    6: 'bg-green-500/10 text-green-600 border-green-500/20',
+    7: 'bg-red-500/10 text-red-600 border-red-500/20',
+    8: 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+}
+
 export function ProfilePage() {
     const { user: authUser } = useAuth()
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [profile, setProfile] = useState<MyProfile | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [supervisedProjects, setSupervisedProjects] = useState<SupervisedProject[]>([])
+    const [isLoadingSupervised, setIsLoadingSupervised] = useState(false)
 
     // Fetch full profile from API
     useEffect(() => {
@@ -66,6 +95,18 @@ export function ProfilePage() {
         }
         fetchProfile()
     }, [authUser])
+
+    // Fetch supervision history once the profile is loaded (lecturers only).
+    useEffect(() => {
+        if (!profile) return
+        const r = (profile.roles || []).map((x: string) => x.toLowerCase())
+        if (!r.includes('mentor') && !r.includes('evaluator') && !r.includes('departmenthead')) return
+        setIsLoadingSupervised(true)
+        projectService.getMySupervised()
+            .then(res => setSupervisedProjects(res.items))
+            .catch(err => console.error('Failed to fetch supervised projects', err))
+            .finally(() => setIsLoadingSupervised(false))
+    }, [profile])
 
     const togglePrivacy = async (fieldName: string) => {
         let hiddenFields: string[] = []
@@ -242,8 +283,8 @@ export function ProfilePage() {
                                         <InfoRow
                                             icon="school"
                                             label="Chuyên ngành đang học"
-                                            value={profile?.departmentName || "Chưa cập nhật"}
-                                            placeholder={!profile?.departmentName}
+                                            value={profile?.majorName || "Chưa cập nhật"}
+                                            placeholder={!profile?.majorName}
                                             isPrivate={hiddenFields.includes('major')}
                                             onTogglePrivacy={() => togglePrivacy('major')}
                                         />
@@ -262,8 +303,8 @@ export function ProfilePage() {
                                         <InfoRow
                                             icon="business"
                                             label="Bộ môn đang giảng dạy"
-                                            value={profile?.departmentName || "Chưa cập nhật"}
-                                            placeholder={!profile?.departmentName}
+                                            value={profile?.division || "Chưa cập nhật"}
+                                            placeholder={!profile?.division}
                                             isPrivate={hiddenFields.includes('department')}
                                             onTogglePrivacy={() => togglePrivacy('department')}
                                         />
@@ -376,10 +417,38 @@ export function ProfilePage() {
                                         Công khai
                                     </div>
                                 </div>
-                                <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-100 border-dashed">
-                                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">folder_open</span>
-                                    <p className="text-sm text-slate-500">Chưa có dữ liệu đồ án hướng dẫn.</p>
-                                </div>
+                                {isLoadingSupervised ? (
+                                    <div className="text-center py-8">
+                                        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+                                    </div>
+                                ) : supervisedProjects.length === 0 ? (
+                                    <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-100 border-dashed">
+                                        <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">folder_open</span>
+                                        <p className="text-sm text-slate-500">Chưa có dữ liệu đồ án hướng dẫn.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {supervisedProjects.map((p) => (
+                                            <div
+                                                key={p.id}
+                                                className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-colors"
+                                            >
+                                                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 shrink-0">
+                                                    <span className="material-symbols-outlined text-[20px]">topic</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-slate-800 truncate">{p.nameVi}</p>
+                                                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                                        {p.code} · {p.semesterName}{p.groupCode ? ` · Nhóm ${p.groupCode}` : ''}
+                                                    </p>
+                                                </div>
+                                                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${projectStatusColors[p.statusValue] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                                    {projectStatusLabels[p.statusValue] ?? p.status}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -472,6 +541,34 @@ function SecurityCard({
             </div>
             <p className="text-xs text-slate-500 font-medium">{title}</p>
             <p className={`text-sm font-semibold mt-0.5 ${valueColor}`}>{value}</p>
+        </div>
+    )
+}
+
+function ModalWrapper({
+    title,
+    onClose,
+    children,
+}: {
+    title: string
+    onClose: () => void
+    children: React.ReactNode
+}) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
+            >
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                    <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                {children}
+            </motion.div>
         </div>
     )
 }

@@ -41,6 +41,11 @@ export interface MyProfile {
   academicTitle: string | null;
   departmentId: number | null;
   departmentName: string | null;
+  /** Chuyên ngành (Major) — set for students. */
+  majorId: number | null;
+  majorName: string | null;
+  /** Bộ môn đang giảng dạy (CF/SE/AI/IA/IC) — set for lecturers. */
+  division: string | null;
   status: string;
   roles: string[];
   createdAt: string;
