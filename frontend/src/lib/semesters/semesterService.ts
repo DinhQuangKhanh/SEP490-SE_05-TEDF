@@ -59,4 +59,12 @@ export const semesterService = {
 
   /** Finalize the roster: notify mentors + email eligible students (sent once). */
   publishRoster: (id: number): Promise<void> => apiClient.post<void>(routes.admin.semesterRosterPublish(id), {}),
+
+  /** Permanently remove selected eligible students from the roster. */
+  removeEligibleStudents: (id: number, studentIds: string[]): Promise<void> =>
+    apiClient.post<void>(routes.admin.eligibleStudentsBulkDelete(id), { ids: studentIds }),
+
+  /** Permanently remove selected eligible mentors from the roster. */
+  removeEligibleMentors: (id: number, mentorIds: string[]): Promise<void> =>
+    apiClient.post<void>(routes.admin.eligibleMentorsBulkDelete(id), { ids: mentorIds }),
 };

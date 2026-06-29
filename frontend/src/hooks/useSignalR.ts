@@ -1,5 +1,9 @@
-import { useEffect, useCallback } from "react";
-import { HubConnectionBuilder, HubConnection, LogLevel } from "@microsoft/signalr";
+import { useEffect, useCallback, useRef } from "react";
+import {
+  HubConnectionBuilder,
+  HubConnection,
+  LogLevel,
+} from "@microsoft/signalr";
 import { auth } from "@/config/firebase";
 import { SignalREvents } from "@/hooks/signalREvents";
 
@@ -12,6 +16,7 @@ async function getToken(): Promise<string | null> {
 
     const stored = localStorage.getItem("user");
     if (!stored) return null;
+
     const user = JSON.parse(stored);
     return user?.firebaseToken ?? null;
   } catch (err) {
@@ -20,23 +25,11 @@ async function getToken(): Promise<string | null> {
   }
 }
 
-interface UseSignalROptions {
-  onReceiveNotification?: (notification: unknown) => void;
-  /** Real-time registration changes for the mentor "Yêu cầu đăng ký" tab. */
-  onRegistrationUpdate?: (update: unknown) => void;
-}
-
-export function useSignalR({ onReceiveNotification, onRegistrationUpdate }: UseSignalROptions) {
-  const connectionRef = useRef<HubConnection | null>(null);
-  const callbackRef = useRef(onReceiveNotification);
-  callbackRef.current = onReceiveNotification;
-  const registrationCbRef = useRef(onRegistrationUpdate);
-  registrationCbRef.current = onRegistrationUpdate;
-interface UnreadCountUpdatedPayload {
+export interface UnreadCountUpdatedPayload {
   count: number;
 }
 
-interface ProjectStatusUpdatedPayload {
+export interface ProjectStatusUpdatedPayload {
   projectId: string;
   projectName: string;
   oldStatus: string;
@@ -44,58 +37,74 @@ interface ProjectStatusUpdatedPayload {
   updatedAt: string;
 }
 
+export interface RegistrationUpdatePayload {
+  // Bạn có thể đổi type này thành chính xác hơn nếu backend đã cố định schema.
+  [key: string]: unknown;
+}
+
 type ReceiveNotificationListener = (notification: unknown) => void;
+type RegistrationUpdateListener = (update: RegistrationUpdatePayload) => void;
 type UnreadCountListener = (payload: UnreadCountUpdatedPayload) => void;
 type ProjectStatusListener = (payload: ProjectStatusUpdatedPayload) => void;
 
-// Single shared connection: every component calling useSignalR attaches/detaches
-// listeners to these sets instead of opening its own HubConnection.
+interface UseSignalROptions {
+  onReceiveNotification?: ReceiveNotificationListener;
+  onRegistrationUpdate?: RegistrationUpdateListener;
+  onUnreadCountUpdated?: UnreadCountListener;
+  onProjectStatusUpdated?: ProjectStatusListener;
+}
+
+// Shared connection across all components
 let sharedConnection: HubConnection | null = null;
 let connectPromise: Promise<void> | null = null;
 let refCount = 0;
 
 const receiveNotificationListeners = new Set<ReceiveNotificationListener>();
+const registrationUpdateListeners = new Set<RegistrationUpdateListener>();
 const unreadCountListeners = new Set<UnreadCountListener>();
 const projectStatusListeners = new Set<ProjectStatusListener>();
 
-function ensureConnection(): Promise<void> {
-  if (sharedConnection) return Promise.resolve();
+function buildConnection() {
+  const connection = new HubConnectionBuilder()
+    .withUrl(`${API_BASE}/hubs/notifications`, {
+      accessTokenFactory: async () => (await getToken()) ?? "",
+    })
+    .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+    .configureLogging(LogLevel.Warning)
+    .build();
+
+  connection.on(SignalREvents.ReceiveNotification, (notification: unknown) => {
+    receiveNotificationListeners.forEach((listener) => listener(notification));
+  });
+
+  connection.on(SignalREvents.ReceiveRegistrationUpdate, (update: RegistrationUpdatePayload) => {
+    registrationUpdateListeners.forEach((listener) => listener(update));
+  });
+
+  connection.on(SignalREvents.UnreadCountUpdated, (payload: UnreadCountUpdatedPayload) => {
+    unreadCountListeners.forEach((listener) => listener(payload));
+  });
+
+  connection.on(SignalREvents.ProjectStatusUpdated, (payload: ProjectStatusUpdatedPayload) => {
+    projectStatusListeners.forEach((listener) => listener(payload));
+  });
+
+  connection.onreconnecting((err) => console.warn("SignalR reconnecting:", err));
+  connection.onreconnected(() => console.info("SignalR reconnected"));
+  connection.onclose((err) => console.warn("SignalR connection closed:", err));
+
+  return connection;
+}
+
+async function ensureConnection(): Promise<void> {
+  if (sharedConnection) return;
   if (connectPromise) return connectPromise;
 
   connectPromise = (async () => {
     const token = await getToken();
     if (!token) return;
 
-    const connection = new HubConnectionBuilder()
-      .withUrl(`${API_BASE}/hubs/notifications`, {
-        accessTokenFactory: async () => (await getToken()) ?? "",
-      })
-      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-      .configureLogging(LogLevel.Warning)
-      .build();
-
-    connection.on(SignalREvents.ReceiveNotification, (notification: unknown) => {
-      receiveNotificationListeners.forEach((listener) => listener(notification));
-    });
-
-    connection.on("ReceiveRegistrationUpdate", (update: unknown) => {
-      registrationCbRef.current?.(update);
-    });
-
-    connection
-      .start()
-      .catch((err) => console.warn("SignalR connection failed:", err));
-    connection.on(SignalREvents.UnreadCountUpdated, (payload: UnreadCountUpdatedPayload) => {
-      unreadCountListeners.forEach((listener) => listener(payload));
-    });
-
-    connection.on(SignalREvents.ProjectStatusUpdated, (payload: ProjectStatusUpdatedPayload) => {
-      projectStatusListeners.forEach((listener) => listener(payload));
-    });
-
-    connection.onreconnecting((err) => console.warn("SignalR reconnecting:", err));
-    connection.onreconnected(() => console.info("SignalR reconnected"));
-    connection.onclose((err) => console.warn("SignalR connection closed:", err));
+    const connection = buildConnection();
 
     try {
       await connection.start();
@@ -103,53 +112,120 @@ function ensureConnection(): Promise<void> {
       console.info("SignalR connected");
     } catch (err) {
       console.warn("SignalR connection failed:", err);
+      try {
+        await connection.stop();
+      } catch {
+        // ignore
+      }
+    } finally {
+      connectPromise = null;
     }
   })();
 
   return connectPromise;
 }
 
-function teardownConnection() {
+async function teardownConnection() {
   const connection = sharedConnection;
   sharedConnection = null;
   connectPromise = null;
-  connection?.stop();
-}
 
-interface UseSignalROptions {
-  onReceiveNotification?: ReceiveNotificationListener;
-  onUnreadCountUpdated?: UnreadCountListener;
-  onProjectStatusUpdated?: ProjectStatusListener;
+  if (connection) {
+    try {
+      await connection.stop();
+    } catch (err) {
+      console.warn("SignalR stop failed:", err);
+    }
+  }
 }
 
 export function useSignalR({
   onReceiveNotification,
+  onRegistrationUpdate,
   onUnreadCountUpdated,
   onProjectStatusUpdated,
 }: UseSignalROptions) {
+  // Keep latest callbacks without re-subscribing the SignalR handlers
+  const receiveNotificationRef = useRef(onReceiveNotification);
+  receiveNotificationRef.current = onReceiveNotification;
+
+  const registrationUpdateRef = useRef(onRegistrationUpdate);
+  registrationUpdateRef.current = onRegistrationUpdate;
+
+  const unreadCountRef = useRef(onUnreadCountUpdated);
+  unreadCountRef.current = onUnreadCountUpdated;
+
+  const projectStatusRef = useRef(onProjectStatusUpdated);
+  projectStatusRef.current = onProjectStatusUpdated;
+
   useEffect(() => {
     refCount += 1;
-    ensureConnection();
 
-    if (onReceiveNotification) receiveNotificationListeners.add(onReceiveNotification);
-    if (onUnreadCountUpdated) unreadCountListeners.add(onUnreadCountUpdated);
-    if (onProjectStatusUpdated) projectStatusListeners.add(onProjectStatusUpdated);
+    const connectAndSubscribe = async () => {
+      await ensureConnection();
+    };
+
+    connectAndSubscribe();
+
+    if (onReceiveNotification) {
+      receiveNotificationListeners.add((payload) => receiveNotificationRef.current?.(payload));
+    }
+
+    if (onRegistrationUpdate) {
+      registrationUpdateListeners.add((payload) => registrationUpdateRef.current?.(payload));
+    }
+
+    if (onUnreadCountUpdated) {
+      unreadCountListeners.add((payload) => unreadCountRef.current?.(payload));
+    }
+
+    if (onProjectStatusUpdated) {
+      projectStatusListeners.add((payload) => projectStatusRef.current?.(payload));
+    }
 
     return () => {
-      if (onReceiveNotification) receiveNotificationListeners.delete(onReceiveNotification);
-      if (onUnreadCountUpdated) unreadCountListeners.delete(onUnreadCountUpdated);
-      if (onProjectStatusUpdated) projectStatusListeners.delete(onProjectStatusUpdated);
+      if (onReceiveNotification) {
+        receiveNotificationListeners.forEach((listener) => {
+          if (listener === receiveNotificationRef.current) {
+            receiveNotificationListeners.delete(listener);
+          }
+        });
+      }
+
+      if (onRegistrationUpdate) {
+        registrationUpdateListeners.forEach((listener) => {
+          if (listener === registrationUpdateRef.current) {
+            registrationUpdateListeners.delete(listener);
+          }
+        });
+      }
+
+      if (onUnreadCountUpdated) {
+        unreadCountListeners.forEach((listener) => {
+          if (listener === unreadCountRef.current) {
+            unreadCountListeners.delete(listener);
+          }
+        });
+      }
+
+      if (onProjectStatusUpdated) {
+        projectStatusListeners.forEach((listener) => {
+          if (listener === projectStatusRef.current) {
+            projectStatusListeners.delete(listener);
+          }
+        });
+      }
 
       refCount -= 1;
       if (refCount <= 0) {
         refCount = 0;
-        teardownConnection();
+        void teardownConnection();
       }
     };
-  }, [onReceiveNotification, onUnreadCountUpdated, onProjectStatusUpdated]);
+  }, [onReceiveNotification, onRegistrationUpdate, onUnreadCountUpdated, onProjectStatusUpdated]);
 
   const joinProjectChannel = useCallback((projectId: string) => {
-    ensureConnection()
+    void ensureConnection()
       .then(() => sharedConnection?.invoke("JoinProjectChannel", projectId))
       .catch((err) => console.warn("SignalR JoinProjectChannel failed:", err));
   }, []);
@@ -160,7 +236,16 @@ export function useSignalR({
     );
   }, []);
 
-  return { joinProjectChannel, leaveProjectChannel } as const;
+  return {
+    connectionRef: { current: sharedConnection },
+    joinProjectChannel,
+    leaveProjectChannel,
+  } as const;
 }
 
-export type { UnreadCountUpdatedPayload, ProjectStatusUpdatedPayload };
+export type {
+  ReceiveNotificationListener,
+  RegistrationUpdateListener,
+  UnreadCountListener,
+  ProjectStatusListener,
+};

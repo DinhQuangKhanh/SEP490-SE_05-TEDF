@@ -440,6 +440,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     file={mentorFile}
                     onSelect={acceptFile(setMentorFile)}
                     onClear={() => setMentorFile(null)}
+                    templateHref="/templates/danh_sach_giang_vien_mau.csv"
                     disabled={success}
                   />
                 </div>

@@ -7,6 +7,8 @@ using TEDF.Application.Features.Semesters.Commands.DeleteSemester;
 using TEDF.Application.Features.Semesters.Commands.ImportEligibleMentors;
 using TEDF.Application.Features.Semesters.Commands.ImportEligibleStudents;
 using TEDF.Application.Features.Semesters.Commands.PublishSemesterRoster;
+using TEDF.Application.Features.Semesters.Commands.RemoveEligibleMentors;
+using TEDF.Application.Features.Semesters.Commands.RemoveEligibleStudents;
 using TEDF.Application.Features.Semesters.Commands.UpdateEligibleMentorMajor;
 using TEDF.Application.Features.Semesters.Commands.UpdateSemester;
 using TEDF.Application.Features.Semesters.Queries.GetActiveSemester;
@@ -37,6 +39,8 @@ public sealed class SemestersEndpoints : IEndpoint
         adminGroup.MapGet("/{id:int}/eligible-mentors", GetEligibleMentors).WithTags("Semesters").WithName("GetEligibleMentors").Produces(200).Produces(401).Produces(404);
         adminGroup.MapPut("/{id:int}/eligible-mentors/{mentorId:guid}/major", UpdateEligibleMentorMajor).WithTags("Semesters").WithName("UpdateEligibleMentorMajor").Produces(204).Produces(400).Produces(401).Produces(404);
         adminGroup.MapPost("/{id:int}/roster/publish", PublishRoster).WithTags("Semesters").WithName("PublishSemesterRoster").Produces(204).Produces(400).Produces(401).Produces(404);
+        adminGroup.MapPost("/{id:int}/eligible-students/bulk-delete", RemoveEligibleStudents).WithTags("Semesters").WithName("RemoveEligibleStudents").Produces(204).Produces(400).Produces(401).Produces(404);
+        adminGroup.MapPost("/{id:int}/eligible-mentors/bulk-delete", RemoveEligibleMentors).WithTags("Semesters").WithName("RemoveEligibleMentors").Produces(204).Produces(400).Produces(401).Produces(404);
 
         app.MapGet("/api/semesters/public", GetSemestersPublic).RequireAuthorization().WithTags("Semesters").WithName("GetSemestersPublic").Produces(200).Produces(401);
     }
@@ -113,7 +117,20 @@ public sealed class SemestersEndpoints : IEndpoint
         return NoContent("Đã công bố danh sách và gửi thông báo.");
     }
 
+    private static async Task<IResult> RemoveEligibleStudents(int id, RemoveEligibleEntriesRequest body, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new RemoveEligibleStudentsCommand(id, body.Ids), ct);
+        return NoContent("Đã xóa sinh viên khỏi danh sách.");
+    }
+
+    private static async Task<IResult> RemoveEligibleMentors(int id, RemoveEligibleEntriesRequest body, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new RemoveEligibleMentorsCommand(id, body.Ids), ct);
+        return NoContent("Đã xóa giảng viên khỏi danh sách.");
+    }
+
     public record UpdateEligibleMentorMajorRequest(int MajorId);
+    public record RemoveEligibleEntriesRequest(IReadOnlyList<Guid> Ids);
 
     private static async Task<IResult> GetSemestersPublic(ISender sender, CancellationToken ct)
     {

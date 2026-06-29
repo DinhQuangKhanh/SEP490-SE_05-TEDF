@@ -6,7 +6,6 @@ import { RegistrationNoteView } from "@/components/student/RegistrationNoteEdito
 import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
 import type { GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { useSignalR } from "@/hooks/useSignalR";
 import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
@@ -527,6 +526,25 @@ export function StudentMyTopicPage() {
         // both the pending request and the latest rejected one.
         const surfaced = regs.find((r) => r.status === "Pending") ?? (regs[0]?.status === "Rejected" ? regs[0] : null);
         if (surfaced) {
+          try {
+            setTopicDetail(await topicService.getTopicDetail(surfaced.projectId));
+          } catch {
+            setTopicDetail(null);
+          }
+          loadDocuments(surfaced.projectId);
+        } else {
+          setTopicDetail(null);
+          setDocuments([]);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching group:", err);
+      showError(err instanceof Error ? err.message :"Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadDocuments, loadRegistrations, showError]);
+
   const myGroupRef = useRef(myGroup);
   myGroupRef.current = myGroup;
 
@@ -558,23 +576,26 @@ export function StudentMyTopicPage() {
         setMyGroup(group);
         if (group?.projectId) {
           try {
-            setTopicDetail(await topicService.getTopicDetail(surfaced.projectId));
-          } catch {
-            setTopicDetail(null);
+            const detail = await topicService.getTopicDetail(group.projectId);
+            setTopicDetail(detail);
+          } catch (err) {
+            console.error("Error fetching topic detail:", err);
+            showError("Không thể tải thông tin đề tài. Vui lòng thử lại sau.");
           }
-          loadDocuments(surfaced.projectId);
-        } else {
-          setTopicDetail(null);
-          setDocuments([]);
+          loadDocuments(group.projectId);
         }
-      }
-    } catch (err) {
-      console.error("Error fetching group:", err);
-      showError("Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
-    } finally {
-      setLoading(false);
-    }
-  }, [loadDocuments, loadRegistrations, showError]);
+      })
+      .catch((err) => {
+        console.error("Error fetching group:", err);
+        showError("Không thể tải thông tin nhóm. Vui lòng thử lại sau.");
+      })
+      .finally(() => setLoading(false));
+  }, [loadDocuments, showError]);
+
+  useEffect(() => {
+    fetchPageData();
+  }, [fetchPageData]);
+
 
   useEffect(() => {
     loadMyTopic();

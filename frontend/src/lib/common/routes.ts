@@ -22,6 +22,8 @@ export const routes = {
     eligibleStudents: (id: number) => `/api/semesters/${id}/eligible-students`,
     eligibleMentors: (id: number) => `/api/semesters/${id}/eligible-mentors`,
     eligibleMentorMajor: (id: number, mentorId: string) => `/api/semesters/${id}/eligible-mentors/${mentorId}/major`,
+    eligibleStudentsBulkDelete: (id: number) => `/api/semesters/${id}/eligible-students/bulk-delete`,
+    eligibleMentorsBulkDelete: (id: number) => `/api/semesters/${id}/eligible-mentors/bulk-delete`,
     semesterRosterPublish: (id: number) => `/api/semesters/${id}/roster/publish`,
     settings: "/api/settings",
     settingsTestEmail: "/api/settings/test-email",

@@ -36,6 +36,12 @@ public interface ISemestersDomainService
     /// <summary>Corrects the assigned program of a rostered mentor (inline admin edit).</summary>
     Task UpdateEligibleMentorMajorAsync(int semesterId, Guid mentorId, int majorId, CancellationToken cancellationToken = default);
 
+    /// <summary>Permanently removes eligible students from the roster.</summary>
+    Task RemoveEligibleStudentsAsync(int semesterId, IReadOnlyList<Guid> studentIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Permanently removes eligible mentors from the roster.</summary>
+    Task RemoveEligibleMentorsAsync(int semesterId, IReadOnlyList<Guid> mentorIds, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Whether a mentor may supervise/evaluate in the given semester: assigned on the eligible-mentor roster,
     /// OR already owning a pool topic / active supervision there. Used to gate supervising actions.
