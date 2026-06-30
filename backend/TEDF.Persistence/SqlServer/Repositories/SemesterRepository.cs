@@ -91,6 +91,24 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .AnyAsync(endDate => endDate >= now, cancellationToken);
         }
 
+        public async Task<int?> GetEligibleStudentMajorAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)
+        {
+            return await _context.EligibleStudents
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentId && e.SemesterId == semesterId && e.IsEligible)
+                .Select(e => e.MajorId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<List<Guid>> GetEligibleMentorIdsByMajorAsync(int semesterId, int majorId, CancellationToken cancellationToken = default)
+        {
+            return await _context.EligibleMentors
+                .AsNoTracking()
+                .Where(m => m.SemesterId == semesterId && m.MajorId == majorId && m.IsAssigned)
+                .Select(m => m.MentorId)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<IEnumerable<Semester>> GetSemestersWithPhaseStartingInAsync(int days, CancellationToken cancellationToken = default)
         {
             var targetDate = DateTime.UtcNow.Date.AddDays(days);

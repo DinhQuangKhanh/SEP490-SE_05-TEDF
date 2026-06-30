@@ -181,9 +181,9 @@ public class SemestersDomainService : ISemestersDomainService
         {
             var student = await _userRepository.GetByStudentCodeAsync(row.StudentCode, cancellationToken);
 
-            var major = string.IsNullOrWhiteSpace(row.ProgramCode)
+            var major = string.IsNullOrWhiteSpace(row.MajorName)
                 ? null
-                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), cancellationToken);
+                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
 
             if (student is null)
             {
@@ -236,9 +236,9 @@ public class SemestersDomainService : ISemestersDomainService
 
         foreach (var row in rows)
         {
-            var major = string.IsNullOrWhiteSpace(row.ProgramCode)
+            var major = string.IsNullOrWhiteSpace(row.MajorName)
                 ? null
-                : await _majorRepository.GetByCodeAsync(row.ProgramCode.Trim(), cancellationToken);
+                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
 
             var resolved = await ResolveMentorIdentityAsync(row, major, seenCodes, seenEmails, issues, cancellationToken);
             if (resolved is null) continue;

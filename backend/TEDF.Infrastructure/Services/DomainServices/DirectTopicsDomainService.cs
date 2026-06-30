@@ -6,6 +6,7 @@ using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.SemesterAggregate;
+using TEDF.Domain.Aggregates.TopicPoolAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Enums.Project;
@@ -22,6 +23,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
     private readonly IProjectRepository _projectRepository;
     private readonly IGroupRepository _groupRepository;
     private readonly ISemesterRepository _semesterRepository;
+    private readonly ITopicRegistrationRepository _registrationRepository;
     private readonly ISemestersDomainService _semesters;
     private readonly ISystemSettingsService _settings;
     private readonly IUnitOfWork _unitOfWork;
@@ -30,6 +32,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         IProjectRepository projectRepository,
         IGroupRepository groupRepository,
         ISemesterRepository semesterRepository,
+        ITopicRegistrationRepository registrationRepository,
         ISemestersDomainService semesters,
         ISystemSettingsService settings,
         IUnitOfWork unitOfWork)
@@ -37,6 +40,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         _projectRepository = projectRepository;
         _groupRepository = groupRepository;
         _semesterRepository = semesterRepository;
+        _registrationRepository = registrationRepository;
         _semesters = semesters;
         _settings = settings;
         _unitOfWork = unitOfWork;
@@ -60,7 +64,17 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         var nextSemester = await _semesterRepository.GetSemesterAfterAsync(activeSemester.Id, 1, ct)
             ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ kế tiếp.");
 
-        var mentorGroupCount = await _projectRepository.CountMentorActiveProjectsInSemesterAsync(mentorId, nextSemester.Id, ct);
+        // A student may only propose a topic in the major they study this semester (eligible-student roster).
+        // The form disables the major field; this guards against a tampered request.
+        var studentMajorId = await _semesterRepository.GetEligibleStudentMajorAsync(createdBy, nextSemester.Id, ct)
+            ?? throw new BusinessRuleValidationException("Bạn chưa được gán chuyên ngành trong học kỳ này.");
+        if (majorId != studentMajorId)
+            throw new BusinessRuleValidationException("Đề tài phải thuộc đúng chuyên ngành bạn đang theo học.");
+
+        // Capacity includes pending pool registrations (each reserves a future supervised group).
+        var mentorGroupCount =
+            await _projectRepository.CountMentorActiveProjectsInSemesterAsync(mentorId, nextSemester.Id, ct)
+            + await _registrationRepository.CountPendingByMentorIdAsync(mentorId, ct);
         if (new MentorCannotExceedMaxGroupsPerSemesterRule(mentorGroupCount).IsBroken())
             throw new BusinessRuleValidationException(
                 new MentorCannotExceedMaxGroupsPerSemesterRule(mentorGroupCount).Message);
@@ -81,7 +95,8 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
             content.ExpectedResults,
             majorId,
             nextSemester.Id,
-            content.MaxStudents,
+            // "Max students" is the group's member cap (default 5); the form no longer asks for it.
+            group.MaxMembers,
             groupId: groupId);
 
         project.AddMentor(mentorId, createdBy);

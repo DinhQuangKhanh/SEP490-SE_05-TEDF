@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import DOMPurify from "dompurify";
@@ -39,16 +39,18 @@ function fileIcon(name: string): string {
   return FILE_ICON_MAP[getExt(name)] ?? "draft";
 }
 
-const FORMATS_BASE = ["bold", "italic", "underline", "strike", "list", "link"];
-
-function buildToolbar(allowImage: boolean) {
-  return [
-    ["bold", "italic", "underline", "strike"],
-    [{ list: "ordered" }, { list: "bullet" }],
-    allowImage ? ["link", "image"] : ["link"],
-    ["clean"],
-  ];
+function isImage(name: string): boolean {
+  return IMAGE_TYPES.includes(getExt(name));
 }
+
+// Editor is pure rich-text now — all files (images + docs) are uploaded via the attachment section.
+const FORMATS = ["bold", "italic", "underline", "strike", "list"];
+
+const TOOLBAR = [
+  ["bold", "italic", "underline", "strike"],
+  [{ list: "ordered" }, { list: "bullet" }],
+  ["clean"],
+];
 
 /** Quill's empty value is "<p><br></p>"; treat as empty when there's no text and no embedded media.
  *  Parsed via the DOM (no regex) so there's no backtracking / ReDoS risk on arbitrary HTML. */
@@ -126,18 +128,36 @@ export function RegistrationNoteView({ note, className }: { note: string; classN
     return () => el.removeEventListener("click", onClick);
   }, [safeHtml]);
 
+  const imageAttachments = attachments.filter((a) => isImage(a.name));
+  const docAttachments = attachments.filter((a) => !isImage(a.name));
+
   return (
     <div className={className}>
       {safeHtml && (
         <div
           ref={bodyRef}
-          className="text-sm [&_img]:max-w-full [&_img]:rounded [&_img]:cursor-pointer [&_a]:text-primary [&_a]:underline"
+          className="text-sm [&_img]:max-w-full [&_img]:max-h-[180px] [&_img]:object-contain [&_img]:rounded [&_img]:cursor-pointer [&_a]:text-primary [&_a]:underline"
           dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
       )}
-      {attachments.length > 0 && (
+      {imageAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {imageAttachments.map((a) => (
+            <button
+              key={a.url}
+              type="button"
+              onClick={() => setViewerFile({ url: a.url, name: a.name })}
+              title={a.name}
+              className="h-32 w-32 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:opacity-90 transition-opacity"
+            >
+              <img src={a.url} alt={a.name} className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+      {docAttachments.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-2">
-          {attachments.map((a) => (
+          {docAttachments.map((a) => (
             <button
               key={a.url}
               type="button"
@@ -165,9 +185,8 @@ interface RegistrationNoteEditorProps {
   attachments: NoteAttachment[];
   onAttachmentsChange: (next: NoteAttachment[]) => void;
   onError?: (message: string) => void;
-  /** Enables inline image insertion + the file-attachment section. Default true (lecturer flow);
-   *  the student registration-note flow passes false (text + link only). */
-  allowAttachments?: boolean;
+  /** Editor placeholder. Defaults to the student wording; the lecturer reject flow overrides it. */
+  placeholder?: string;
 }
 
 export function RegistrationNoteEditor({
@@ -176,60 +195,12 @@ export function RegistrationNoteEditor({
   attachments,
   onAttachmentsChange,
   onError,
-  allowAttachments = true,
+  placeholder = "Ghi chú cho giảng viên",
 }: RegistrationNoteEditorProps) {
-  const quillRef = useRef<ReactQuill>(null);
-  const [imageUploading, setImageUploading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
 
-  const imageHandler = useCallback(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/png,image/jpeg";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      if (!IMAGE_TYPES.includes(getExt(file.name))) {
-        onError?.("Ảnh phải có định dạng JPG/JPEG/PNG.");
-        return;
-      }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        onError?.(`Ảnh vượt quá ${formatFileSize(MAX_FILE_SIZE_BYTES)}.`);
-        return;
-      }
-      try {
-        setImageUploading(true);
-        const res = await topicPoolService.uploadNoteAttachment(file);
-        const editor = quillRef.current?.getEditor();
-        if (!editor) return;
-        const range = editor.getSelection(true);
-        const index = range ? range.index : editor.getLength();
-        editor.insertEmbed(index, "image", res.url, "user");
-        editor.setSelection(index + 1, 0);
-      } catch (e) {
-        onError?.(e instanceof Error ? e.message : "Tải ảnh lên thất bại.");
-      } finally {
-        setImageUploading(false);
-      }
-    };
-    input.click();
-  }, [onError]);
-
-  // Keep `modules` stable (re-creating it re-inits Quill) while always calling the latest handler.
-  const imageHandlerRef = useRef(imageHandler);
-  imageHandlerRef.current = imageHandler;
-
-  const modules = useMemo(
-    () => ({
-      toolbar: {
-        container: buildToolbar(allowAttachments),
-        handlers: allowAttachments ? { image: () => imageHandlerRef.current() } : {},
-      },
-    }),
-    [allowAttachments],
-  );
-
-  const formats = useMemo(() => (allowAttachments ? [...FORMATS_BASE, "image"] : FORMATS_BASE), [allowAttachments]);
+  // Pure rich-text toolbar — no custom handlers; all files go through the attachment section below.
+  const modules = useMemo(() => ({ toolbar: { container: TOOLBAR } }), []);
 
   const handleAddFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
@@ -289,27 +260,26 @@ export function RegistrationNoteEditor({
   };
 
   const addDisabled = attachments.length >= MAX_ATTACHMENTS || fileUploading;
+  const imageAttachments = attachments.filter((a) => isImage(a.name));
+  const docAttachments = attachments.filter((a) => !isImage(a.name));
 
   return (
     <div className="flex flex-col gap-3">
       <div className="rich-note">
         <ReactQuill
-          ref={quillRef}
           theme="snow"
           value={value}
           onChange={onChange}
           modules={modules}
-          formats={formats}
-          placeholder="Ghi chú cho giảng viên"
+          formats={FORMATS}
+          placeholder={placeholder}
         />
-        {imageUploading && <p className="mt-1 text-xs text-primary">Đang tải ảnh lên...</p>}
       </div>
 
-      {/* Attachments */}
-      {allowAttachments && (
+      {/* Attachments — single upload path for both images (shown as thumbnails) and documents */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-[#58698d] uppercase tracking-wider">Tài liệu đính kèm</span>
+          <span className="text-xs font-bold text-[#58698d] uppercase tracking-wider">Tài liệu &amp; hình ảnh đính kèm</span>
           <label
             className={`text-xs font-semibold flex items-center gap-1 ${
               addDisabled ? "text-slate-300 cursor-not-allowed" : "text-primary hover:underline cursor-pointer"
@@ -330,9 +300,27 @@ export function RegistrationNoteEditor({
 
         {fileUploading && <p className="text-xs text-primary">Đang tải tệp lên...</p>}
 
-        {attachments.length > 0 ? (
+        {imageAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {imageAttachments.map((a) => (
+              <div key={a.url} className="relative h-24 w-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 group">
+                <img src={a.url} alt={a.name} title={a.name} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(a.url)}
+                  title="Xoá"
+                  className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-red-500 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {docAttachments.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            {attachments.map((a) => (
+            {docAttachments.map((a) => (
               <div key={a.url} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50">
                 <span className="material-symbols-outlined text-primary text-[18px] shrink-0">{fileIcon(a.name)}</span>
                 <div className="flex-1 min-w-0">
@@ -350,13 +338,14 @@ export function RegistrationNoteEditor({
               </div>
             ))}
           </div>
-        ) : (
+        )}
+
+        {attachments.length === 0 && (
           <p className="text-[11px] text-slate-400">
             Tối đa {MAX_ATTACHMENTS} file · {formatFileSize(MAX_FILE_SIZE_BYTES)}/file · {ACCEPTED_TYPES.join(", ")}
           </p>
         )}
       </div>
-      )}
     </div>
   );
 }

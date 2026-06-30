@@ -515,6 +515,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
                 attachments={rejectAttachments}
                 onAttachmentsChange={setRejectAttachments}
                 onError={showError}
+                placeholder="Ghi chú cho sinh viên"
               />
             </div>
             {isQuillNoteEmpty(rejectNote) && rejectAttachments.length === 0 && (

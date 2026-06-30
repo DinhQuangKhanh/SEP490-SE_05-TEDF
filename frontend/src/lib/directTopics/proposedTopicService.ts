@@ -1,4 +1,4 @@
-import { AvailableMentor, CreateProposedTopicRequest, MentorReviewRequest } from "@/types";
+import { AvailableMentorsResponse, CreateProposedTopicRequest, MentorReviewRequest } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -16,11 +16,9 @@ export const proposedTopicService = {
     return apiClient.put<void>(routes.studentTopics.updateDirectTopic(projectId), data);
   },
 
-  getAvailableMentors: (majorId?: number): Promise<AvailableMentor[]> => {
-    const params = new URLSearchParams();
-    if (majorId != null) params.set("majorId", String(majorId));
-    return apiClient.get<AvailableMentor[]>(`${routes.studentTopics.availableMentors}?${params.toString()}`);
-  },
+  /** Returns the student's own program (read-only) plus the mentors rostered to supervise it. */
+  getAvailableMentors: (): Promise<AvailableMentorsResponse> =>
+    apiClient.get<AvailableMentorsResponse>(routes.studentTopics.availableMentors),
 
   mentorReviewProposedTopic: (projectId: string, payload: MentorReviewRequest): Promise<void> => {
     return apiClient.put<void>(routes.mentor.directRegistrationReview(projectId), payload);

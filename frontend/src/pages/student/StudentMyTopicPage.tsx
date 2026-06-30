@@ -1230,7 +1230,6 @@ export function StudentMyTopicPage() {
                 scope: topicDetail.scope || undefined,
                 technologies: topicDetail.technologies || undefined,
                 expectedResults: topicDetail.expectedResults || undefined,
-                maxStudents: topicDetail.maxStudents,
               }}
               onUpdated={() => {
                 setShowEditForm(false);
