@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { SupervisedProject } from '@/types'
 import { projectStatusLabel, projectStatusColor, getDefenseResult } from '@/lib/projects/projectStatus'
@@ -16,18 +17,28 @@ export function SupervisedProjectDetailModal({
     project: SupervisedProject
     onClose: () => void
 }) {
+    // Close on Escape for keyboard accessibility.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+    }, [onClose])
+
     const defense = getDefenseResult(project.statusValue)
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            {/* Accessible backdrop: a real button so it has keyboard support (instead of a div onClick). */}
+            <button
+                type="button"
+                aria-label="Đóng"
+                onClick={onClose}
+                className="fixed inset-0 cursor-default"
+            />
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
-                onClick={(e) => e.stopPropagation()}
+                className="relative z-10 bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
             >
                 <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
                     <div className="min-w-0">
