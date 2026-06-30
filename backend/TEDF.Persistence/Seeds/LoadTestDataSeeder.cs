@@ -165,6 +165,8 @@ public static class LoadTestDataSeeder
         await SeedSupportTicketsAsync(context, logger);
         await AssignDepartmentHeadAsync(context, logger);
         await SeedSummer26RealRegistrationsAsync(context, logger);
+        await SeedMajorProgramsAsync(context);
+        await SeedEligibleStudentsAsync(context, logger);
 
         logger?.LogInformation("Load-test data seeding complete.");
     }
@@ -199,6 +201,35 @@ public static class LoadTestDataSeeder
             SET IDENTITY_INSERT Majors OFF;";
 
         await context.Database.ExecuteSqlRawAsync(sql, MajorSE, MajorAI, MajorIA, MajorIC, DeptCNTT, SeedDate);
+    }
+
+    // ─── Major Programs (Chuyên ngành hẹp under SE) ──────────────────────────
+    private static async Task SeedMajorProgramsAsync(AppDbContext context)
+    {
+        // Narrow specializations under SE. ProgramCode = CurriculumCode + "_" + ComboCode;
+        // ProgramDescription = ComboName.
+        var sql = @"
+            SET IDENTITY_INSERT MajorPrograms ON;
+            INSERT INTO MajorPrograms (Id, MajorId, ProgramCode, ProgramDescription, IsActive, CreatedAt, UpdatedAt)
+            VALUES
+            (1, @p0, 'BIT_SE_18C_NodeJS', N'Node.js',                  1, @p1, NULL),
+            (2, @p0, 'BIT_SE_18C_.NET',   N'.NET',                     1, @p1, NULL),
+            (3, @p0, 'BIT_SE_18B_COM3.2', N'Combo COM3.2 (Java Web)',  1, @p1, NULL),
+            (4, @p0, 'BIT_SE_18B_COM4.1', N'Combo COM4.1 (ReactJS)',   1, @p1, NULL),
+            (5, @p0, 'BIT_SE_17D_COM3.2', N'Combo COM3.2 (Java Web)',  1, @p1, NULL),
+            (6, @p0, 'BIT_SE_17A_NET',    N'.NET',                     1, @p1, NULL);
+            SET IDENTITY_INSERT MajorPrograms OFF;";
+        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, SeedDate);
+
+        // Assign each student a narrow major, cycling through the six programs.
+        var assignSql = @"
+            ;WITH s AS (
+                SELECT Id, ((ROW_NUMBER() OVER (ORDER BY Id) - 1) % 6) + 1 AS pid
+                FROM Users WHERE StudentCode IS NOT NULL
+            )
+            UPDATE u SET MajorProgramId = s.pid
+            FROM Users u JOIN s ON s.Id = u.Id;";
+        await context.Database.ExecuteSqlRawAsync(assignSql);
     }
 
     // ─── 3. Project Archives (sample, for the admin "Old topic archives" panel) ──
@@ -395,6 +426,24 @@ public static class LoadTestDataSeeder
         }
 
         logger?.LogInformation("Seeded {Count} load-test users.", users.Count);
+    }
+
+    // ════════════════════════════════════════════════
+    //  ELIGIBLE STUDENTS (so seeded students pass the access gate)
+    // ════════════════════════════════════════════════
+    private static async Task SeedEligibleStudentsAsync(AppDbContext context, ILogger? logger)
+    {
+        // Every seeded student is marked eligible in Summer 2026 (the active, not-yet-ended
+        // semester) so IsStudentEligibleNowAsync passes and they can use the system. Idempotent.
+        var sql = @"
+            INSERT INTO EligibleStudents (SemesterId, StudentId, StudentCode, Email, PhoneNumber, MajorId, IsEligible, ImportedAt, ImportedBy)
+            SELECT @p0, u.Id, u.StudentCode, u.Email, u.PhoneNumber, u.MajorId, 1, @p1, NULL
+            FROM Users u
+            WHERE u.StudentCode IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM EligibleStudents es WHERE es.StudentId = u.Id AND es.SemesterId = @p0);";
+
+        var affected = await context.Database.ExecuteSqlRawAsync(sql, Summer2026Id, SeedDate);
+        logger?.LogInformation("Seeded {Count} eligible students for Summer 2026.", affected);
     }
 
     // ════════════════════════════════════════════════
@@ -1690,6 +1739,8 @@ public static class LoadTestDataSeeder
         var tables = new[]
         {
             // Leaf tables (no dependents)
+            "EligibleStudents",
+            "EligibleMentors",
             "SupportTickets",
             "TopicRegistrations",
             "ProjectEvaluatorAssignments",
@@ -1715,6 +1766,7 @@ public static class LoadTestDataSeeder
             "Semesters",
 
             "ProjectArchives",
+            "MajorPrograms",
             "Majors",
             "Departments"
         };
