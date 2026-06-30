@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Users.DTOs;
 using TEDF.Domain.Aggregates.UserAggregate;
@@ -13,15 +14,18 @@ public class UsersQueryService : IUsersQueryService
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IMajorReadRepository _majorRepository;
+    private readonly AppDbContext _context;
 
     public UsersQueryService(
         IUserRepository userRepository,
         IDepartmentRepository departmentRepository,
-        IMajorReadRepository majorRepository)
+        IMajorReadRepository majorRepository,
+        AppDbContext context)
     {
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
         _majorRepository = majorRepository;
+        _context = context;
     }
 
     public async Task<GetUsersQueryResult> GetUsersAsync(
@@ -81,6 +85,16 @@ public class UsersQueryService : IUsersQueryService
             majorName = major?.Name;
         }
 
+        string? majorProgramCode = null;
+        string? majorProgramDescription = null;
+        if (user.MajorProgramId.HasValue)
+        {
+            var program = await _context.MajorPrograms.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == user.MajorProgramId.Value, cancellationToken);
+            majorProgramCode = program?.ProgramCode;
+            majorProgramDescription = program?.ProgramDescription;
+        }
+
         return new MyProfileDto(
             Id: user.Id,
             FullName: user.FullName,
@@ -96,6 +110,9 @@ public class UsersQueryService : IUsersQueryService
             DepartmentName: deptName,
             MajorId: user.MajorId,
             MajorName: majorName,
+            MajorProgramId: user.MajorProgramId,
+            MajorProgramCode: majorProgramCode,
+            MajorProgramDescription: majorProgramDescription,
             Division: user.Division,
             Status: user.Status.ToString(),
             Roles: user.GetActiveRoles().ToList(),

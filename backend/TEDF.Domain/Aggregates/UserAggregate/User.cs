@@ -22,6 +22,8 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         public int? DepartmentId { get; private set; }
         /// <summary>Chuyên ngành (Major) the user studies — set for students.</summary>
         public int? MajorId { get; private set; }
+        /// <summary>Chuyên ngành hẹp (MajorProgram) the student studies.</summary>
+        public int? MajorProgramId { get; private set; }
         /// <summary>Bộ môn đang giảng dạy (SE/CF/AI/IA/IC) — set for lecturers. Display-only snapshot, mirrors EligibleMentor.Division.</summary>
         public string? Division { get; private set; }
         public string? PrivacySettings { get; private set; }

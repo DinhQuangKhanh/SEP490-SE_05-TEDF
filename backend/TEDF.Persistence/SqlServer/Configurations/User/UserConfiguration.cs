@@ -78,6 +78,8 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
 
             builder.HasIndex(u => u.MajorId);
 
+            builder.HasIndex(u => u.MajorProgramId);
+
             // Relationships
             builder.HasMany(u => u.Roles)
                 .WithOne()
@@ -94,6 +96,12 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
             builder.HasOne<Domain.Entities.Major>()
                 .WithMany()
                 .HasForeignKey(u => u.MajorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Foreign key to MajorProgram (chuyên ngành hẹp) - nullable, set for students
+            builder.HasOne<Domain.Entities.MajorProgram>()
+                .WithMany()
+                .HasForeignKey(u => u.MajorProgramId)
                 .OnDelete(DeleteBehavior.SetNull);
 
             // Ignore domain events (handled separately)
