@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
 import { useAuth } from '@/contexts/AuthContext'
 import { profileService } from '@/services/users/profileService'
 import { projectService } from '@/lib/projects/projectService'
+import { projectStatusLabel, projectStatusColor, getDefenseResult } from '@/lib/projects/projectStatus'
+import { SupervisedProjectDetailModal } from '@/components/lecturer'
 import { MyProfile } from '@/types/users/user.types'
 import { SupervisedProject } from '@/types'
 
@@ -46,39 +49,17 @@ const roleIcons: Record<string, string> = {
     departmenthead: 'supervisor_account',
 }
 
-// ProjectStatus enum (backend) → Vietnamese label + badge colour.
-const projectStatusLabels: Record<number, string> = {
-    0: 'Nháp',
-    1: 'Chờ thẩm định',
-    2: 'Cần chỉnh sửa',
-    3: 'Đã duyệt',
-    4: 'Bị từ chối',
-    5: 'Đang thực hiện',
-    6: 'Hoàn thành',
-    7: 'Đã hủy',
-    8: 'Chờ GV duyệt',
-}
-
-const projectStatusColors: Record<number, string> = {
-    0: 'bg-slate-100 text-slate-600 border-slate-200',
-    1: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-    2: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-    3: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-    4: 'bg-red-500/10 text-red-600 border-red-500/20',
-    5: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-    6: 'bg-green-500/10 text-green-600 border-green-500/20',
-    7: 'bg-red-500/10 text-red-600 border-red-500/20',
-    8: 'bg-violet-500/10 text-violet-600 border-violet-500/20',
-}
-
 export function ProfilePage() {
     const { user: authUser } = useAuth()
+    const navigate = useNavigate()
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [profile, setProfile] = useState<MyProfile | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [supervisedProjects, setSupervisedProjects] = useState<SupervisedProject[]>([])
+    const [supervisedTotal, setSupervisedTotal] = useState(0)
     const [isLoadingSupervised, setIsLoadingSupervised] = useState(false)
+    const [selectedProject, setSelectedProject] = useState<SupervisedProject | null>(null)
 
     // Fetch full profile from API
     useEffect(() => {
@@ -102,8 +83,8 @@ export function ProfilePage() {
         const r = (profile.roles || []).map((x: string) => x.toLowerCase())
         if (!r.includes('mentor') && !r.includes('evaluator') && !r.includes('departmenthead')) return
         setIsLoadingSupervised(true)
-        projectService.getMySupervised()
-            .then(res => setSupervisedProjects(res.items))
+        projectService.getMySupervised({ pageSize: 5 })
+            .then(res => { setSupervisedProjects(res.items); setSupervisedTotal(res.totalCount) })
             .catch(err => console.error('Failed to fetch supervised projects', err))
             .finally(() => setIsLoadingSupervised(false))
     }, [profile])
@@ -291,8 +272,12 @@ export function ProfilePage() {
                                         <InfoRow
                                             icon="menu_book"
                                             label="Chuyên ngành hẹp đang học"
-                                            value={"Chưa cập nhật"}
-                                            placeholder={true}
+                                            value={profile?.majorProgramCode
+                                                ? (profile.majorProgramDescription
+                                                    ? `${profile.majorProgramCode} — ${profile.majorProgramDescription}`
+                                                    : profile.majorProgramCode)
+                                                : "Chưa cập nhật"}
+                                            placeholder={!profile?.majorProgramCode}
                                             isPrivate={hiddenFields.includes('narrowMajor')}
                                             onTogglePrivacy={() => togglePrivacy('narrowMajor')}
                                         />
@@ -412,9 +397,20 @@ export function ProfilePage() {
                                         <span className="material-symbols-outlined">history_edu</span>
                                     </div>
                                     <h3 className="text-slate-800 text-lg font-bold">Lịch Sử Hướng Dẫn Đồ Án</h3>
-                                    <div className="ml-auto flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                        <span className="material-symbols-outlined text-[14px]">public</span>
-                                        Công khai
+                                    <div className="ml-auto flex items-center gap-2">
+                                        {supervisedTotal > 0 && (
+                                            <button
+                                                onClick={() => navigate('/lecturer/supervised-projects')}
+                                                className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                                            >
+                                                Xem tất cả ({supervisedTotal})
+                                                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                                            </button>
+                                        )}
+                                        <div className="flex items-center gap-1 text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                            <span className="material-symbols-outlined text-[14px]">public</span>
+                                            Công khai
+                                        </div>
                                     </div>
                                 </div>
                                 {isLoadingSupervised ? (
@@ -428,25 +424,35 @@ export function ProfilePage() {
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {supervisedProjects.map((p) => (
-                                            <div
-                                                key={p.id}
-                                                className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-colors"
-                                            >
-                                                <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 shrink-0">
-                                                    <span className="material-symbols-outlined text-[20px]">topic</span>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-slate-800 truncate">{p.nameVi}</p>
-                                                    <p className="text-xs text-slate-500 mt-0.5 truncate">
-                                                        {p.code} · {p.semesterName}{p.groupCode ? ` · Nhóm ${p.groupCode}` : ''}
-                                                    </p>
-                                                </div>
-                                                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${projectStatusColors[p.statusValue] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                                                    {projectStatusLabels[p.statusValue] ?? p.status}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {supervisedProjects.map((p) => {
+                                            const defense = getDefenseResult(p.statusValue)
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => setSelectedProject(p)}
+                                                    className="w-full text-left flex items-start gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:border-primary/20 hover:bg-primary/5 transition-colors"
+                                                >
+                                                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 shrink-0">
+                                                        <span className="material-symbols-outlined text-[20px]">topic</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-slate-800 truncate">{p.nameVi}</p>
+                                                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                                            {p.code} · {p.semesterName}{p.groupCode ? ` · Nhóm ${p.groupCode}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${projectStatusColor(p.statusValue)}`}>
+                                                            {projectStatusLabel(p.statusValue)}
+                                                        </span>
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${defense.color}`}>
+                                                            <span className="material-symbols-outlined text-[13px]">{defense.icon}</span>
+                                                            {defense.label}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -462,11 +468,16 @@ export function ProfilePage() {
 
             {/* Modal Chỉnh sửa thông tin */}
             {isEditModalOpen && (
-                <ProfileEditModal 
-                    profile={profile} 
-                    onClose={() => setIsEditModalOpen(false)} 
-                    onSave={handleSaveProfile} 
+                <ProfileEditModal
+                    profile={profile}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveProfile}
                 />
+            )}
+
+            {/* Chi tiết đề tài hướng dẫn + kết quả bảo vệ */}
+            {selectedProject && (
+                <SupervisedProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
             )}
         </>
     )

@@ -44,6 +44,10 @@ export interface MyProfile {
   /** Chuyên ngành (Major) — set for students. */
   majorId: number | null;
   majorName: string | null;
+  /** Chuyên ngành hẹp (MajorProgram) — set for students. ProgramCode = CurriculumCode_ComboCode. */
+  majorProgramId: number | null;
+  majorProgramCode: string | null;
+  majorProgramDescription: string | null;
   /** Bộ môn đang giảng dạy (CF/SE/AI/IA/IC) — set for lecturers. */
   division: string | null;
   status: string;

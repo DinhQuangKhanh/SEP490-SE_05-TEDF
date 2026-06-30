@@ -23,6 +23,7 @@ import {
   LecturerRepositoryPage,
   LecturerGroupDetailPage,
   LecturerSupportPage,
+  SupervisedProjectsPage,
   StudentDashboardPage,
   StudentTopicsPage,
   StudentMyTopicPage,
@@ -132,6 +133,7 @@ function App() {
                 <Route path="moderate" element={<LecturerModerationPage />} />
                 <Route path="moderate/:id" element={<LecturerReviewPage />} />
                 <Route path="history" element={<LecturerHistoryPage />} />
+                <Route path="supervised-projects" element={<SupervisedProjectsPage />} />
                 <Route path="support" element={<LecturerSupportPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 {/* Department-Head-only pages */}

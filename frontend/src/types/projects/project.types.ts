@@ -75,6 +75,8 @@ export interface SupervisedProject {
   statusValue: number;
   semesterName: string;
   groupCode: string | null;
+  description: string | null;
+  objectives: string | null;
   startDate: string | null;
   deadline: string | null;
   createdAt: string;
@@ -83,4 +85,15 @@ export interface SupervisedProject {
 export interface SupervisedProjectsResponse {
   items: SupervisedProject[];
   totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface SupervisedProjectFilters {
+  search?: string;
+  /** "name" | "oldest" | "status" | (default) newest */
+  sort?: string;
+  page?: number;
+  pageSize?: number;
 }
