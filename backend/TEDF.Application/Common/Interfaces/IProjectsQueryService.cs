@@ -14,6 +14,7 @@ public interface IProjectsQueryService
     /// <summary>Department-head: projects within the caller's department (resolves department internally).</summary>
     Task<DepartmentProjectsResponse> GetDepartmentProjectsAsync(Guid currentUserId, CancellationToken cancellationToken = default);
 
-    /// <summary>Mentor: projects the given user actively supervises (for the profile supervision history).</summary>
-    Task<GetMySupervisedProjectsResult> GetMySupervisedProjectsAsync(Guid mentorId, CancellationToken cancellationToken = default);
+    /// <summary>Mentor: projects the given user actively supervises (for the profile supervision history), with search/sort/paging.</summary>
+    Task<GetMySupervisedProjectsResult> GetMySupervisedProjectsAsync(
+        Guid mentorId, string? search, string? sort, int page, int pageSize, CancellationToken cancellationToken = default);
 }

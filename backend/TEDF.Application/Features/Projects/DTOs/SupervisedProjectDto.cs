@@ -10,10 +10,15 @@ public record SupervisedProjectDto(
     int StatusValue,
     string SemesterName,
     string? GroupCode,
+    string? Description,
+    string? Objectives,
     DateTime? StartDate,
     DateTime? Deadline,
     DateTime CreatedAt);
 
 public record GetMySupervisedProjectsResult(
     IReadOnlyList<SupervisedProjectDto> Items,
-    int TotalCount);
+    int TotalCount,
+    int Page,
+    int PageSize,
+    int TotalPages);

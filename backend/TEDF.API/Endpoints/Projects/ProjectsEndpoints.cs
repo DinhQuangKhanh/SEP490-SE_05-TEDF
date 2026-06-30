@@ -45,6 +45,7 @@ public sealed class ProjectsEndpoints : IEndpoint
     private static async Task<IResult> GetDepartmentProjects(ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetDepartmentProjectsQuery(), ct));
 
-    private static async Task<IResult> GetMySupervisedProjects(ISender sender, CancellationToken ct)
-        => Ok(await sender.Send(new GetMySupervisedProjectsQuery(), ct));
+    private static async Task<IResult> GetMySupervisedProjects(
+        ISender sender, string? search, string? sort, int page = 1, int pageSize = 10, CancellationToken ct = default)
+        => Ok(await sender.Send(new GetMySupervisedProjectsQuery(search, sort, page, pageSize), ct));
 }

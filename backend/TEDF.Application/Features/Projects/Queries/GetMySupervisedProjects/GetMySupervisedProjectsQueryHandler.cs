@@ -21,6 +21,7 @@ public class GetMySupervisedProjectsQueryHandler
         var userId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        return _projects.GetMySupervisedProjectsAsync(userId, cancellationToken);
+        return _projects.GetMySupervisedProjectsAsync(
+            userId, request.Search, request.Sort, request.Page, request.PageSize, cancellationToken);
     }
 }

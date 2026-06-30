@@ -244,29 +244,52 @@ public class ProjectsQueryService : IProjectsQueryService
     }
 
     public async Task<GetMySupervisedProjectsResult> GetMySupervisedProjectsAsync(
-        Guid mentorId, CancellationToken cancellationToken = default)
+        Guid mentorId, string? search, string? sort, int page, int pageSize, CancellationToken cancellationToken = default)
     {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
+
+        // A mentor supervises a small set of projects, so load them and apply
+        // search/sort/paging in memory (avoids translating value-object access into SQL).
         var projects = await _context.Projects
             .AsNoTracking()
             .Where(p => p.Mentors.Any(m => m.MentorId == mentorId && m.Status == ProjectMentorStatus.Active))
-            .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        if (projects.Count == 0)
-            return new GetMySupervisedProjectsResult([], 0);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            projects = projects.Where(p =>
+                p.NameVi.Value.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || (p.NameEn != null && p.NameEn.Value.Contains(term, StringComparison.OrdinalIgnoreCase))
+                || p.Code.Value.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
-        var semesterIds = projects.Select(p => p.SemesterId).Distinct().ToList();
+        projects = sort switch
+        {
+            "name" => projects.OrderBy(p => p.NameVi.Value, StringComparer.OrdinalIgnoreCase).ToList(),
+            "oldest" => projects.OrderBy(p => p.CreatedAt).ToList(),
+            "status" => projects.OrderBy(p => p.Status).ThenByDescending(p => p.CreatedAt).ToList(),
+            _ => projects.OrderByDescending(p => p.CreatedAt).ToList(),
+        };
+
+        var totalCount = projects.Count;
+        var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+        var pageItems = projects.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        var semesterIds = pageItems.Select(p => p.SemesterId).Distinct().ToList();
         var semesterNames = await _context.Semesters
             .Where(s => semesterIds.Contains(s.Id))
             .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken);
 
-        var groupIds = projects.Where(p => p.GroupId.HasValue).Select(p => p.GroupId!.Value).Distinct().ToList();
+        var groupIds = pageItems.Where(p => p.GroupId.HasValue).Select(p => p.GroupId!.Value).Distinct().ToList();
         var groups = await _context.Set<Group>()
             .Where(g => groupIds.Contains(g.Id))
             .ToListAsync(cancellationToken);
         var groupCodes = groups.ToDictionary(g => g.Id, g => g.Code.Value);
 
-        var items = projects.Select(p => new SupervisedProjectDto(
+        var items = pageItems.Select(p => new SupervisedProjectDto(
             p.Id,
             p.Code.Value,
             p.NameVi.Value,
@@ -275,10 +298,12 @@ public class ProjectsQueryService : IProjectsQueryService
             (int)p.Status,
             semesterNames.GetValueOrDefault(p.SemesterId, "N/A"),
             p.GroupId.HasValue ? groupCodes.GetValueOrDefault(p.GroupId.Value) : null,
+            p.Description,
+            p.Objectives,
             p.StartDate,
             p.Deadline,
             p.CreatedAt)).ToList();
 
-        return new GetMySupervisedProjectsResult(items, items.Count);
+        return new GetMySupervisedProjectsResult(items, totalCount, page, pageSize, totalPages);
     }
 }
