@@ -72,7 +72,7 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
             result.Add(new AvailableMentorDto(
                 mentor.Id,
                 mentor.FullName,
-                mentor.Email.Value,
+                mentor.Email?.Value ?? "",
                 mentor.AcademicTitle,
                 activeCount + pendingPoolCount,
                 MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester));
