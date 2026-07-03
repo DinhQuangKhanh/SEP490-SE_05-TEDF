@@ -4,6 +4,9 @@ export const routes = {
   auth: {
     session: "/api/auth/session",
   },
+  users: {
+    me: "/api/users/me",
+  },
   admin: {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
@@ -71,6 +74,7 @@ export const routes = {
     topicResubmit: (projectId: string) => `/api/topic-pools/topics/${projectId}/resubmit`,
     studentGroups: "/api/groups/mentor",
     directRegistrationReview: (projectId: string) => `/api/direct-topics/${projectId}/review`,
+    supervisedProjects: "/api/projects/supervised",
   },
   studentGroups: {
     base: "/api/groups",

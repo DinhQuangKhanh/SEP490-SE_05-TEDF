@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TEDF.Persistence.SqlServer;
 
@@ -11,9 +12,11 @@ using TEDF.Persistence.SqlServer;
 namespace TEDF.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626105212_AddUserDivisionAndMajor")]
+    partial class AddUserDivisionAndMajor
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -897,7 +900,8 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
@@ -920,7 +924,8 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("RejectReason")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1109,9 +1114,6 @@ namespace TEDF.Persistence.Migrations
                     b.Property<int?>("MajorId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("MajorProgramId")
-                        .HasColumnType("int");
-
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -1146,8 +1148,6 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("FullName");
 
                     b.HasIndex("MajorId");
-
-                    b.HasIndex("MajorProgramId");
 
                     b.HasIndex("Status");
 
@@ -1248,47 +1248,6 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("Majors", (string)null);
-                });
-
-            modelBuilder.Entity("TEDF.Domain.Entities.MajorProgram", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("MajorId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ProgramCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ProgramDescription")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("MajorId");
-
-                    b.HasIndex("ProgramCode")
-                        .IsUnique();
-
-                    b.ToTable("MajorPrograms", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.ProjectArchive", b =>
@@ -1914,11 +1873,6 @@ namespace TEDF.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("TEDF.Domain.Entities.MajorProgram", null)
-                        .WithMany()
-                        .HasForeignKey("MajorProgramId")
-                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.Department", b =>
@@ -1934,15 +1888,6 @@ namespace TEDF.Persistence.Migrations
                     b.HasOne("TEDF.Domain.Entities.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TEDF.Domain.Entities.MajorProgram", b =>
-                {
-                    b.HasOne("TEDF.Domain.Entities.Major", null)
-                        .WithMany()
-                        .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

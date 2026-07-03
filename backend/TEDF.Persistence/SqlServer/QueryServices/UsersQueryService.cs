@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Users.DTOs;
 using TEDF.Domain.Aggregates.UserAggregate;
@@ -12,11 +13,19 @@ public class UsersQueryService : IUsersQueryService
 {
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
+    private readonly IMajorReadRepository _majorRepository;
+    private readonly AppDbContext _context;
 
-    public UsersQueryService(IUserRepository userRepository, IDepartmentRepository departmentRepository)
+    public UsersQueryService(
+        IUserRepository userRepository,
+        IDepartmentRepository departmentRepository,
+        IMajorReadRepository majorRepository,
+        AppDbContext context)
     {
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
+        _majorRepository = majorRepository;
+        _context = context;
     }
 
     public async Task<GetUsersQueryResult> GetUsersAsync(
@@ -55,5 +64,60 @@ public class UsersQueryService : IUsersQueryService
         var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
 
         return new GetUsersQueryResult(items, totalCount, page, pageSize, totalPages);
+    }
+
+    public async Task<MyProfileDto> GetMyProfileAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new TEDF.Domain.Common.Exceptions.EntityNotFoundException(nameof(User), userId);
+
+        string? deptName = null;
+        if (user.DepartmentId.HasValue)
+        {
+            var dept = await _departmentRepository.GetByIdAsync(user.DepartmentId.Value, cancellationToken);
+            deptName = dept?.Name;
+        }
+
+        string? majorName = null;
+        if (user.MajorId.HasValue)
+        {
+            var major = await _majorRepository.GetByIdAsync(user.MajorId.Value, cancellationToken);
+            majorName = major?.Name;
+        }
+
+        string? majorProgramCode = null;
+        string? majorProgramDescription = null;
+        if (user.MajorProgramId.HasValue)
+        {
+            var program = await _context.MajorPrograms.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == user.MajorProgramId.Value, cancellationToken);
+            majorProgramCode = program?.ProgramCode;
+            majorProgramDescription = program?.ProgramDescription;
+        }
+
+        return new MyProfileDto(
+            Id: user.Id,
+            FullName: user.FullName,
+            Email: user.Email.Value,
+            AvatarUrl: user.AvatarUrl,
+            StudentCode: user.StudentCode,
+            EmployeeCode: user.EmployeeCode,
+            PhoneNumber: user.PhoneNumber,
+            BirthDate: user.BirthDate,
+            PrivacySettings: user.PrivacySettings,
+            AcademicTitle: user.AcademicTitle,
+            DepartmentId: user.DepartmentId,
+            DepartmentName: deptName,
+            MajorId: user.MajorId,
+            MajorName: majorName,
+            MajorProgramId: user.MajorProgramId,
+            MajorProgramCode: majorProgramCode,
+            MajorProgramDescription: majorProgramDescription,
+            Division: user.Division,
+            Status: user.Status.ToString(),
+            Roles: user.GetActiveRoles().ToList(),
+            CreatedAt: user.CreatedAt,
+            LastLoginAt: user.LastLoginAt
+        );
     }
 }

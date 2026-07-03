@@ -4,6 +4,8 @@ using TEDF.Application.Features.Users.Commands.AssignDepartmentHead;
 using TEDF.Application.Features.Users.Commands.LockUser;
 using TEDF.Application.Features.Users.Commands.UnlockUser;
 using TEDF.Application.Features.Users.Queries.GetUsers;
+using TEDF.Application.Features.Users.Queries.GetMyProfile;
+using TEDF.Application.Features.Users.Commands.UpdateMyProfile;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
@@ -13,6 +15,16 @@ public sealed class UsersEndpoints : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
+        var usersGroup = app.MapGroup("/api/users").RequireAuthorization();
+
+        usersGroup.MapGet("/me", GetMyProfile)
+            .WithTags("Users").WithName("GetMyProfile")
+            .Produces(200).Produces(401);
+
+        usersGroup.MapPut("/me", UpdateMyProfile)
+            .WithTags("Users").WithName("UpdateMyProfile")
+            .Produces(204).Produces(400).Produces(401);
+
         var adminGroup = app.MapGroup("/api/users").RequireAuthorization(PolicyNames.RequireAdmin);
 
         adminGroup.MapGet("", GetUsers)
@@ -35,6 +47,15 @@ public sealed class UsersEndpoints : IEndpoint
 
     private static async Task<IResult> GetUsers(ISender sender, string? role, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
         => Ok(await sender.Send(new GetUsersQuery(role, search, page, pageSize), ct));
+
+    private static async Task<IResult> GetMyProfile(ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetMyProfileQuery(), ct));
+
+    private static async Task<IResult> UpdateMyProfile(UpdateMyProfileRequest request, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new UpdateMyProfileCommand(request.PhoneNumber, request.BirthDate, request.PrivacySettings), ct);
+        return NoContent("Cập nhật thông tin thành công.");
+    }
 
     private static async Task<IResult> LockUser(Guid userId, ISender sender, CancellationToken ct)
     {

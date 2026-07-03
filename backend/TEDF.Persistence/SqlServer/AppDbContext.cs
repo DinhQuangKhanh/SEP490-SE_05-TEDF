@@ -68,6 +68,7 @@ public class AppDbContext : DbContext
     #region Standalone Entities
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Major> Majors => Set<Major>();
+    public DbSet<MajorProgram> MajorPrograms => Set<MajorProgram>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
     public DbSet<ProjectArchive> ProjectArchives => Set<ProjectArchive>();
     #endregion

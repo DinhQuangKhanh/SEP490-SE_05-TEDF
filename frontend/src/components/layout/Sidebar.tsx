@@ -71,11 +71,13 @@ export function Sidebar() {
           />
         ))}
         {/* User Profile */}
-        <div
-          className={`mt-4 flex items-center ${isHovered ? "gap-3 px-4" : "justify-center px-0"} py-2 transition-all duration-300`}
+        <NavLink
+          to="/admin/profile"
+          title={!isHovered ? (user?.name || "Admin System") : undefined}
+          className={`mt-4 flex items-center ${isHovered ? "gap-3 px-4" : "justify-center px-0"} py-2 rounded-lg hover:bg-gray-50 transition-all duration-300 cursor-pointer group/profile`}
         >
           <div
-            className="h-10 w-10 rounded-full bg-gray-200 bg-cover bg-center shrink-0"
+            className="h-10 w-10 rounded-full bg-gray-200 bg-cover bg-center shrink-0 ring-2 ring-transparent group-hover/profile:ring-primary/30 transition-all"
             style={{
               backgroundImage: user?.avatar ? `url('${user.avatar}')` : undefined,
             }}
@@ -83,12 +85,12 @@ export function Sidebar() {
           <div
             className={`flex flex-col overflow-hidden text-left transition-all duration-300 ${isHovered ? "opacity-100 w-auto" : "opacity-0 w-0"}`}
           >
-            <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap">
+            <p className="text-sm font-bold text-[#101319] truncate whitespace-nowrap group-hover/profile:text-primary transition-colors">
               {user?.name || "Admin System"}
             </p>
             <p className="text-xs text-[#58698d] truncate whitespace-nowrap">Quản trị viên</p>
           </div>
-        </div>
+        </NavLink>
         {/* Logout Button */}
         <button
           onClick={logout}

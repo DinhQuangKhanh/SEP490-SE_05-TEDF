@@ -96,4 +96,18 @@ public class UsersDomainService : IUsersDomainService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task UpdateMyProfileAsync(Guid userId, string? phoneNumber, DateOnly? birthDate, string? privacySettings, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(User), userId);
+
+        user.UpdateProfile(
+            phoneNumber: phoneNumber,
+            birthDate: birthDate,
+            privacySettings: privacySettings);
+
+        await _userRepository.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
 }
