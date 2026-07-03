@@ -118,7 +118,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       case 1:
         return !!form.nameVi.trim() && !!form.nameAbbr.trim();
       case 2:
-        return !!form.objectives.trim() && !!form.scope.trim() && !!form.technologies.trim();
+        return (
+          !!form.description.trim() && !!form.objectives.trim() && !!form.scope.trim() && !!form.technologies.trim()
+        );
       default:
         return true;
     }
@@ -154,7 +156,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       fd.append("nameVi", form.nameVi);
       fd.append("nameEn", form.nameEn);
       fd.append("nameAbbr", form.nameAbbr);
-      fd.append("description", form.description || form.objectives);
+      fd.append("description", form.description);
       fd.append("objectives", form.objectives);
       if (form.scope) fd.append("scope", form.scope);
       if (form.technologies) fd.append("technologies", form.technologies);
@@ -517,6 +519,18 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
 function StepContent({ form, set }: { form: FormData; set: (f: keyof FormData, v: string | number) => void }) {
   return (
     <div className="space-y-5">
+      <div>
+        <label className={labelClass}>
+          Mô tả đề tài <span className="text-red-500">*</span>
+        </label>
+        <AutoResizeTextarea
+          rows={4}
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+          className={textareaClass}
+          placeholder="Mô tả tổng quan về đề tài..."
+        />
+      </div>
       <div>
         <label className={labelClass}>
           Mục tiêu đề tài <span className="text-red-500">*</span>
