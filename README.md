@@ -16,51 +16,57 @@ A comprehensive **Thesis Management System** built for universities, enabling en
 ## Features
 
 ### Admin
-- Dashboard with system overview and statistics
-- User management (Students, Mentors, Evaluators, Department Heads)
+- User management (Students, Mentors, Evaluators, Department Heads) — lock/unlock, assign department head
 - Department & Major configuration
 - Semester & Phase management (create, activate, close)
-- Project management and oversight
-- Activity logs and audit trail
-- System reports generation (PDF / Excel) // đang phát triển
-- Settings & system configuration // đang phát triển
+- **Semester roster management** — import eligible students/mentors (CSV), assign major programs, bulk-delete, publish (triggers batch email + SignalR notification)
+- Activity logs and audit trail (grouped, severity filter, error detail)
+- **System settings & branding** — primary color, header name, logo upload, registration rules, notification toggles, maintenance mode
 - Support ticket management
+- **User profile** — view and edit own profile
+- System reports generation (PDF / Excel) // đang phát triển
 
 ### Department Head
-- Department dashboard with project overview
+- Department dashboard with project overview and conflict alerts
 - Assign evaluators to projects within the department
-- Submit final decisions on evaluated projects
+- Submit final decisions on conflicting evaluations
 - View department evaluators
+- **My Topics** tab — own pool topics via shared Mentor panel
 
 ### Mentor
-- Propose topics to the Topic Pool
+- Propose topics to the Topic Pool (multi-step wizard modal)
+- Confirm / reject student registration requests (with real-time status push to students)
 - View and manage assigned student groups
 - Review student-submitted topics (DirectRegistration flow)
 - Edit and resubmit pool topics after evaluator feedback (FromPool flow)
-- Provide feedback on submissions
-- Schedule meetings with students
+- **View supervised project history**
+- **User profile** — view and edit own profile with Division (Bộ môn) field
 
 ### Student
-- Create groups (elect Leader, manage members via invitations/join requests)
-- Browse and register topics from the Topic Pool
+- Create groups (elect Leader, manage members via invitations/join requests; bulk approve/reject join requests)
+- Browse and register topics from the Topic Pool (rich-text note, file attachment)
 - Create and submit topics directly (DirectRegistration flow)
-- Submit projects for evaluation
-- View schedules and support
+- View topic registration status in real-time (SignalR)
+- **User profile** — view and edit own profile with MajorProgram (chuyên ngành hẹp) field
+- Support ticket management
 
 ### Evaluator
 - Review assigned project submissions
 - Approve / Request Modification / Reject projects
-- Check similarity between submissions
-- View evaluation history and schedule
+- View evaluation history
+- **View supervised project history**
+- **User profile** — view and edit own profile
 
 ### Cross-Cutting
+- Real-time notifications (SignalR) — click-to-navigate, per-tab routing, unread count badge
+- **Account access gate** — locked or ineligible accounts blocked with dedicated pages
+- **Maintenance mode** — non-admins see maintenance page while admin can still access the system
+- Email notifications (MailKit — batch emails on roster publish, evaluation results)
+- File upload/download (Firebase Object Storage) with malware scan (ClamAV) + quarantine
+- Health checks (SQL Server, MongoDB, Redis)
 - Real-time chat messaging (SignalR) // đang phát triển
-- Real-time notifications (SignalR)
 - PDF report generation (QuestPDF) // đang phát triển
 - Excel export (ClosedXML) // đang phát triển
-- Email notifications (MailKit) // đang phát triển
-- File upload/download (Firebase Object Storage)
-- Health checks (SQL Server, MongoDB, Redis)
 
 ---
 
@@ -75,7 +81,7 @@ A comprehensive **Thesis Management System** built for universities, enabling en
 | **Document Database** | MongoDB (Chat, Notifications, Audit Logs) |
 | **Authentication** | Firebase Admin SDK + JWT Bearer Tokens |
 | **Real-time** | ASP.NET Core SignalR (NotificationHub, ChatHub) |
-| **Background Jobs** | Hangfire (7 scheduled jobs) |
+| **Background Jobs** | Hangfire (9 scheduled jobs) |
 | **Caching** | Hybrid: In-Memory (L1) + Redis (L2) |
 | **Email** | MailKit / MimeKit (SMTP with SSL) |
 | **File Storage** | Firebase Object Storage |
@@ -281,13 +287,14 @@ Update `appsettings.Development.json` with your settings:
 
 ### 3. Run Database Migrations
 
-```bash
+```powershell
+cd backend
 dotnet ef database update --project TEDF.Persistence --startup-project TEDF.API
 ```
 
 ### 4. Start the Backend
 
-```bash
+```powershell
 dotnet run --project TEDF.API
 ```
 
@@ -300,8 +307,8 @@ The API will be available at:
 
 ### 5. Start the Frontend
 
-```bash
-cd TEDF.client
+```powershell
+cd frontend
 npm install
 npm run dev
 ```
