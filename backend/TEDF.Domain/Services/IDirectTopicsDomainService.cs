@@ -22,5 +22,7 @@ public record DirectTopicContent(
     string? Scope,
     string? Technologies,
     string? ExpectedResults,
-    int MaxStudents
+    // Nullable so an update can omit it and preserve the current cap. Ignored on create
+    // (the group's member cap is used instead).
+    int? MaxStudents
 );
