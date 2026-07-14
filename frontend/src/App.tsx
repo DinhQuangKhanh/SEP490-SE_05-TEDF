@@ -31,6 +31,7 @@ import {
   MaintenancePage,
   DepartmentHeadDashboardPage,
   AssignEvaluatorsPage,
+  ChecklistConfigPage,
   ActivityLogsPage,
   TopicCreatePage,
 } from "@/pages";
@@ -154,6 +155,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={["departmenthead"]}>
                       <AssignEvaluatorsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="checklist-config"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <ChecklistConfigPage />
                     </ProtectedRoute>
                   }
                 />

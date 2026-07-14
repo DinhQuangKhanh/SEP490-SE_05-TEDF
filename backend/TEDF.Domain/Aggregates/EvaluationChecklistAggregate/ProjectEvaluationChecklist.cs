@@ -1,0 +1,97 @@
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities;
+using TEDF.Domain.Common.Primitives;
+
+namespace TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
+
+/// <summary>
+/// An evaluator's checklist result for a project, for a given evaluation round (SubmissionNumber).
+/// Snapshots the criteria of the <see cref="ChecklistConfig"/> version used so later config edits never
+/// change stored history. <see cref="PassedCount"/> is always recomputed by the domain from valid,
+/// de-duplicated items — it is never taken from client input.
+/// </summary>
+public class ProjectEvaluationChecklist : AggregateRoot<Guid>
+{
+    public Guid ProjectId { get; private set; }
+    public Guid EvaluatorId { get; private set; }
+    public int SemesterId { get; private set; }
+
+    /// <summary>The checklist configuration version used (immutable link for auditing).</summary>
+    public Guid ChecklistConfigId { get; private set; }
+
+    /// <summary>Evaluation round this result belongs to (increments on resubmission).</summary>
+    public int SubmissionNumber { get; private set; }
+
+    /// <summary>Snapshot of the config's PassThreshold at creation time.</summary>
+    public int RequiredPassCount { get; private set; }
+
+    /// <summary>Number of criteria marked as passed — computed by the domain, not by the client.</summary>
+    public int PassedCount { get; private set; }
+
+    public string? EvaluatorNote { get; private set; }
+
+    public DateTime CreatedAt { get; private set; }
+    public DateTime UpdatedAt { get; private set; }
+
+    /// <summary>Set when the evaluator's approval was accepted with this checklist.</summary>
+    public DateTime? ApprovedAt { get; private set; }
+
+    private readonly List<ChecklistResultItem> _items = [];
+    public IReadOnlyCollection<ChecklistResultItem> Items => _items.AsReadOnly();
+
+    /// <summary>True when the evaluator has marked at least <see cref="RequiredPassCount"/> criteria.</summary>
+    public bool MeetsApprovalThreshold => PassedCount >= RequiredPassCount;
+
+    private ProjectEvaluationChecklist() { }
+
+    /// <summary>Builds an initial (all-unpassed) result snapshot from the given active config.</summary>
+    public static ProjectEvaluationChecklist CreateFromConfig(
+        ChecklistConfig config, Guid projectId, Guid evaluatorId, int submissionNumber)
+    {
+        var result = new ProjectEvaluationChecklist
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            EvaluatorId = evaluatorId,
+            SemesterId = config.SemesterId,
+            ChecklistConfigId = config.Id,
+            SubmissionNumber = submissionNumber,
+            RequiredPassCount = config.PassThreshold,
+            PassedCount = 0,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        foreach (var criterion in config.Criteria.OrderBy(c => c.Order))
+        {
+            result._items.Add(ChecklistResultItem.Create(
+                result.Id, criterion.Id, criterion.Order, criterion.TitleVi, isPassed: false));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Applies the set of criterion ids the evaluator marked as passed. Duplicate ids are collapsed and
+    /// ids that do not belong to this result's snapshot are ignored; <see cref="PassedCount"/> is then
+    /// recomputed from the owned items so a client can never inflate the count.
+    /// </summary>
+    public void ApplyPassedCriteria(IEnumerable<Guid> passedCriterionIds, string? note)
+    {
+        var passedSet = new HashSet<Guid>(passedCriterionIds);
+        foreach (var item in _items)
+        {
+            item.SetPassed(passedSet.Contains(item.CriterionId));
+        }
+
+        PassedCount = _items.Count(i => i.IsPassed);
+        EvaluatorNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>Records that this checklist backed a successful approval.</summary>
+    public void MarkApproved()
+    {
+        ApprovedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+}

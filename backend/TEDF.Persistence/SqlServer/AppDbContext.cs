@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Entities;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate.Entities;
 using TEDF.Domain.Aggregates.ProjectAggregate;
@@ -59,6 +60,11 @@ public class AppDbContext : DbContext
     #region Evaluation Aggregate
     public DbSet<EvaluationSubmission> EvaluationSubmissions => Set<EvaluationSubmission>();
     public DbSet<ProjectEvaluatorAssignment> ProjectEvaluatorAssignments => Set<ProjectEvaluatorAssignment>();
+    #endregion
+
+    #region Evaluation Checklist Aggregate
+    public DbSet<ChecklistConfig> ChecklistConfigs => Set<ChecklistConfig>();
+    public DbSet<ProjectEvaluationChecklist> ProjectEvaluationChecklists => Set<ProjectEvaluationChecklist>();
     #endregion
 
     #region Support Aggregate
