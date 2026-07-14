@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.TopicPoolAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
@@ -131,7 +132,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
             throw new BusinessRuleValidationException(
                 "Nhóm đang có một yêu cầu đăng ký chờ duyệt. Hãy huỷ yêu cầu đó trước khi đăng ký đề tài khác.");
 
-        var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken)
+        var project = await _projectRepository.GetWithMentorsAsync(projectId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Project), projectId);
 
         // Validate project
@@ -143,6 +144,18 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
 
         if (project.Status != ProjectStatus.Approved)
             throw new BusinessRuleValidationException("Only approved topics can be registered for.");
+
+        // Block registration when the topic's mentor already supervises the max number of groups
+        // this semester. Unlike the proposal screen, pending pool registrations are NOT counted here.
+        var topicMentorId = project.Mentors.FirstOrDefault(m => m.IsActive)?.MentorId;
+        if (topicMentorId.HasValue)
+        {
+            var mentorActiveGroups = await _projectRepository.CountMentorActiveProjectsInSemesterAsync(
+                topicMentorId.Value, project.SemesterId, cancellationToken);
+            if (mentorActiveGroups >= MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester)
+                throw new BusinessRuleValidationException(
+                    $"Giảng viên của đề tài đã đủ {MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester} nhóm hướng dẫn, không thể đăng ký đề tài này.");
+        }
 
         if (!project.TopicPoolId.HasValue)
             throw new BusinessRuleValidationException("Project is not associated with a topic pool.");

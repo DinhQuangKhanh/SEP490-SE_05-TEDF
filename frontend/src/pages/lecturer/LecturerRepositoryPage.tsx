@@ -515,6 +515,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
                 attachments={rejectAttachments}
                 onAttachmentsChange={setRejectAttachments}
                 onError={showError}
+                placeholder="Ghi chú cho sinh viên"
               />
             </div>
             {isQuillNoteEmpty(rejectNote) && rejectAttachments.length === 0 && (
@@ -548,9 +549,9 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
 
 // ── Mentor's own topics ──────────────────────────────────────────────────────
 
-function MentorOwnTopicsView() {
-  const { activeTab, setActiveTab } = useRepoTab();
-  const [pendingCount, setPendingCount] = useState(0);
+/** The "own topics" panel (search + semester filter + table + detail/create modals) for the current
+ *  lecturer. Reused by both the mentor view and the department-head's "Đề tài của tôi" tab. */
+function MentorTopicsPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailTopic, setDetailTopic] = useState<MentorTopicItem | null>(null);
 
@@ -565,14 +566,6 @@ function MentorOwnTopicsView() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<number | undefined>(undefined);
   const [page, setPage] = useState(1);
-
-  // Initial pending-registration count so the tab badge is correct before the tab is opened.
-  useEffect(() => {
-    topicPoolService
-      .getMentorRegistrations()
-      .then((list) => setPendingCount(list.length))
-      .catch(() => {});
-  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -634,38 +627,6 @@ function MentorOwnTopicsView() {
 
   return (
     <>
-      <Header
-        title="Kho đề tài nghiên cứu"
-        subtitle="Quản lý và theo dõi trạng thái thẩm định các đề tài hướng dẫn"
-        role="mentor"
-        showSearch={false}
-        breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
-      />
-
-      {/* Tabs */}
-      <div className="px-8 bg-white border-b border-slate-200">
-        <div className="flex gap-1">
-          <RepoTabButton
-            active={activeTab === "topics"}
-            onClick={() => setActiveTab("topics")}
-            icon="inventory_2"
-            label="Đề tài của tôi"
-          />
-          <RepoTabButton
-            active={activeTab === "registrations"}
-            onClick={() => setActiveTab("registrations")}
-            icon="how_to_reg"
-            label="Yêu cầu đăng ký"
-            badge={pendingCount}
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
-        {activeTab === "registrations" ? (
-          <MentorRegistrationsTab onCountChange={setPendingCount} />
-        ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
           {/* Title & Actions */}
           <motion.div variants={item} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -794,8 +755,6 @@ function MentorOwnTopicsView() {
             )}
           </motion.div>
         </motion.div>
-        )}
-      </div>
 
       {/* Register Topic Modal */}
       <RegisterTopicModal
@@ -823,10 +782,65 @@ function MentorOwnTopicsView() {
   );
 }
 
+// ── Mentor view: own topics + registration requests ─────────────────────────
+
+function MentorOwnTopicsView() {
+  const { activeTab, setActiveTab } = useRepoTab();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Initial pending-registration count so the tab badge is correct before the tab is opened.
+  useEffect(() => {
+    topicPoolService
+      .getMentorRegistrations()
+      .then((list) => setPendingCount(list.length))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <>
+      <Header
+        title="Kho đề tài nghiên cứu"
+        subtitle="Quản lý và theo dõi trạng thái thẩm định các đề tài hướng dẫn"
+        role="mentor"
+        showSearch={false}
+        breadcrumb={[{ label: "TEDF" }, { label: "Kho đề tài nghiên cứu" }]}
+      />
+
+      {/* Tabs */}
+      <div className="px-8 bg-white border-b border-slate-200">
+        <div className="flex gap-1">
+          <RepoTabButton
+            active={activeTab === "topics"}
+            onClick={() => setActiveTab("topics")}
+            icon="inventory_2"
+            label="Đề tài của tôi"
+          />
+          <RepoTabButton
+            active={activeTab === "registrations"}
+            onClick={() => setActiveTab("registrations")}
+            icon="how_to_reg"
+            label="Yêu cầu đăng ký"
+            badge={pendingCount}
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
+        {activeTab === "registrations" ? <MentorRegistrationsTab onCountChange={setPendingCount} /> : <MentorTopicsPanel />}
+      </div>
+    </>
+  );
+}
+
 // ── Department-Head view: all topics in the department ───────────────────────
 
 function DepartmentTopicsView() {
-  const { activeTab, setActiveTab } = useRepoTab();
+  const location = useLocation();
+  // Three tabs: department-wide topics, the dept-head's OWN mentor topics, and registration requests.
+  const [activeTab, setActiveTab] = useState<"department" | "mine" | "registrations">(
+    location.pathname.endsWith("/registrations") ? "registrations" : "department",
+  );
   const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<DepartmentProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -898,10 +912,16 @@ function DepartmentTopicsView() {
       <div className="px-8 bg-white border-b border-slate-200">
         <div className="flex gap-1">
           <RepoTabButton
-            active={activeTab === "topics"}
-            onClick={() => setActiveTab("topics")}
+            active={activeTab === "department"}
+            onClick={() => setActiveTab("department")}
             icon="inventory_2"
             label="Đề tài bộ môn"
+          />
+          <RepoTabButton
+            active={activeTab === "mine"}
+            onClick={() => setActiveTab("mine")}
+            icon="folder_special"
+            label="Đề tài của tôi"
           />
           <RepoTabButton
             active={activeTab === "registrations"}
@@ -916,6 +936,8 @@ function DepartmentTopicsView() {
       <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
         {activeTab === "registrations" ? (
           <MentorRegistrationsTab onCountChange={setPendingCount} />
+        ) : activeTab === "mine" ? (
+          <MentorTopicsPanel />
         ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
           <motion.div variants={item}>

@@ -183,20 +183,22 @@ function TopicContentSections({ detail }: { detail: TopicDetail | null }) {
           <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.objectives}</p>
         </div>
       )}
-      {(detail.scope || detail.technologies) && (
+      {detail.scope && (
         <div>
           <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
             <span className="w-1.5 h-6 bg-primary rounded-full" />
             Phạm vi nghiên cứu
           </h4>
-          <div className="pl-3.5 space-y-3">
-            {detail.scope && (
-              <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">{detail.scope}</p>
-            )}
-            {detail.technologies && (
-              <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">{detail.technologies}</p>
-            )}
-          </div>
+          <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.scope}</p>
+        </div>
+      )}
+      {detail.technologies && (
+        <div>
+          <h4 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider uppercase text-primary">
+            <span className="w-1.5 h-6 bg-primary rounded-full" />
+            Công nghệ sử dụng
+          </h4>
+          <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">{detail.technologies}</p>
         </div>
       )}
       {detail.expectedResults && (
@@ -728,29 +730,8 @@ export function StudentMyTopicPage() {
           </div>
         ) : !myGroup.projectId ? (
           /* Has group but no project */
-          showCreateForm ? (
-            <div className="max-w-3xl mx-auto">
-              <CreateProposedTopicForm
-                groupId={myGroup.groupId}
-                onCreated={() => {
-                  setShowCreateForm(false);
-                  setLoading(true);
-                  studentGroupService
-                    .getMyGroup()
-                    .then(async (group) => {
-                      setMyGroup(group);
-                      if (group?.projectId) {
-                        const detail = await topicService.getTopicDetail(group.projectId);
-                        setTopicDetail(detail);
-                        loadDocuments(group.projectId);
-                      }
-                    })
-                    .finally(() => setLoading(false));
-                }}
-                onCancel={() => setShowCreateForm(false)}
-              />
-            </div>
-          ) : pendingRegistration ? (
+          <>
+            {pendingRegistration ? (
             /* Pending pool registration — same detail layout as a proposed/assigned topic */
             <PoolRegistrationDetailView
               variant="pending"
@@ -801,7 +782,29 @@ export function StudentMyTopicPage() {
                 )}
               </div>
             </div>
-          )
+            )}
+            {showCreateForm && (
+              <CreateProposedTopicForm
+                groupId={myGroup.groupId}
+                onCreated={() => {
+                  setShowCreateForm(false);
+                  setLoading(true);
+                  studentGroupService
+                    .getMyGroup()
+                    .then(async (group) => {
+                      setMyGroup(group);
+                      if (group?.projectId) {
+                        const detail = await topicService.getTopicDetail(group.projectId);
+                        setTopicDetail(detail);
+                        loadDocuments(group.projectId);
+                      }
+                    })
+                    .finally(() => setLoading(false));
+                }}
+                onCancel={() => setShowCreateForm(false)}
+              />
+            )}
+          </>
         ) : (
           /* Full view */
           <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
@@ -968,25 +971,29 @@ export function StudentMyTopicPage() {
                       </div>
                     )}
 
-                    {/* Scope & Technologies */}
-                    {(topicDetail?.scope || topicDetail?.technologies) && (
+                    {/* Scope */}
+                    {topicDetail?.scope && (
                       <div>
                         <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
                           <span className="w-1.5 h-6 bg-primary rounded-full" />
                           Phạm vi nghiên cứu
                         </h4>
-                        <div className="pl-3.5 space-y-4">
-                          {topicDetail?.scope && (
-                            <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">
-                              {topicDetail.scope}
-                            </p>
-                          )}
-                          {topicDetail?.technologies && (
-                            <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap">
-                              {topicDetail.technologies}
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">
+                          {topicDetail.scope}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Technologies */}
+                    {topicDetail?.technologies && (
+                      <div>
+                        <h4 className="flex items-center gap-2 mb-3 text-sm font-bold tracking-wider uppercase text-primary">
+                          <span className="w-1.5 h-6 bg-primary rounded-full" />
+                          Công nghệ sử dụng
+                        </h4>
+                        <p className="text-[#101319] text-sm leading-relaxed whitespace-pre-wrap pl-3.5">
+                          {topicDetail.technologies}
+                        </p>
                       </div>
                     )}
 
@@ -1230,7 +1237,6 @@ export function StudentMyTopicPage() {
                 scope: topicDetail.scope || undefined,
                 technologies: topicDetail.technologies || undefined,
                 expectedResults: topicDetail.expectedResults || undefined,
-                maxStudents: topicDetail.maxStudents,
               }}
               onUpdated={() => {
                 setShowEditForm(false);

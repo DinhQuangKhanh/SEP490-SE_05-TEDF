@@ -26,6 +26,11 @@ namespace TEDF.Persistence.SqlServer.Repositories
         {
             return await _dbSet.FirstOrDefaultAsync(m => m.Code == code.ToUpperInvariant(), cancellationToken);
         }
+        
+        public async Task<Major?> GetByNameAsync(string name, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet.FirstOrDefaultAsync(m => m.Name == name, cancellationToken);
+        }
 
         public async Task<IEnumerable<Major>> GetAllAsync(CancellationToken cancellationToken = default)
         {

@@ -22,7 +22,7 @@ public interface IExcelService
 }
 
 /// <summary>A parsed eligible-student row from an imported spreadsheet.</summary>
-public record EligibleStudentRow(string StudentCode, string? FullName, string? Email, string? PhoneNumber, string? ProgramCode);
+public record EligibleStudentRow(string StudentCode, string? FullName, string? Email, string? PhoneNumber, string? MajorName);
 
 /// <summary>A parsed eligible-mentor row from an imported spreadsheet.</summary>
-public record EligibleMentorRow(string EmployeeCode, string? FullName, string? Email, string? PhoneNumber, string? ProgramCode, string? Division);
+public record EligibleMentorRow(string EmployeeCode, string? FullName, string? Email, string? PhoneNumber, string? MajorName, string? Division);

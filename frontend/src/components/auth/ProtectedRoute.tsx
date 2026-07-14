@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useMaintenance } from '@/contexts/MaintenanceContext'
+import { AccountBlockedPage } from '@/pages/errors'
 import { ReactNode } from 'react'
 
 type UserRole = 'admin' | 'mentor' | 'evaluator' | 'student' | 'departmenthead'
@@ -12,7 +13,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-    const { isAuthenticated, user, isLoading } = useAuth()
+    const { isAuthenticated, user, isLoading, access } = useAuth()
     const { isMaintenanceMode } = useMaintenance()
     const location = useLocation()
 
@@ -23,6 +24,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
     if (!isAuthenticated) {
         return <Navigate to="/login" state={{ from: location }} replace />
+    }
+
+    // Account access gate: a locked / inactive / ineligible account is authenticated with
+    // Firebase but not allowed to use the system. Block it here instead of letting it sit on
+    // an empty page (the backend already returns 403 for its API calls).
+    if (access && !access.allowed) {
+        return <AccountBlockedPage />
     }
 
     // If maintenance mode is on and user is not admin, redirect to maintenance page

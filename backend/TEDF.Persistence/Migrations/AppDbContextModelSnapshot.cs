@@ -1231,11 +1231,18 @@ namespace TEDF.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateOnly?>("BirthDate")
+                        .HasColumnType("date");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("DepartmentId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Division")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -1259,9 +1266,18 @@ namespace TEDF.Persistence.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("MajorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MajorProgramId")
+                        .HasColumnType("int");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("PrivacySettings")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1288,6 +1304,10 @@ namespace TEDF.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("FullName");
+
+                    b.HasIndex("MajorId");
+
+                    b.HasIndex("MajorProgramId");
 
                     b.HasIndex("Status");
 
@@ -1388,6 +1408,47 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("Majors", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.MajorProgram", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MajorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProgramCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProgramDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("MajorId");
+
+                    b.HasIndex("ProgramCode")
+                        .IsUnique();
+
+                    b.ToTable("MajorPrograms", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.ProjectArchive", b =>
@@ -2056,6 +2117,16 @@ namespace TEDF.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TEDF.Domain.Entities.Major", null)
+                        .WithMany()
+                        .HasForeignKey("MajorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TEDF.Domain.Entities.MajorProgram", null)
+                        .WithMany()
+                        .HasForeignKey("MajorProgramId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.Department", b =>
@@ -2071,6 +2142,15 @@ namespace TEDF.Persistence.Migrations
                     b.HasOne("TEDF.Domain.Entities.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.MajorProgram", b =>
+                {
+                    b.HasOne("TEDF.Domain.Entities.Major", null)
+                        .WithMany()
+                        .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

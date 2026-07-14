@@ -23,6 +23,7 @@ import {
   LecturerRepositoryPage,
   LecturerGroupDetailPage,
   LecturerSupportPage,
+  SupervisedProjectsPage,
   StudentDashboardPage,
   StudentTopicsPage,
   StudentMyTopicPage,
@@ -34,6 +35,7 @@ import {
   ChecklistConfigPage,
   ActivityLogsPage,
   TopicCreatePage,
+  ProfilePage,
 } from "@/pages";
 
 // Helper function to adjust color brightness
@@ -112,6 +114,7 @@ function App() {
                 <Route path="activity-logs" element={<ActivityLogsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="support" element={<SupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Protected Lecturer Routes (Mentor + Evaluator + DepartmentHead, unified) */}
@@ -132,7 +135,9 @@ function App() {
                 <Route path="moderate" element={<LecturerModerationPage />} />
                 <Route path="moderate/:id" element={<LecturerReviewPage />} />
                 <Route path="history" element={<LecturerHistoryPage />} />
+                <Route path="supervised-projects" element={<SupervisedProjectsPage />} />
                 <Route path="support" element={<LecturerSupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
                 {/* Department-Head-only pages */}
                 <Route
                   path="dashboard"
@@ -183,10 +188,12 @@ function App() {
                 <Route path="groups" element={<StudentGroupPage />} />
                 <Route path="groups/:tab" element={<StudentGroupPage />} />
                 <Route path="support" element={<StudentSupportPage />} />
+                <Route path="profile" element={<ProfilePage />} />
               </Route>
 
               {/* Smart redirect: root goes to role-based home */}
               <Route path="/" element={<RoleBasedRedirect />} />
+
 
               {/* 404 — any unmatched route */}
               <Route path="*" element={<NotFoundPage />} />

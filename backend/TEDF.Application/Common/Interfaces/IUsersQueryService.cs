@@ -14,4 +14,6 @@ public interface IUsersQueryService
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    Task<MyProfileDto> GetMyProfileAsync(Guid userId, CancellationToken cancellationToken = default);
 }
