@@ -28,12 +28,14 @@ public class ProjectEvaluationChecklistConfiguration : IEntityTypeConfiguration<
         builder.HasIndex(c => new { c.ProjectId, c.EvaluatorId, c.SubmissionNumber }).IsUnique();
         builder.HasIndex(c => c.ChecklistConfigId);
 
-        builder.HasOne<TEDF.Domain.Aggregates.ProjectAggregate.Project>()
+        // Qualified type names (matches EvaluationSubmissionConfiguration): the sibling namespaces
+        // Configurations.Project / Configurations.User shadow the plain type names.
+        builder.HasOne<Domain.Aggregates.ProjectAggregate.Project>()
             .WithMany()
             .HasForeignKey(c => c.ProjectId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<TEDF.Domain.Aggregates.UserAggregate.User>()
+        builder.HasOne<Domain.Aggregates.UserAggregate.User>()
             .WithMany()
             .HasForeignKey(c => c.EvaluatorId)
             .OnDelete(DeleteBehavior.Restrict);

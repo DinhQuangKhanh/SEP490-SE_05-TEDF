@@ -96,6 +96,7 @@ namespace TEDF.Persistence
             // Add Query Services
             services.AddScoped<IStudentGroupsQueryService, StudentGroupsQueryService>();
             services.AddScoped<IEvaluationsQueryService, EvaluationsQueryService>();
+            services.AddScoped<IChecklistQueryService, ChecklistQueryService>();
             services.AddScoped<ITopicPoolsQueryService, TopicPoolsQueryService>();
             services.AddScoped<ITopicsQueryService, TopicsQueryService>();
             services.AddScoped<IDashboardQueryService, DashboardQueryService>();

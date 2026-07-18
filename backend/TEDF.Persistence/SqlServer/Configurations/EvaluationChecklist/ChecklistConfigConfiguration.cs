@@ -27,7 +27,9 @@ public class ChecklistConfigConfiguration : IEntityTypeConfiguration<ChecklistCo
 
         builder.HasIndex(c => new { c.SemesterId, c.Version }).IsUnique();
 
-        builder.HasOne<TEDF.Domain.Aggregates.SemesterAggregate.Semester>()
+        // Qualified type name (matches EvaluationSubmissionConfiguration): the sibling namespace
+        // Configurations.Semester shadows the plain type name, so it cannot be shortened.
+        builder.HasOne<Domain.Aggregates.SemesterAggregate.Semester>()
             .WithMany()
             .HasForeignKey(c => c.SemesterId)
             .OnDelete(DeleteBehavior.Restrict);

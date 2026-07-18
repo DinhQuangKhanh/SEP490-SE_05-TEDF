@@ -6,12 +6,10 @@ namespace TEDF.Persistence.SqlServer.Repositories;
 /// <summary>Repository implementation for the <see cref="ProjectEvaluationChecklist"/> aggregate.</summary>
 public class ProjectEvaluationChecklistRepository : IProjectEvaluationChecklistRepository
 {
-    private readonly AppDbContext _context;
     private readonly DbSet<ProjectEvaluationChecklist> _dbSet;
 
     public ProjectEvaluationChecklistRepository(AppDbContext context)
     {
-        _context = context;
         _dbSet = context.Set<ProjectEvaluationChecklist>();
     }
 
