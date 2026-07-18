@@ -23,7 +23,6 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
     scope: initialData.scope || "",
     technologies: initialData.technologies || "",
     expectedResults: initialData.expectedResults || "",
-    maxStudents: initialData.maxStudents || 5,
   });
 
   const update = (key: string, value: string | number) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -49,7 +48,6 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
         scope: form.scope.trim() || undefined,
         technologies: form.technologies.trim() || undefined,
         expectedResults: form.expectedResults.trim() || undefined,
-        maxStudents: form.maxStudents,
       };
       await proposedTopicService.updateTopic(projectId, payload);
       onUpdated();
@@ -169,19 +167,6 @@ export function EditProposedTopicForm({ projectId, initialData, onUpdated, onCan
             rows={2}
             className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
             placeholder="Kết quả mong đợi sau khi hoàn thành..."
-          />
-        </div>
-
-        {/* Số Sinh Viên Tối Đa */}
-        <div>
-          <label className="block text-sm font-semibold text-[#101319] mb-1.5">Số Sinh Viên Tối Đa</label>
-          <input
-            type="number"
-            value={form.maxStudents}
-            onChange={(e) => update("maxStudents", parseInt(e.target.value) || 5)}
-            min={1}
-            max={20}
-            className="w-full px-3 py-2.5 border border-[#e9ecf1] rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
           />
         </div>
 

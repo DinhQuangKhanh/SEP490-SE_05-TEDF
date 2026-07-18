@@ -46,5 +46,12 @@ public interface ITopicRegistrationRepository : IRepository<TopicRegistration, G
 
     Task<int> CountPendingByProjectIdExcludingAsync(Guid projectId, Guid excludeRegistrationId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Counts pending registrations on pool topics where the mentor is active. Each pending registration
+    /// reserves a pool topic that becomes one supervised group once confirmed, so it counts toward the
+    /// mentor's capacity on the direct-topic proposal screen.
+    /// </summary>
+    Task<int> CountPendingByMentorIdAsync(Guid mentorId, CancellationToken cancellationToken = default);
+
     Task<Dictionary<TopicRegistrationStatus, int>> GetRegistrationStatusCountsByProjectIdsAsync(IEnumerable<Guid> projectIds, CancellationToken cancellationToken = default);
 }

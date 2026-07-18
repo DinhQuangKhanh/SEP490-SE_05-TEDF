@@ -1,4 +1,4 @@
-import { DepartmentProjectsResponse, ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse } from "@/types";
+import { DepartmentProjectsResponse, ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse, SupervisedProjectFilters, SupervisedProjectsResponse } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -11,6 +11,16 @@ export const projectService = {
   /** Department head: projects within the caller's department (with evaluator assignments). */
   getDepartmentProjects: (): Promise<DepartmentProjectsResponse> =>
     apiClient.get<DepartmentProjectsResponse>(routes.departmentHead.projects),
+
+  /** Mentor: projects the current user supervises (for the profile supervision history). */
+  getMySupervised: (filters: SupervisedProjectFilters = {}): Promise<SupervisedProjectsResponse> => {
+    const params = new URLSearchParams();
+    if (filters.search) params.set("search", filters.search);
+    if (filters.sort) params.set("sort", filters.sort);
+    params.set("page", String(filters.page ?? 1));
+    params.set("pageSize", String(filters.pageSize ?? 10));
+    return apiClient.get<SupervisedProjectsResponse>(`${routes.mentor.supervisedProjects}?${params.toString()}`);
+  },
 
   /** Get full detail of a project by ID. Reuses the topic detail endpoint. */
   getProjectDetail: async (projectId: string): Promise<ProjectDetail> => {

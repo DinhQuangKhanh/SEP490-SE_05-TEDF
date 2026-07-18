@@ -7,5 +7,5 @@ namespace TEDF.Application.Common.Interfaces;
 /// </summary>
 public interface IDirectTopicsQueryService
 {
-    Task<List<AvailableMentorDto>> GetAvailableMentorsAsync(CancellationToken cancellationToken = default);
+    Task<AvailableMentorsResponse> GetAvailableMentorsAsync(CancellationToken cancellationToken = default);
 }

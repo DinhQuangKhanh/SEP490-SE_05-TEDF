@@ -7,6 +7,7 @@ export { SemesterRosterPage } from "./admin/SemesterRosterPage";
 export { UsersPage } from "./admin/UsersPage";
 export { SupportPage } from "./admin/SupportPage";
 export { ActivityLogsPage } from "./admin/ActivityLogsPage";
+export { ProfilePage } from "./admin/ProfilePage";
 export * from "./lecturer";
 export * from "./student";
 export * from "./errors";

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TEDF.Domain.Aggregates.TopicPoolAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
+using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.TopicPool;
 using TEDF.Persistence.Common;
 
@@ -71,7 +72,7 @@ public class TopicRegistrationRepository : BaseRepository<TopicRegistration, Gui
                 p => p.Id,
                 (tr, p) => new { Registration = tr, Project = p })
             .Where(x => x.Registration.Status == TopicRegistrationStatus.Pending &&
-                       x.Project.Mentors.Any(m => m.MentorId == mentorId && m.IsActive))
+                       x.Project.Mentors.Any(m => m.MentorId == mentorId && m.Status == ProjectMentorStatus.Active))
             .Select(x => x.Registration)
             .OrderBy(tr => tr.RegisteredAt)
             .ToListAsync(cancellationToken);
@@ -83,6 +84,17 @@ public class TopicRegistrationRepository : BaseRepository<TopicRegistration, Gui
             .CountAsync(tr => tr.ProjectId == projectId &&
                              tr.Status == TopicRegistrationStatus.Pending &&
                              tr.Id != excludeRegistrationId, cancellationToken);
+    }
+
+    public async Task<int> CountPendingByMentorIdAsync(Guid mentorId, CancellationToken cancellationToken = default)
+    {
+        // Correlated EXISTS subquery; use the mapped Status (not the computed IsActive, which EF
+        // cannot translate) so the predicate runs in SQL.
+        return await _dbSet.CountAsync(
+            tr => tr.Status == TopicRegistrationStatus.Pending &&
+                  _context.Projects.Any(p => p.Id == tr.ProjectId &&
+                      p.Mentors.Any(m => m.MentorId == mentorId && m.Status == ProjectMentorStatus.Active)),
+            cancellationToken);
     }
 
     public async Task<Dictionary<TopicRegistrationStatus, int>> GetRegistrationStatusCountsByProjectIdsAsync(IEnumerable<Guid> projectIds, CancellationToken cancellationToken = default)

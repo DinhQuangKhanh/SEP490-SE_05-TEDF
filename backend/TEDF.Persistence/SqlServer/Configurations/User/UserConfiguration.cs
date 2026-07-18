@@ -42,6 +42,9 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
             builder.Property(u => u.AcademicTitle)
                 .HasMaxLength(50);
 
+            builder.Property(u => u.Division)
+                .HasMaxLength(50);
+
             builder.Property(u => u.FirebaseUid)
                 .HasMaxLength(128)
                 .IsRequired();
@@ -73,6 +76,10 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
 
             builder.HasIndex(u => u.DepartmentId);
 
+            builder.HasIndex(u => u.MajorId);
+
+            builder.HasIndex(u => u.MajorProgramId);
+
             // Relationships
             builder.HasMany(u => u.Roles)
                 .WithOne()
@@ -83,6 +90,18 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
             builder.HasOne<Domain.Entities.Department>()
                 .WithMany()
                 .HasForeignKey(u => u.DepartmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Foreign key to Major (chuyên ngành) - nullable, set for students
+            builder.HasOne<Domain.Entities.Major>()
+                .WithMany()
+                .HasForeignKey(u => u.MajorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Foreign key to MajorProgram (chuyên ngành hẹp) - nullable, set for students
+            builder.HasOne<Domain.Entities.MajorProgram>()
+                .WithMany()
+                .HasForeignKey(u => u.MajorProgramId)
                 .OnDelete(DeleteBehavior.SetNull);
 
             // Ignore domain events (handled separately)

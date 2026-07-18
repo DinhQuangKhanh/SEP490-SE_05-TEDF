@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TEDF.Persistence.SqlServer;
@@ -56,13 +57,23 @@ public static class LoadTestDataSeeder
 
     private const int BatchSize = 50;
 
-    // Department and Major ID
+    // Department (Khoa) and Major (Chuyên ngành) IDs.
+    // Khoa CNTT has four chuyên ngành: SE, AI, IA, IC.
     private const int DeptCNTT = 1;
     private const int MajorSE = 1;
+    private const int MajorAI = 2;
+    private const int MajorIA = 3;
+    private const int MajorIC = 4;
 
+    // Topic pools / projects are seeded for SE only; AI/IA/IC are reference rows.
     private static readonly int[] AllMajorIds = [MajorSE];
     private static readonly string[] MajorCodes = ["SE"];
     private static readonly string[] MajorNames = ["Kỹ thuật phần mềm"];
+
+    // Mock profile data so the profile UI is populated for seeded users.
+    // Bộ môn (academic division) a lecturer teaches — distinct from the Khoa (Department).
+    private static readonly string[] LecturerDivisions = ["CF", "SE", "AI", "IA", "IC"];
+    private static readonly string[] LecturerTitles = ["ThS.", "TS.", "PGS.TS.", "GS.TS."];
 
     // ────────────────── ID helpers ──────────────────
     public static Guid AdminId(int i) => Guid.Parse($"10000000-0000-0000-0000-{i:D12}");
@@ -99,6 +110,10 @@ public static class LoadTestDataSeeder
     public static string RealStudentFirebaseUid(string roll) => $"test-realstudent-{roll.ToLowerInvariant()}";
 
     public const string DefaultPassword = "Test@123456";
+
+    /// <summary>Deterministic mock birth date: base year + (i mod spread), with a stable month/day.</summary>
+    private static DateTime MockBirthDate(int baseYear, int yearSpread, int i) =>
+        new(baseYear + (i % yearSpread), (i % 12) + 1, (i % 28) + 1, 0, 0, 0, DateTimeKind.Utc);
 
     // ────────────────── Entry point ──────────────────
     public static async Task SeedAsync(AppDbContext context, ILogger? logger = null)
@@ -150,6 +165,8 @@ public static class LoadTestDataSeeder
         await SeedSupportTicketsAsync(context, logger);
         await AssignDepartmentHeadAsync(context, logger);
         await SeedSummer26RealRegistrationsAsync(context, logger);
+        await SeedMajorProgramsAsync(context);
+        await SeedEligibleStudentsAsync(context, logger);
 
         logger?.LogInformation("Load-test data seeding complete.");
     }
@@ -171,14 +188,48 @@ public static class LoadTestDataSeeder
 
     private static async Task SeedMajorsAsync(AppDbContext context)
     {
+        // Khoa CNTT has four chuyên ngành. SE is used by all seeded students/projects;
+        // AI/IA/IC are reference rows so the Khoa → Chuyên ngành hierarchy is complete.
         var sql = @"
             SET IDENTITY_INSERT Majors ON;
             INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
             VALUES
-            (@p0, @p1, N'Kỹ thuật phần mềm',              'SE',  N'Chuyên ngành Kỹ thuật phần mềm',              1, @p2, NULL)
+            (@p0, @p4, N'Kỹ thuật phần mềm',           'SE', N'Chuyên ngành Kỹ thuật phần mềm',           1, @p5, NULL),
+            (@p1, @p4, N'Trí tuệ nhân tạo',            'AI', N'Chuyên ngành Trí tuệ nhân tạo',            1, @p5, NULL),
+            (@p2, @p4, N'An toàn thông tin',           'IA', N'Chuyên ngành An toàn thông tin',           1, @p5, NULL),
+            (@p3, @p4, N'Thiết kế vi mạch bán dẫn',    'IC', N'Chuyên ngành Thiết kế vi mạch bán dẫn',    1, @p5, NULL);
             SET IDENTITY_INSERT Majors OFF;";
 
-        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, DeptCNTT, SeedDate);
+        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, MajorAI, MajorIA, MajorIC, DeptCNTT, SeedDate);
+    }
+
+    // ─── Major Programs (Chuyên ngành hẹp under SE) ──────────────────────────
+    private static async Task SeedMajorProgramsAsync(AppDbContext context)
+    {
+        // Narrow specializations under SE. ProgramCode = CurriculumCode + "_" + ComboCode;
+        // ProgramDescription = ComboName.
+        var sql = @"
+            SET IDENTITY_INSERT MajorPrograms ON;
+            INSERT INTO MajorPrograms (Id, MajorId, ProgramCode, ProgramDescription, IsActive, CreatedAt, UpdatedAt)
+            VALUES
+            (1, @p0, 'BIT_SE_18C_NodeJS', N'Node.js',                  1, @p1, NULL),
+            (2, @p0, 'BIT_SE_18C_.NET',   N'.NET',                     1, @p1, NULL),
+            (3, @p0, 'BIT_SE_18B_COM3.2', N'Combo COM3.2 (Java Web)',  1, @p1, NULL),
+            (4, @p0, 'BIT_SE_18B_COM4.1', N'Combo COM4.1 (ReactJS)',   1, @p1, NULL),
+            (5, @p0, 'BIT_SE_17D_COM3.2', N'Combo COM3.2 (Java Web)',  1, @p1, NULL),
+            (6, @p0, 'BIT_SE_17A_NET',    N'.NET',                     1, @p1, NULL);
+            SET IDENTITY_INSERT MajorPrograms OFF;";
+        await context.Database.ExecuteSqlRawAsync(sql, MajorSE, SeedDate);
+
+        // Assign each student a narrow major, cycling through the six programs.
+        var assignSql = @"
+            ;WITH s AS (
+                SELECT Id, ((ROW_NUMBER() OVER (ORDER BY Id) - 1) % 6) + 1 AS pid
+                FROM Users WHERE StudentCode IS NOT NULL
+            )
+            UPDATE u SET MajorProgramId = s.pid
+            FROM Users u JOIN s ON s.Id = u.Id;";
+        await context.Database.ExecuteSqlRawAsync(assignSql);
     }
 
     // ─── 3. Project Archives (sample, for the admin "Old topic archives" panel) ──
@@ -294,24 +345,38 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  USERS
     // ════════════════════════════════════════════════
+    [SuppressMessage("Security Hotspot", "S2077:Formatting SQL queries is security-sensitive",
+        Justification = "Internal load-test seeder. Only the static column list and @p parameter " +
+            "placeholders are interpolated into the SQL; every value is supplied through the " +
+            "parameters array (parameterized). No user input is involved, so it is not injectable.")]
     private static async Task SeedUsersAsync(AppDbContext context, ILogger? logger)
     {
-        var users = new List<(Guid Id, string Email, string FullName, string? StudentCode, string? EmployeeCode, string FirebaseUid)>();
+        // Tuple carries mock profile data so the profile UI is populated:
+        //  - Lecturers: AcademicTitle + Division (Bộ môn: CF/SE/AI/IA/IC).
+        //  - Students:  MajorId (Chuyên ngành = SE).
+        //  - Everyone:  PhoneNumber + BirthDate (DepartmentId = CNTT is set in the INSERT).
+        var users = new List<(Guid Id, string Email, string FullName, string? StudentCode,
+            string? EmployeeCode, string FirebaseUid, string PhoneNumber, DateTime BirthDate,
+            string? AcademicTitle, int? MajorId, string? Division)>();
 
         for (var i = 1; i <= AdminCount; i++)
-            users.Add((AdminId(i), AdminEmail(i), $"Admin LoadTest {i}", null, $"LT-EMP-A{i:D4}", AdminFirebaseUid(i)));
+            users.Add((AdminId(i), AdminEmail(i), $"Admin LoadTest {i}", null, $"LT-EMP-A{i:D4}",
+                AdminFirebaseUid(i), $"0901{i:D6}", MockBirthDate(1975, 18, i), null, null, null));
 
         for (var i = 1; i <= DualRoleCount; i++)
-            users.Add((DualRoleId(i), DualRoleEmail(i), $"Lecturer LoadTest {i}", null, $"LT-EMP-L{i:D4}", DualRoleFirebaseUid(i)));
+            users.Add((DualRoleId(i), DualRoleEmail(i), $"Lecturer LoadTest {i}", null, $"LT-EMP-L{i:D4}",
+                DualRoleFirebaseUid(i), $"0911{i:D6}", MockBirthDate(1975, 18, i),
+                LecturerTitles[i % LecturerTitles.Length], null, LecturerDivisions[i % LecturerDivisions.Length]));
 
         for (var i = 1; i <= StudentCount; i++)
-            users.Add((StudentId(i), StudentEmail(i), $"Student LoadTest {i}", $"LT-{i:D6}", null, StudentFirebaseUid(i)));
+            users.Add((StudentId(i), StudentEmail(i), $"Student LoadTest {i}", $"LT-{i:D6}", null,
+                StudentFirebaseUid(i), $"0987{i:D6}", MockBirthDate(2001, 4, i), null, MajorSE, null));
 
         for (var batch = 0; batch < users.Count; batch += BatchSize)
         {
             var chunk = users.Skip(batch).Take(BatchSize).ToList();
             var valueClauses = new List<string>();
-            var parameters = new List<object>();
+            var parameters = new List<object?>();
             var paramIndex = 0;
 
             foreach (var u in chunk)
@@ -321,28 +386,64 @@ public static class LoadTestDataSeeder
                 var pName = $"@p{paramIndex++}";
                 var pStudentCode = $"@p{paramIndex++}";
                 var pEmployeeCode = $"@p{paramIndex++}";
+                var pPhone = $"@p{paramIndex++}";
+                var pBirth = $"@p{paramIndex++}";
+                var pTitle = $"@p{paramIndex++}";
+                var pMajor = $"@p{paramIndex++}";
+                var pDivision = $"@p{paramIndex++}";
                 var pFirebaseUid = $"@p{paramIndex++}";
                 var pDate = $"@p{paramIndex++}";
+                var pPrivacy = $"@p{paramIndex++}";
 
-                valueClauses.Add($"({pId}, {pEmail}, {pName}, NULL, {pStudentCode}, {pEmployeeCode}, NULL, 1, 0, {pFirebaseUid}, {pDate}, NULL, NULL)");
+                // Columns: Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, PhoneNumber,
+                // BirthDate, AcademicTitle, DepartmentId(1=CNTT), MajorId, Division, Status(0=Active),
+                // FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings.
+                valueClauses.Add($"({pId}, {pEmail}, {pName}, NULL, {pStudentCode}, {pEmployeeCode}, {pPhone}, {pBirth}, {pTitle}, 1, {pMajor}, {pDivision}, 0, {pFirebaseUid}, {pDate}, NULL, NULL, {pPrivacy})");
 
+                // Nullable values are passed as raw null (EF maps null → SQL NULL). Do NOT pass
+                // DBNull.Value here: ExecuteSqlRawAsync inspects the CLR type and has no mapping for DBNull.
                 parameters.Add(u.Id);
                 parameters.Add(u.Email);
                 parameters.Add(u.FullName);
                 parameters.Add(u.StudentCode);
                 parameters.Add(u.EmployeeCode);
+                parameters.Add(u.PhoneNumber);
+                parameters.Add(u.BirthDate);
+                parameters.Add(u.AcademicTitle);
+                parameters.Add(u.MajorId);
+                parameters.Add(u.Division);
                 parameters.Add(u.FirebaseUid);
                 parameters.Add(SeedDate);
+                // Mock privacy settings (phone and DOB hidden from others by default)
+                parameters.Add("[\"phoneNumber\",\"birthDate\"]");
             }
 
             var sql = $@"
-                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt)
+                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, PhoneNumber, BirthDate, AcademicTitle, DepartmentId, MajorId, Division, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings)
                 VALUES {string.Join(",\n                       ", valueClauses)};";
 
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray()!);
         }
 
         logger?.LogInformation("Seeded {Count} load-test users.", users.Count);
+    }
+
+    // ════════════════════════════════════════════════
+    //  ELIGIBLE STUDENTS (so seeded students pass the access gate)
+    // ════════════════════════════════════════════════
+    private static async Task SeedEligibleStudentsAsync(AppDbContext context, ILogger? logger)
+    {
+        // Every seeded student is marked eligible in Summer 2026 (the active, not-yet-ended
+        // semester) so IsStudentEligibleNowAsync passes and they can use the system. Idempotent.
+        var sql = @"
+            INSERT INTO EligibleStudents (SemesterId, StudentId, StudentCode, Email, PhoneNumber, MajorId, IsEligible, ImportedAt, ImportedBy)
+            SELECT @p0, u.Id, u.StudentCode, u.Email, u.PhoneNumber, u.MajorId, 1, @p1, NULL
+            FROM Users u
+            WHERE u.StudentCode IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM EligibleStudents es WHERE es.StudentId = u.Id AND es.SemesterId = @p0);";
+
+        var affected = await context.Database.ExecuteSqlRawAsync(sql, Summer2026Id, SeedDate);
+        logger?.LogInformation("Seeded {Count} eligible students for Summer 2026.", affected);
     }
 
     // ════════════════════════════════════════════════
@@ -872,18 +973,26 @@ public static class LoadTestDataSeeder
             foreach (var s in students)
             {
                 var pId = $"@p{pi++}"; var pEmail = $"@p{pi++}"; var pName = $"@p{pi++}";
-                var pCode = $"@p{pi++}"; var pUid = $"@p{pi++}"; var pDate = $"@p{pi++}";
-                values.Add($"({pId}, {pEmail}, {pName}, NULL, {pCode}, NULL, NULL, 1, 0, {pUid}, {pDate}, NULL, NULL)");
+                var pCode = $"@p{pi++}"; var pPhone = $"@p{pi++}"; var pBirth = $"@p{pi++}";
+                var pMajor = $"@p{pi++}"; var pUid = $"@p{pi++}"; var pDate = $"@p{pi++}"; var pPrivacy = $"@p{pi++}";
+                // Columns: Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, PhoneNumber,
+                // BirthDate, AcademicTitle, DepartmentId(1=CNTT), MajorId(SE), Division, Status(0),
+                // FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings.
+                values.Add($"({pId}, {pEmail}, {pName}, NULL, {pCode}, NULL, {pPhone}, {pBirth}, NULL, 1, {pMajor}, NULL, 0, {pUid}, {pDate}, NULL, NULL, {pPrivacy})");
                 parameters.Add(RealStudentId(s.Idx));
                 parameters.Add(RealStudentEmail(s.Roll));
                 parameters.Add(s.FullName);
                 parameters.Add(s.Roll);
+                parameters.Add($"0986{s.Idx:D6}");
+                parameters.Add(MockBirthDate(2001, 4, s.Idx));
+                parameters.Add(MajorSE);
                 parameters.Add(RealStudentFirebaseUid(s.Roll));
                 parameters.Add(SeedDate);
+                parameters.Add("[\"phoneNumber\",\"birthDate\"]");
             }
 
             var sql = $@"
-                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, AcademicTitle, DepartmentId, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt)
+                INSERT INTO Users (Id, Email, FullName, AvatarUrl, StudentCode, EmployeeCode, PhoneNumber, BirthDate, AcademicTitle, DepartmentId, MajorId, Division, Status, FirebaseUid, CreatedAt, UpdatedAt, LastLoginAt, PrivacySettings)
                 VALUES {string.Join(",\n                       ", values)};";
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
@@ -1630,6 +1739,8 @@ public static class LoadTestDataSeeder
         var tables = new[]
         {
             // Leaf tables (no dependents)
+            "EligibleStudents",
+            "EligibleMentors",
             "SupportTickets",
             "TopicRegistrations",
             "ProjectEvaluatorAssignments",
@@ -1655,6 +1766,7 @@ public static class LoadTestDataSeeder
             "Semesters",
 
             "ProjectArchives",
+            "MajorPrograms",
             "Majors",
             "Departments"
         };
