@@ -7,8 +7,6 @@ using System.Text.Json;
 using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Common.Exceptions;
-using TEDF.Persistence.MongoDB.Documents;
-using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Infrastructure.Middleware
 {
@@ -66,19 +64,14 @@ namespace TEDF.Infrastructure.Middleware
             await context.Response.WriteAsync(json);
         }
 
-        /// <summary>
-        /// Logs the exception to both error_logs (full detail) and user_activity_logs (summary with link).
-        /// </summary>
         private async Task LogExceptionAsync(HttpContext context, Exception exception)
         {
             try
             {
                 var errorLogService = context.RequestServices.GetService<IErrorLogService>();
-                var activityLogRepository = context.RequestServices.GetService<IUserActivityLogRepository>();
 
                 var user = context.User;
                 var userIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
-                _ = Guid.TryParse(userIdStr, out var userId);
 
                 var userName = user.FindFirstValue(ClaimTypes.Name)
                                ?? user.FindFirstValue("name")
@@ -93,7 +86,6 @@ namespace TEDF.Infrastructure.Middleware
                 var userAgent = context.Request.Headers["User-Agent"].ToString();
                 var correlationId = context.TraceIdentifier;
 
-                // Build inner exception chain
                 var innerExceptions = new List<InnerExceptionEntry>();
                 var inner = exception.InnerException;
                 while (inner is not null)
@@ -105,11 +97,8 @@ namespace TEDF.Infrastructure.Middleware
                     inner = inner.InnerException;
                 }
 
-                // 1. Write full error detail to error_logs collection
-                Guid? errorLogId = null;
                 if (errorLogService is not null)
                 {
-                    errorLogId = Guid.NewGuid();
                     await errorLogService.LogAsync(new ErrorLogEntry(
                         UserId: userIdStr,
                         UserName: userName,
@@ -132,29 +121,6 @@ namespace TEDF.Infrastructure.Middleware
                         CorrelationId: correlationId,
                         Timestamp: DateTime.UtcNow
                     ));
-                }
-
-                // 2. Write summary entry to user_activity_logs with ErrorLogId link
-                if (activityLogRepository is not null)
-                {
-                    var activityDoc = new UserActivityLogDocument
-                    {
-                        UserId = userId,
-                        UserName = userName,
-                        UserEmail = userEmail,
-                        ActiveRole = role,
-                        Action = $"Lỗi hệ thống: {httpMethod} {apiPath}",
-                        ActionCode = "UnhandledException",
-                        Category = "System",
-                        Severity = "critical",
-                        RoutePath = string.IsNullOrEmpty(routePath) ? null : routePath,
-                        ErrorLogId = errorLogId,
-                        IpAddress = ipAddress,
-                        UserAgent = userAgent,
-                        Timestamp = DateTime.UtcNow,
-                    };
-
-                    await activityLogRepository.AddAsync(activityDoc);
                 }
             }
             catch (Exception ex)

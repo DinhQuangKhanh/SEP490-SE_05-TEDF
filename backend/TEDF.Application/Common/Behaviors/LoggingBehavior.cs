@@ -1,26 +1,15 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using System.Reflection;
 using TEDF.Application.Common.Abstractions;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Common.Services;
 
 namespace TEDF.Application.Common.Behaviors;
 
-/// <summary>
-/// MediatR pipeline behavior for logging request execution time and details.
-/// Writes structured log entries to both the console (via ILogger) and MongoDB.
-/// Only commands are persisted to MongoDB — queries are logged to console only.
-/// </summary>
-/// <typeparam name="TRequest">The request type.</typeparam>
-/// <typeparam name="TResponse">The response type.</typeparam>
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    /// <summary>
-    /// Computed once per generic instantiation — true only for ICommand / ICommand{T}.
-    /// </summary>
     private static readonly bool IsCommand =
         typeof(ICommand).IsAssignableFrom(typeof(TRequest)) ||
         typeof(TRequest).GetInterfaces().Any(i =>
@@ -28,18 +17,18 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
     private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IRequestLogService _requestLogService;
+    private readonly IActivityLogService _activityLogService;
     private readonly ActionNameResolver _actionNameResolver;
 
     public LoggingBehavior(
         ILogger<LoggingBehavior<TRequest, TResponse>> logger,
         ICurrentUserService currentUserService,
-        IRequestLogService requestLogService,
+        IActivityLogService activityLogService,
         ActionNameResolver actionNameResolver)
     {
         _logger = logger;
         _currentUserService = currentUserService;
-        _requestLogService = requestLogService;
+        _activityLogService = activityLogService;
         _actionNameResolver = actionNameResolver;
     }
 
@@ -82,19 +71,18 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             {
                 var actionInfo = _actionNameResolver.Resolve(requestName);
 
-                await _requestLogService.LogAsync(
-                    new RequestLogEntry(
-                        RequestName:         requestName,
-                        ActionDisplayName:   actionInfo.DisplayName,
-                        Category:            actionInfo.Category,
-                        UserId:              userId,
-                        UserName:            userName,
-                        UserEmail:           userEmail,
-                        UserRole:            _currentUserService.Roles.FirstOrDefault() ?? "anonymous",
-                        IsSuccess:           true,
-                        ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
-                        Timestamp:           DateTime.UtcNow,
-                        RequestParameters:   ExtractRequestParameters(request)),
+                await _activityLogService.LogAsync(
+                    new ActivityLogEntry(
+                        ActionCode:      requestName,
+                        ActionName:      actionInfo.DisplayName,
+                        FeatureCategory: actionInfo.Category,
+                        UserId:          userId,
+                        UserName:        userName,
+                        UserEmail:       userEmail,
+                        Role:            _currentUserService.Roles.FirstOrDefault() ?? "anonymous",
+                        IsSuccess:       true,
+                        DurationMs:      stopwatch.ElapsedMilliseconds,
+                        Timestamp:       DateTime.UtcNow),
                     cancellationToken);
             }
 
@@ -114,47 +102,22 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             {
                 var actionInfo = _actionNameResolver.Resolve(requestName);
 
-                await _requestLogService.LogAsync(
-                    new RequestLogEntry(
-                        RequestName:         requestName,
-                        ActionDisplayName:   actionInfo.DisplayName,
-                        Category:            actionInfo.Category,
-                        UserId:              userId,
-                        UserName:            userName,
-                        UserEmail:           userEmail,
-                        UserRole:            _currentUserService.Roles.FirstOrDefault() ?? "anonymous",
-                        IsSuccess:           false,
-                        ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
-                        Timestamp:           DateTime.UtcNow,
-                        ErrorMessage:        ex.Message,
-                        ErrorType:           ex.GetType().FullName,
-                        StackTrace:          ex.StackTrace,
-                        RequestParameters:   ExtractRequestParameters(request)),
+                await _activityLogService.LogAsync(
+                    new ActivityLogEntry(
+                        ActionCode:      requestName,
+                        ActionName:      actionInfo.DisplayName,
+                        FeatureCategory: actionInfo.Category,
+                        UserId:          userId,
+                        UserName:        userName,
+                        UserEmail:       userEmail,
+                        Role:            _currentUserService.Roles.FirstOrDefault() ?? "anonymous",
+                        IsSuccess:       false,
+                        DurationMs:      stopwatch.ElapsedMilliseconds,
+                        Timestamp:       DateTime.UtcNow),
                     cancellationToken);
             }
 
             throw;
         }
-    }
-
-    private static Dictionary<string, object?> ExtractRequestParameters(TRequest request)
-    {
-        var properties = typeof(TRequest).GetProperties(
-            BindingFlags.Public | BindingFlags.Instance);
-
-        var parameters = new Dictionary<string, object?>(properties.Length);
-        foreach (var prop in properties)
-        {
-            try
-            {
-                parameters[prop.Name] = prop.GetValue(request);
-            }
-            catch
-            {
-                parameters[prop.Name] = null;
-            }
-        }
-
-        return parameters;
     }
 }
