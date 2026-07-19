@@ -98,4 +98,14 @@ public class ErrorLogRepository : IErrorLogRepository
 
         return await pipeline.ToListAsync(ct);
     }
+
+    public async Task<long> DeleteOlderThanAsync(DateTime? cutoff, CancellationToken ct = default)
+    {
+        var filter = cutoff.HasValue
+            ? Builders<ErrorLogDocument>.Filter.Lt(l => l.Timestamp, cutoff.Value)
+            : Builders<ErrorLogDocument>.Filter.Empty;
+
+        var result = await _collection.DeleteManyAsync(filter, cancellationToken: ct);
+        return result.DeletedCount;
+    }
 }

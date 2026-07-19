@@ -34,14 +34,11 @@ namespace TEDF.Persistence.MongoDB
         /// </summary>
         public static class Collections
         {
-            public const string EvaluationLogs = "evaluation_logs";
-            public const string ProjectModifications = "project_modifications";
+            public const string ActivityLogs = "activity_logs";
+            public const string ErrorLogs = "error_logs";
             public const string Notifications = "notifications";
             public const string Conversations = "conversations";
             public const string Messages = "messages";
-            public const string UserActivityLogs = "user_activity_logs";
-            public const string SystemAuditLogs = "system_audit_logs";
-            public const string ErrorLogs = "error_logs";
         }
     }
 }

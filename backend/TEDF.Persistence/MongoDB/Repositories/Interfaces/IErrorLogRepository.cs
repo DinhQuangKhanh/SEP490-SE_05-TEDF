@@ -23,6 +23,9 @@ public interface IErrorLogRepository
         DateTime? from = null,
         DateTime? to = null,
         CancellationToken ct = default);
+
+    /// <summary>Delete error logs older than <paramref name="cutoff"/>. Pass null to delete all.</summary>
+    Task<long> DeleteOlderThanAsync(DateTime? cutoff, CancellationToken ct = default);
 }
 
 public class ErrorFrequencyResult
