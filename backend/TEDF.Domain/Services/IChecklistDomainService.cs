@@ -9,10 +9,13 @@ namespace TEDF.Domain.Services
     {
         // ── Evaluator ──
 
-        /// <summary>Upserts the current evaluator's checklist result for a project (recomputes passed count).</summary>
+        /// <summary>
+        /// Upserts the current evaluator's checklist result for a project. The domain validates each score
+        /// against its snapshot bounds and recomputes the passed count / pass flags.
+        /// </summary>
         Task SaveProjectChecklistAsync(
             Guid projectId,
-            IReadOnlyList<Guid> passedCriterionIds,
+            IReadOnlyList<ChecklistScoreData> scores,
             string? note,
             CancellationToken cancellationToken = default);
 
@@ -22,6 +25,18 @@ namespace TEDF.Domain.Services
         Task<Guid> CreateConfigAsync(
             int semesterId,
             IReadOnlyList<ChecklistCriterionData> criteria,
+            int requiredPassCount,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Creates a new Draft checklist configuration by importing an Excel file. Parses + validates the
+        /// file; on invalid data throws a validation error listing the offending rows (never a 500).
+        /// </summary>
+        Task<Guid> ImportConfigAsync(
+            int semesterId,
+            byte[] fileContent,
+            string fileName,
+            int requiredPassCount,
             CancellationToken cancellationToken = default);
 
         /// <summary>Clones a configuration into a new Draft for the target semester; returns the new id.</summary>
@@ -30,10 +45,11 @@ namespace TEDF.Domain.Services
             int targetSemesterId,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Replaces a Draft configuration's criteria (edit text / reorder).</summary>
+        /// <summary>Replaces a Draft configuration's criteria + required-pass count.</summary>
         Task UpdateConfigAsync(
             Guid id,
             IReadOnlyList<ChecklistCriterionData> criteria,
+            int requiredPassCount,
             CancellationToken cancellationToken = default);
 
         /// <summary>Activates a configuration (retiring the previous Active one for its semester).</summary>
@@ -44,5 +60,9 @@ namespace TEDF.Domain.Services
     }
 
     /// <summary>Editable criterion payload passed to the checklist domain service (layer-neutral).</summary>
-    public record ChecklistCriterionData(string TitleVi, string TitleEn, string? Description);
+    public record ChecklistCriterionData(
+        string TitleVi, string TitleEn, string? Description, decimal MaxScore, decimal PassScore);
+
+    /// <summary>One evaluator score entry passed to the checklist domain service (layer-neutral).</summary>
+    public record ChecklistScoreData(Guid CriterionId, decimal? Score, string? Comment);
 }

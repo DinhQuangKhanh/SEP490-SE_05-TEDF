@@ -6,7 +6,9 @@ public record ChecklistCriterionDto(
     int Order,
     string TitleVi,
     string TitleEn,
-    string? Description);
+    string? Description,
+    decimal MaxScore,
+    decimal PassScore);
 
 /// <summary>A checklist configuration (Department-Head view), including its criteria.</summary>
 public record ChecklistConfigDto(
@@ -15,8 +17,9 @@ public record ChecklistConfigDto(
     string SemesterName,
     int Version,
     string Status,
-    int PassThreshold,
+    int RequiredPassCount,
     int CriteriaCount,
+    string? SourceFileName,
     bool IsUsed,
     DateTime CreatedAt,
     Guid? CreatedBy,
@@ -38,9 +41,11 @@ public record ChecklistConfigListDto(
     IReadOnlyList<ChecklistSemesterOptionDto> Semesters,
     IReadOnlyList<ChecklistConfigDto> Configs);
 
-/// <summary>One default criterion (used to prefill the "create checklist" form from the backend).</summary>
+/// <summary>One default criterion (used to prefill the "create checklist" form / Excel template).</summary>
 public record ChecklistCriterionSeedDto(
     int Order,
     string TitleVi,
     string TitleEn,
-    string Description);
+    string Description,
+    decimal MaxScore,
+    decimal PassScore);

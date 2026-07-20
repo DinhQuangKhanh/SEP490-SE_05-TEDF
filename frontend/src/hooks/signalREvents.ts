@@ -10,4 +10,5 @@ export const SignalREvents = {
   NotificationRead: "NotificationRead",
   NewMessage: "NewMessage",
   UserTyping: "UserTyping",
+  ChecklistUpdated: "ChecklistUpdated",
 } as const;

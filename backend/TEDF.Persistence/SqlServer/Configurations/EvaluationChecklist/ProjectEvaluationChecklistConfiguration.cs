@@ -60,12 +60,21 @@ public class ChecklistResultItemConfiguration : IEntityTypeConfiguration<Checkli
 {
     public void Configure(EntityTypeBuilder<ChecklistResultItem> builder)
     {
-        builder.ToTable("ChecklistResultItems");
+        builder.ToTable("ChecklistResultItems", t =>
+        {
+            t.HasCheckConstraint("CK_ChecklistResultItems_MaxScore", "[MaxScore] > 0");
+            t.HasCheckConstraint("CK_ChecklistResultItems_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+            t.HasCheckConstraint("CK_ChecklistResultItems_Score", "[Score] IS NULL OR ([Score] >= 0 AND [Score] <= [MaxScore])");
+        });
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.CriterionId).IsRequired();
         builder.Property(x => x.Order).IsRequired();
         builder.Property(x => x.TitleVi).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.MaxScore).HasPrecision(5, 2).IsRequired();
+        builder.Property(x => x.PassScore).HasPrecision(5, 2).IsRequired();
+        builder.Property(x => x.Score).HasPrecision(5, 2);
+        builder.Property(x => x.Comment).HasMaxLength(2000);
         builder.Property(x => x.IsPassed).IsRequired();
 
         builder.HasIndex(x => x.ProjectEvaluationChecklistId);

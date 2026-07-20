@@ -4,11 +4,12 @@ using TEDF.Application.Features.EvaluationChecklists.DTOs;
 
 namespace TEDF.Application.Features.EvaluationChecklists.Commands.CreateChecklistConfig;
 
-/// <summary>Department Head creates a new Draft checklist configuration for a semester.</summary>
+/// <summary>Department Head creates a new Draft checklist configuration for a semester (manual entry).</summary>
 [ActionLog("Create Checklist Config", "EvaluationChecklist")]
 public record CreateChecklistConfigCommand(
     int SemesterId,
-    IReadOnlyList<ChecklistCriterionInput> Criteria
+    IReadOnlyList<ChecklistCriterionInput> Criteria,
+    int RequiredPassCount
 ) : ICacheInvalidatingCommand<Guid>
 {
     public IReadOnlyCollection<string> CachePrefixesToInvalidate => ["checklist-configs:"];

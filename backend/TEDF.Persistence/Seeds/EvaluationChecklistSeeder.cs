@@ -35,9 +35,12 @@ public static class EvaluationChecklistSeeder
         foreach (var semesterId in missing)
         {
             var criteria = DefaultChecklistCriteria.Items
-                .Select(i => (i.TitleVi, i.TitleEn, (string?)i.Description));
+                .Select(i => new ChecklistCriterionSpec(
+                    i.TitleVi, i.TitleEn, i.Description,
+                    DefaultChecklistCriteria.DefaultMaxScore, DefaultChecklistCriteria.DefaultPassScore));
 
-            var config = ChecklistConfig.Create(semesterId, version: 1, criteria);
+            var config = ChecklistConfig.Create(
+                semesterId, version: 1, criteria, DefaultChecklistCriteria.DefaultRequiredPassCount);
             config.Activate();
             await context.Set<ChecklistConfig>().AddAsync(config);
         }

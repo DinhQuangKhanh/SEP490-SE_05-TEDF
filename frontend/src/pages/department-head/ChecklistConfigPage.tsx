@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { checklistService } from "@/lib";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -6,6 +6,7 @@ import type {
   ChecklistConfigDto,
   ChecklistConfigListResponse,
   ChecklistCriterionInput,
+  ChecklistImportPreviewResponse,
   ChecklistSemesterOptionDto,
 } from "@/types";
 
@@ -14,8 +15,6 @@ const STATUS_DISPLAY: Record<string, { label: string; colors: string }> = {
   Active: { label: "Đang áp dụng", colors: "bg-green-50 text-green-600 border-green-200" },
   Inactive: { label: "Ngừng áp dụng", colors: "bg-gray-100 text-gray-500 border-gray-200" },
 };
-
-const MAX_CRITERIA = 10;
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -33,6 +32,7 @@ export function ChecklistConfigPage() {
     open: false,
     config: null,
   });
+  const [importOpen, setImportOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "activate" | "deactivate"; config: ChecklistConfigDto } | null>(null);
   const [copyFor, setCopyFor] = useState<ChecklistConfigDto | null>(null);
 
@@ -96,16 +96,25 @@ export function ChecklistConfigPage() {
               Checklist thẩm định đề tài
             </h2>
             <p className="text-blue-100/80 text-sm">
-              Quản lý bộ tiêu chí thẩm định áp dụng cho từng học kỳ.
+              Quản lý bộ tiêu chí thẩm định (import từ Excel) áp dụng cho từng học kỳ.
             </p>
           </div>
-          <button
-            onClick={() => setEditor({ open: true, config: null })}
-            className="flex items-center gap-2 h-11 px-5 rounded-xl bg-white text-primary font-semibold text-sm hover:bg-blue-50 shadow"
-          >
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            Tạo checklist mới
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEditor({ open: true, config: null })}
+              className="flex items-center gap-2 h-11 px-4 rounded-xl bg-white/15 text-white font-semibold text-sm hover:bg-white/25"
+            >
+              <span className="material-symbols-outlined text-[20px]">edit_note</span>
+              Tạo thủ công
+            </button>
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 h-11 px-5 rounded-xl bg-white text-primary font-semibold text-sm hover:bg-blue-50 shadow"
+            >
+              <span className="material-symbols-outlined text-[20px]">upload_file</span>
+              Import Excel
+            </button>
+          </div>
         </div>
       </header>
 
@@ -144,14 +153,16 @@ export function ChecklistConfigPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-100">
-                    {["Học kỳ", "Phiên bản", "Trạng thái", "Số tiêu chí", "Cập nhật", "Thao tác"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    {["Học kỳ", "Phiên bản", "Trạng thái", "Số tiêu chí", "Cần đạt tối thiểu", "File nguồn", "Cập nhật", "Thao tác"].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -170,10 +181,12 @@ export function ChecklistConfigPage() {
                             {status?.label ?? config.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{config.criteriaCount}</td>
                         <td className="px-6 py-4 text-sm text-slate-600">
-                          <span className={config.criteriaCount === MAX_CRITERIA ? "" : "text-amber-600 font-semibold"}>
-                            {config.criteriaCount}/{MAX_CRITERIA}
-                          </span>
+                          {config.requiredPassCount}/{config.criteriaCount}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-500 max-w-[180px] truncate" title={config.sourceFileName ?? ""}>
+                          {config.sourceFileName ?? "—"}
                         </td>
                         <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">
                           <div>{formatDate(config.updatedAt ?? config.createdAt)}</div>
@@ -223,7 +236,18 @@ export function ChecklistConfigPage() {
         </div>
       </div>
 
-      {/* Editor modal */}
+      {/* Import modal */}
+      <ChecklistImportDialog
+        open={importOpen}
+        semesters={semesters}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          refresh();
+        }}
+      />
+
+      {/* Editor modal (manual create / edit / view) */}
       <ChecklistConfigEditor
         open={editor.open}
         config={editor.config}
@@ -269,18 +293,288 @@ export function ChecklistConfigPage() {
   );
 }
 
-// ── Editor (create / edit / view) ───────────────────────────────────────────
-type EditorRow = { key: string; titleVi: string; titleEn: string; description: string };
+// ── Import dialog (choose file → preview → configure threshold → confirm) ────
+function ChecklistImportDialog({
+  open,
+  semesters,
+  onClose,
+  onImported,
+}: {
+  open: boolean;
+  semesters: ChecklistSemesterOptionDto[];
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const { showError } = useSystemError();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [semesterId, setSemesterId] = useState<string>("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ChecklistImportPreviewResponse | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [requiredPassCount, setRequiredPassCount] = useState<number>(1);
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSemesterId("");
+    setFile(null);
+    setPreview(null);
+    setRequiredPassCount(1);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [open]);
+
+  const validCount = preview?.criteriaCount ?? 0;
+
+  async function handleDownloadTemplate() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await checklistService.downloadTemplate();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "checklist-tham-dinh-mau.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Không thể tải file mẫu.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0] ?? null;
+    setFile(chosen);
+    setPreview(null);
+    if (!chosen) return;
+
+    setPreviewing(true);
+    try {
+      const result = await checklistService.previewImport(chosen);
+      setPreview(result);
+      // Default the threshold to ~70% of valid criteria, clamped to [1, count].
+      if (result.isValid && result.criteriaCount > 0) {
+        setRequiredPassCount(Math.min(result.criteriaCount, Math.max(1, Math.ceil(result.criteriaCount * 0.7))));
+      }
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Không thể đọc file. Vui lòng thử lại.");
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  const thresholdValid = requiredPassCount >= 1 && requiredPassCount <= validCount;
+  const canImport = !!semesterId && !!file && !!preview?.isValid && thresholdValid && !importing;
+
+  async function handleImport() {
+    if (!canImport || !file) return;
+    setImporting(true);
+    try {
+      await checklistService.importConfig(Number(semesterId), requiredPassCount, file);
+      onImported();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Không thể import checklist.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Import checklist từ Excel</h3>
+                <p className="text-xs text-slate-500">
+                  Chọn học kỳ và file .xlsx. Hệ thống kiểm tra dữ liệu trước khi tạo checklist (bản nháp).
+                </p>
+              </div>
+              <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Học kỳ áp dụng</label>
+                  <select
+                    value={semesterId}
+                    onChange={(e) => setSemesterId(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
+                  >
+                    <option value="">— Chọn học kỳ —</option>
+                    {semesters.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    disabled={downloading}
+                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-semibold text-slate-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    {downloading ? "Đang tải..." : "Tải file mẫu"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">File Excel (.xlsx)</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
+                />
+              </div>
+
+              {previewing && (
+                <div className="flex items-center justify-center gap-3 py-8 text-slate-400">
+                  <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                  <span className="text-sm">Đang đọc file...</span>
+                </div>
+              )}
+
+              {preview && !previewing && (
+                <div className="space-y-3">
+                  {preview.errors.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                      <p className="mb-1 font-bold">File có {preview.errors.length} lỗi cần sửa:</p>
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {preview.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {preview.rows.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-gray-50">
+                            <tr className="border-b border-gray-100 text-[10px] uppercase text-slate-500">
+                              <th className="px-3 py-2">#</th>
+                              <th className="px-3 py-2">Tên tiêu chí</th>
+                              <th className="px-3 py-2 text-right">Điểm tối đa</th>
+                              <th className="px-3 py-2 text-right">Điểm đạt</th>
+                              <th className="px-3 py-2">Lỗi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {preview.rows.map((row) => (
+                              <tr key={row.rowNumber} className={row.errors.length > 0 ? "bg-red-50/40" : ""}>
+                                <td className="px-3 py-2 text-slate-400">{row.order}</td>
+                                <td className="px-3 py-2">
+                                  <div className="font-semibold text-slate-700">{row.titleVi || <span className="text-red-500">(trống)</span>}</div>
+                                  {row.titleEn && <div className="text-slate-400">{row.titleEn}</div>}
+                                </td>
+                                <td className="px-3 py-2 text-right text-slate-600">{row.maxScore ?? "—"}</td>
+                                <td className="px-3 py-2 text-right text-slate-600">{row.passScore ?? "—"}</td>
+                                <td className="px-3 py-2 text-red-600">{row.errors.join("; ")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {preview.isValid && (
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-3">
+                      <span className="text-sm font-semibold text-green-700">
+                        Hợp lệ • {preview.criteriaCount} tiêu chí
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">Số tiêu chí tối thiểu cần đạt:</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={validCount}
+                          value={requiredPassCount}
+                          onChange={(e) => setRequiredPassCount(Number(e.target.value))}
+                          className="h-8 w-20 rounded-lg border border-gray-200 px-2 text-sm outline-none focus:border-primary"
+                        />
+                        <span className="text-xs text-slate-500">/ {validCount}</span>
+                      </div>
+                      {!thresholdValid && (
+                        <span className="text-xs font-semibold text-red-600">
+                          Phải từ 1 đến {validCount}.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-6 py-4">
+              <button onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
+                Huỷ
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={!canImport}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
+              >
+                {importing ? (
+                  <>
+                    <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Đang import...
+                  </>
+                ) : (
+                  "Xác nhận tạo checklist"
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ── Editor (manual create / edit / view) ─────────────────────────────────────
+type EditorRow = { key: string; titleVi: string; titleEn: string; description: string; maxScore: string; passScore: string };
 
 let rowKeySeq = 0;
 const nextKey = () => `row-${rowKeySeq++}`;
 
-function toRows(criteria: { titleVi: string; titleEn: string; description: string | null }[]): EditorRow[] {
+function toRows(
+  criteria: { titleVi: string; titleEn: string; description: string | null; maxScore: number; passScore: number }[],
+): EditorRow[] {
   return criteria.map((c) => ({
     key: nextKey(),
     titleVi: c.titleVi,
     titleEn: c.titleEn,
     description: c.description ?? "",
+    maxScore: String(c.maxScore),
+    passScore: String(c.passScore),
   }));
 }
 
@@ -303,6 +597,7 @@ function ChecklistConfigEditor({
 
   const [semesterId, setSemesterId] = useState<string>("");
   const [rows, setRows] = useState<EditorRow[]>([]);
+  const [requiredPassCount, setRequiredPassCount] = useState<number>(1);
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
 
@@ -311,20 +606,23 @@ function ChecklistConfigEditor({
     if (config) {
       setSemesterId(String(config.semesterId));
       setRows(toRows(config.criteria));
+      setRequiredPassCount(config.requiredPassCount);
     } else {
-      // New checklist: pull the 10 default criteria from the backend (not hard-coded here).
+      // New checklist: pull the default criteria (with scores) from the backend (not hard-coded here).
       setSemesterId("");
       setRows([]);
+      setRequiredPassCount(1);
       setPrefilling(true);
       checklistService
         .getDefaultCriteria()
-        .then((defaults) => setRows(toRows(defaults)))
+        .then((defaults) => {
+          setRows(toRows(defaults));
+          setRequiredPassCount(Math.min(defaults.length, Math.max(1, Math.ceil(defaults.length * 0.7))));
+        })
         .catch((err) => showError(err instanceof Error ? err.message : "Không thể tải tiêu chí mặc định."))
         .finally(() => setPrefilling(false));
     }
   }, [open, config, showError]);
-
-  const passThreshold = config?.passThreshold ?? 7;
 
   function updateRow(key: string, patch: Partial<EditorRow>) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -341,35 +639,50 @@ function ChecklistConfigEditor({
   }
 
   function addRow() {
-    setRows((prev) => (prev.length >= MAX_CRITERIA ? prev : [...prev, { key: nextKey(), titleVi: "", titleEn: "", description: "" }]));
+    setRows((prev) => [...prev, { key: nextKey(), titleVi: "", titleEn: "", description: "", maxScore: "10", passScore: "7" }]);
   }
 
   function removeRow(key: string) {
     setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.key !== key)));
   }
 
+  function validate(): string | null {
+    if (!isEdit && !semesterId) return "Vui lòng chọn học kỳ.";
+    if (rows.length < 1) return "Checklist phải có ít nhất 1 tiêu chí.";
+    for (const [i, r] of rows.entries()) {
+      if (!r.titleVi.trim()) return `Tiêu chí ${i + 1}: tên (tiếng Việt) không được để trống.`;
+      const max = Number(r.maxScore);
+      const pass = Number(r.passScore);
+      if (!Number.isFinite(max) || max <= 0) return `Tiêu chí ${i + 1}: điểm tối đa phải lớn hơn 0.`;
+      if (!Number.isFinite(pass) || pass < 0) return `Tiêu chí ${i + 1}: điểm đạt không được âm.`;
+      if (pass > max) return `Tiêu chí ${i + 1}: điểm đạt không được lớn hơn điểm tối đa.`;
+    }
+    if (requiredPassCount < 1 || requiredPassCount > rows.length)
+      return `Số tiêu chí tối thiểu cần đạt phải từ 1 đến ${rows.length}.`;
+    return null;
+  }
+
   async function handleSave() {
     if (saving || readOnly) return;
-    if (!isEdit && !semesterId) {
-      showError("Vui lòng chọn học kỳ.");
-      return;
-    }
-    if (rows.some((r) => !r.titleVi.trim())) {
-      showError("Tên tiêu chí (tiếng Việt) không được để trống.");
+    const validationError = validate();
+    if (validationError) {
+      showError(validationError);
       return;
     }
     const criteria: ChecklistCriterionInput[] = rows.map((r) => ({
       titleVi: r.titleVi.trim(),
       titleEn: r.titleEn.trim(),
       description: r.description.trim() || null,
+      maxScore: Number(r.maxScore),
+      passScore: Number(r.passScore),
     }));
 
     setSaving(true);
     try {
       if (config) {
-        await checklistService.updateConfig(config.id, { criteria });
+        await checklistService.updateConfig(config.id, { criteria, requiredPassCount });
       } else {
-        await checklistService.createConfig({ semesterId: Number(semesterId), criteria });
+        await checklistService.createConfig({ semesterId: Number(semesterId), criteria, requiredPassCount });
       }
       onSaved();
     } catch (err) {
@@ -394,14 +707,16 @@ function ChecklistConfigEditor({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  {config ? (readOnly ? "Xem checklist" : "Chỉnh sửa checklist") : "Tạo checklist mới"}
+                  {config ? (readOnly ? "Xem checklist" : "Chỉnh sửa checklist") : "Tạo checklist thủ công"}
                 </h3>
-                <p className="text-xs text-slate-500">Yêu cầu đúng {MAX_CRITERIA} tiêu chí để kích hoạt • đạt tối thiểu {passThreshold}/{MAX_CRITERIA}.</p>
+                <p className="text-xs text-slate-500">
+                  Cấu hình tiêu chí, điểm tối đa/điểm đạt và số tiêu chí tối thiểu cần đạt.
+                </p>
               </div>
               <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
                 <span className="material-symbols-outlined text-[20px]">close</span>
@@ -411,27 +726,43 @@ function ChecklistConfigEditor({
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
               {readOnly && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                  Checklist đã áp dụng không thể chỉnh sửa trực tiếp. Hãy dùng “Sao chép” để tạo phiên bản mới.
+                  Checklist đã áp dụng không thể chỉnh sửa trực tiếp. Hãy dùng "Sao chép" để tạo phiên bản mới.
                 </div>
               )}
 
-              {!isEdit && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {!isEdit && (
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Học kỳ áp dụng</label>
+                    <select
+                      value={semesterId}
+                      onChange={(e) => setSemesterId(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
+                    >
+                      <option value="">— Chọn học kỳ —</option>
+                      {semesters.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Học kỳ áp dụng</label>
-                  <select
-                    value={semesterId}
-                    onChange={(e) => setSemesterId(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
-                  >
-                    <option value="">— Chọn học kỳ —</option>
-                    {semesters.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                    Số tiêu chí tối thiểu cần đạt
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={rows.length}
+                    value={requiredPassCount}
+                    disabled={readOnly}
+                    onChange={(e) => setRequiredPassCount(Number(e.target.value))}
+                    className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary disabled:opacity-70"
+                  />
                 </div>
-              )}
+              </div>
 
               {prefilling ? (
                 <div className="flex items-center justify-center gap-3 py-10 text-slate-400">
@@ -469,6 +800,32 @@ function ChecklistConfigEditor({
                             rows={2}
                             className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
                           />
+                          <div className="grid grid-cols-2 gap-2 md:w-1/2">
+                            <div>
+                              <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">Điểm tối đa</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.5"
+                                value={row.maxScore}
+                                disabled={readOnly}
+                                onChange={(e) => updateRow(row.key, { maxScore: e.target.value })}
+                                className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">Điểm đạt</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.5"
+                                value={row.passScore}
+                                disabled={readOnly}
+                                onChange={(e) => updateRow(row.key, { passScore: e.target.value })}
+                                className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
+                              />
+                            </div>
+                          </div>
                         </div>
                         {!readOnly && (
                           <div className="flex flex-col gap-1">
@@ -501,13 +858,13 @@ function ChecklistConfigEditor({
                       </div>
                     </div>
                   ))}
-                  {!readOnly && rows.length < MAX_CRITERIA && (
+                  {!readOnly && (
                     <button
                       onClick={addRow}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-semibold text-slate-500 hover:bg-gray-50"
                     >
                       <span className="material-symbols-outlined text-[18px]">add</span>
-                      Thêm tiêu chí ({rows.length}/{MAX_CRITERIA})
+                      Thêm tiêu chí ({rows.length})
                     </button>
                   )}
                 </div>
@@ -515,9 +872,7 @@ function ChecklistConfigEditor({
             </div>
 
             <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
-              <span className={`text-sm font-semibold ${rows.length === MAX_CRITERIA ? "text-green-600" : "text-amber-600"}`}>
-                {rows.length}/{MAX_CRITERIA} tiêu chí
-              </span>
+              <span className="text-sm font-semibold text-slate-600">{rows.length} tiêu chí</span>
               <div className="flex gap-2">
                 <button onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
                   {readOnly ? "Đóng" : "Huỷ"}
@@ -603,7 +958,7 @@ function CopyChecklistDialog({
           >
             <h3 className="mb-1 text-base font-bold text-slate-900">Sao chép checklist</h3>
             <p className="mb-4 text-sm text-slate-500">
-              Tạo bản nháp mới từ checklist “{source.semesterName} v{source.version}” cho học kỳ đích.
+              Tạo bản nháp mới từ checklist "{source.semesterName} v{source.version}" cho học kỳ đích.
             </p>
             <select
               value={target}

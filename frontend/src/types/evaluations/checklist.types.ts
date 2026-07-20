@@ -8,6 +8,13 @@ export interface ProjectChecklistItemDto {
   titleVi: string;
   titleEn: string;
   description: string | null;
+  maxScore: number;
+  passScore: number;
+  /** The evaluator's score for this criterion; null until scored. */
+  score: number | null;
+  /** The evaluator's per-criterion comment. */
+  comment: string | null;
+  /** Server-computed: score != null && score >= passScore. */
   isPassed: boolean;
 }
 
@@ -28,8 +35,14 @@ export interface ProjectChecklistResponse {
   items: ProjectChecklistItemDto[];
 }
 
+export interface ChecklistScoreItemInput {
+  criterionId: string;
+  score: number | null;
+  comment?: string | null;
+}
+
 export interface SaveProjectChecklistRequest {
-  passedCriterionIds: string[];
+  items: ChecklistScoreItemInput[];
   note?: string | null;
 }
 
@@ -42,6 +55,8 @@ export interface ChecklistCriterionDto {
   titleVi: string;
   titleEn: string;
   description: string | null;
+  maxScore: number;
+  passScore: number;
 }
 
 export interface ChecklistConfigDto {
@@ -50,8 +65,9 @@ export interface ChecklistConfigDto {
   semesterName: string;
   version: number;
   status: ChecklistConfigStatus;
-  passThreshold: number;
+  requiredPassCount: number;
   criteriaCount: number;
+  sourceFileName: string | null;
   isUsed: boolean;
   createdAt: string;
   createdBy: string | null;
@@ -79,24 +95,50 @@ export interface ChecklistCriterionSeedDto {
   titleVi: string;
   titleEn: string;
   description: string;
+  maxScore: number;
+  passScore: number;
 }
 
-/** Editable criterion payload sent to create/update/copy endpoints. */
+/** Editable criterion payload sent to create/update endpoints. */
 export interface ChecklistCriterionInput {
   titleVi: string;
   titleEn: string;
   description?: string | null;
+  maxScore: number;
+  passScore: number;
 }
 
 export interface CreateChecklistConfigRequest {
   semesterId: number;
   criteria: ChecklistCriterionInput[];
+  requiredPassCount: number;
 }
 
 export interface UpdateChecklistConfigRequest {
   criteria: ChecklistCriterionInput[];
+  requiredPassCount: number;
 }
 
 export interface CopyChecklistConfigRequest {
   targetSemesterId: number;
+}
+
+// ── Department Head: Excel import preview ───────────────────────────────────
+export interface ChecklistImportPreviewRowDto {
+  rowNumber: number;
+  order: number;
+  titleVi: string;
+  titleEn: string;
+  description: string | null;
+  maxScore: number | null;
+  passScore: number | null;
+  errors: string[];
+}
+
+export interface ChecklistImportPreviewResponse {
+  /** True when the file has criteria and no row/file-level errors. */
+  isValid: boolean;
+  criteriaCount: number;
+  rows: ChecklistImportPreviewRowDto[];
+  errors: string[];
 }

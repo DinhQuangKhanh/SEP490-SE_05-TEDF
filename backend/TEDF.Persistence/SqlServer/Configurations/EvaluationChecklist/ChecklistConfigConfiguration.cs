@@ -16,7 +16,12 @@ public class ChecklistConfigConfiguration : IEntityTypeConfiguration<ChecklistCo
         builder.Property(c => c.SemesterId).IsRequired();
         builder.Property(c => c.Version).IsRequired();
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
-        builder.Property(c => c.PassThreshold).IsRequired();
+
+        // Mapped to the existing "PassThreshold" column (same semantics: minimum criteria to pass) so the
+        // rename to RequiredPassCount carries no data migration and preserves existing configs' values.
+        builder.Property(c => c.RequiredPassCount).HasColumnName("PassThreshold").IsRequired();
+
+        builder.Property(c => c.SourceFileName).HasMaxLength(255);
         builder.Property(c => c.CreatedAt).IsRequired();
 
         // At most one Active config per semester.
@@ -50,13 +55,19 @@ public class ChecklistCriterionConfiguration : IEntityTypeConfiguration<Checklis
 {
     public void Configure(EntityTypeBuilder<ChecklistCriterion> builder)
     {
-        builder.ToTable("ChecklistCriteria");
+        builder.ToTable("ChecklistCriteria", t =>
+        {
+            t.HasCheckConstraint("CK_ChecklistCriteria_MaxScore", "[MaxScore] > 0");
+            t.HasCheckConstraint("CK_ChecklistCriteria_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+        });
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Order).IsRequired();
         builder.Property(x => x.TitleVi).HasMaxLength(300).IsRequired();
         builder.Property(x => x.TitleEn).HasMaxLength(300).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(2000);
+        builder.Property(x => x.MaxScore).HasPrecision(5, 2).IsRequired();
+        builder.Property(x => x.PassScore).HasPrecision(5, 2).IsRequired();
 
         builder.HasIndex(x => x.ChecklistConfigId);
     }

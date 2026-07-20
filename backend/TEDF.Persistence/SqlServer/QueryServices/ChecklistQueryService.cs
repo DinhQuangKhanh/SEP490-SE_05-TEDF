@@ -62,7 +62,8 @@ public class ChecklistQueryService : IChecklistQueryService
                     criteriaById.TryGetValue(i.CriterionId, out var criterion);
                     return new ProjectChecklistItemDto(
                         i.CriterionId, i.Order, i.TitleVi,
-                        criterion?.TitleEn ?? string.Empty, criterion?.Description, i.IsPassed);
+                        criterion?.TitleEn ?? string.Empty, criterion?.Description,
+                        i.MaxScore, i.PassScore, i.Score, i.Comment, i.IsPassed);
                 })
                 .ToList();
 
@@ -80,7 +81,7 @@ public class ChecklistQueryService : IChecklistQueryService
                 Items: savedItems);
         }
 
-        // No saved result yet: build an initial (unsaved) view from the semester's Active config.
+        // No saved result yet: build an initial (unscored) view from the semester's Active config.
         var config = await _context.ChecklistConfigs
             .AsNoTracking()
             .Include(c => c.Criteria)
@@ -93,7 +94,7 @@ public class ChecklistQueryService : IChecklistQueryService
                 HasActiveConfig: false,
                 ConfigId: null,
                 TotalCriteria: 0,
-                RequiredPassCount: ChecklistConfig.DefaultPassThreshold,
+                RequiredPassCount: 0,
                 PassedCount: 0,
                 CanApprove: false,
                 IsSaved: false,
@@ -104,7 +105,9 @@ public class ChecklistQueryService : IChecklistQueryService
 
         var items = config.Criteria
             .OrderBy(c => c.Order)
-            .Select(c => new ProjectChecklistItemDto(c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description, IsPassed: false))
+            .Select(c => new ProjectChecklistItemDto(
+                c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description,
+                c.MaxScore, c.PassScore, Score: null, Comment: null, IsPassed: false))
             .ToList();
 
         return new ProjectChecklistDto(
@@ -112,7 +115,7 @@ public class ChecklistQueryService : IChecklistQueryService
             HasActiveConfig: true,
             ConfigId: config.Id,
             TotalCriteria: items.Count,
-            RequiredPassCount: config.PassThreshold,
+            RequiredPassCount: config.RequiredPassCount,
             PassedCount: 0,
             CanApprove: false,
             IsSaved: false,
@@ -213,7 +216,7 @@ public class ChecklistQueryService : IChecklistQueryService
     {
         var criteria = config.Criteria
             .OrderBy(c => c.Order)
-            .Select(c => new ChecklistCriterionDto(c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description))
+            .Select(c => new ChecklistCriterionDto(c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
             .ToList();
 
         return new ChecklistConfigDto(
@@ -222,8 +225,9 @@ public class ChecklistQueryService : IChecklistQueryService
             SemesterName: semesterName,
             Version: config.Version,
             Status: config.Status.ToString(),
-            PassThreshold: config.PassThreshold,
+            RequiredPassCount: config.RequiredPassCount,
             CriteriaCount: criteria.Count,
+            SourceFileName: config.SourceFileName,
             IsUsed: isUsed,
             CreatedAt: config.CreatedAt,
             CreatedBy: config.CreatedBy,

@@ -1,5 +1,4 @@
 using FluentValidation;
-using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 
 namespace TEDF.Application.Features.EvaluationChecklists.Commands.CreateChecklistConfig;
 
@@ -11,15 +10,15 @@ public class CreateChecklistConfigCommandValidator : AbstractValidator<CreateChe
 
         RuleFor(x => x.Criteria)
             .NotNull().WithMessage("Danh sách tiêu chí không hợp lệ.")
-            .Must(c => c is not null && c.Count >= 1 && c.Count <= ChecklistConfig.RequiredCriteriaCount)
-            .WithMessage($"Checklist phải có từ 1 đến {ChecklistConfig.RequiredCriteriaCount} tiêu chí.");
+            .Must(c => c is not null && c.Count >= 1)
+            .WithMessage("Checklist phải có ít nhất 1 tiêu chí.");
 
-        RuleForEach(x => x.Criteria).ChildRules(c =>
-        {
-            c.RuleFor(i => i.TitleVi).NotEmpty().WithMessage("Tên tiêu chí (tiếng Việt) không được để trống.")
-                .MaximumLength(300);
-            c.RuleFor(i => i.TitleEn).MaximumLength(300);
-            c.RuleFor(i => i.Description).MaximumLength(2000);
-        });
+        RuleForEach(x => x.Criteria).SetValidator(new ChecklistCriterionInputValidator());
+
+        RuleFor(x => x.RequiredPassCount)
+            .GreaterThan(0).WithMessage("Số tiêu chí tối thiểu cần đạt phải lớn hơn 0.")
+            .LessThanOrEqualTo(x => x.Criteria == null ? 0 : x.Criteria.Count)
+            .When(x => x.Criteria is not null && x.Criteria.Count >= 1)
+            .WithMessage("Số tiêu chí tối thiểu cần đạt không được lớn hơn tổng số tiêu chí.");
     }
 }

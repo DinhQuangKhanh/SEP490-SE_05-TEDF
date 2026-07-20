@@ -99,7 +99,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 {
                     // Evaluators disagree — CNBM must decide
                     await HandleConflictingResultsAsync(
-                        projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
+                        notification.ProjectId, projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
                 }
 
                 _logger.LogInformation("Evaluation result submitted for project {ProjectId} by {EvaluatorId}: {Result}",
@@ -162,7 +162,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
         }
 
         private async Task HandleConflictingResultsAsync(
-            string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
+            Guid projectId, string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
             CancellationToken ct)
         {
             // Notify CNBM — they need to make a final decision
@@ -190,7 +190,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 $"Kết quả thẩm định đề tài '{projectName}' đang chờ chủ nhiệm bộ môn quyết định.",
                 NotificationType.Info,
                 NotificationCategory.Evaluation,
-                "/lecturer/moderate",
+                $"/lecturer/moderate/{projectId}",
                 ct);
         }
 

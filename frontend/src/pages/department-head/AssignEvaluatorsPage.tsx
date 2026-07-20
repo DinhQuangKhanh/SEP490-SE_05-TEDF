@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
+import { EvaluatorChecklistViewButton } from "@/components/lecturer";
 import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
@@ -183,7 +184,7 @@ export function AssignEvaluatorsPage() {
   const pageNumbers = getPageNumbers(page, totalPages);
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <Header
         title="Phân công thẩm định"
         subtitle="Phân công evaluator và theo dõi kết quả thẩm định đề tài"
@@ -191,7 +192,7 @@ export function AssignEvaluatorsPage() {
         showSearch={false}
       />
 
-      <div className="p-8">
+      <div className="flex-1 overflow-y-auto p-8">
         {/* Search */}
         <div className="mb-4">
           <div className="relative max-w-md">
@@ -521,6 +522,15 @@ function NeedsDecisionTab({
                   {resultLabel(a.individualResult)}
                 </p>
                 {a.feedback && <p className="mt-1 text-xs text-slate-500 line-clamp-3">{a.feedback}</p>}
+                {a.hasSubmitted && (
+                  <div className="mt-2">
+                    <EvaluatorChecklistViewButton
+                      projectId={p.projectId}
+                      evaluatorId={a.evaluatorId}
+                      evaluatorName={a.evaluatorName}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -393,7 +393,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
 
   useSignalR({
     onRegistrationUpdate: (raw) => {
-      const update = raw as RegistrationUpdate;
+      const update = raw as unknown as RegistrationUpdate;
       if (update.action === "removed") {
         setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== update.registrationId));
       } else if (update.action === "added") {

@@ -1,3 +1,5 @@
+using TEDF.Application.Common.Interfaces;
+using TEDF.Application.Features.EvaluationChecklists.DTOs;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
@@ -6,7 +8,7 @@ using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Enums.Project;
 using TEDF.Domain.Services;
-using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserService;
+using AppCurrentUser = TEDF.Application.Common.Interfaces.ICurrentUserService;
 
 namespace TEDF.Infrastructure.Services.DomainServices;
 
@@ -16,21 +18,23 @@ namespace TEDF.Infrastructure.Services.DomainServices;
 /// </summary>
 public class ChecklistDomainService : IChecklistDomainService
 {
-    private readonly ICurrentUserService _currentUser;
+    private readonly AppCurrentUser _currentUser;
     private readonly IProjectRepository _projectRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
     private readonly IChecklistConfigRepository _configRepository;
     private readonly IProjectEvaluationChecklistRepository _checklistRepository;
     private readonly ISemesterRepository _semesterRepository;
+    private readonly IChecklistExcelService _excelService;
     private readonly IUnitOfWork _unitOfWork;
 
     public ChecklistDomainService(
-        ICurrentUserService currentUser,
+        AppCurrentUser currentUser,
         IProjectRepository projectRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
         IChecklistConfigRepository configRepository,
         IProjectEvaluationChecklistRepository checklistRepository,
         ISemesterRepository semesterRepository,
+        IChecklistExcelService excelService,
         IUnitOfWork unitOfWork)
     {
         _currentUser = currentUser;
@@ -39,11 +43,12 @@ public class ChecklistDomainService : IChecklistDomainService
         _configRepository = configRepository;
         _checklistRepository = checklistRepository;
         _semesterRepository = semesterRepository;
+        _excelService = excelService;
         _unitOfWork = unitOfWork;
     }
 
     public async Task SaveProjectChecklistAsync(
-        Guid projectId, IReadOnlyList<Guid> passedCriterionIds, string? note, CancellationToken cancellationToken = default)
+        Guid projectId, IReadOnlyList<ChecklistScoreData> scores, string? note, CancellationToken cancellationToken = default)
     {
         var evaluatorId = RequireUserId();
 
@@ -60,6 +65,7 @@ public class ChecklistDomainService : IChecklistDomainService
                 "Chỉ có thể cập nhật checklist khi đề tài đang ở trạng thái chờ thẩm định.");
 
         var submissionNumber = project.EvaluationCount;
+        var entries = scores.Select(s => new ChecklistScoreEntry(s.CriterionId, s.Score, s.Comment)).ToList();
 
         var existing = await _checklistRepository.GetByProjectEvaluatorAsync(
             projectId, evaluatorId, submissionNumber, cancellationToken);
@@ -67,7 +73,7 @@ public class ChecklistDomainService : IChecklistDomainService
         if (existing is not null)
         {
             // Continue editing the snapshot the evaluator already started (its criteria match the UI).
-            existing.ApplyPassedCriteria(passedCriterionIds, note);
+            existing.ApplyScores(entries, note);
             _checklistRepository.Update(existing);
         }
         else
@@ -77,7 +83,7 @@ public class ChecklistDomainService : IChecklistDomainService
                     "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.");
 
             var checklist = ProjectEvaluationChecklist.CreateFromConfig(config, projectId, evaluatorId, submissionNumber);
-            checklist.ApplyPassedCriteria(passedCriterionIds, note);
+            checklist.ApplyScores(entries, note);
             await _checklistRepository.AddAsync(checklist, cancellationToken);
         }
 
@@ -85,14 +91,44 @@ public class ChecklistDomainService : IChecklistDomainService
     }
 
     public async Task<Guid> CreateConfigAsync(
-        int semesterId, IReadOnlyList<ChecklistCriterionData> criteria, CancellationToken cancellationToken = default)
+        int semesterId, IReadOnlyList<ChecklistCriterionData> criteria, int requiredPassCount,
+        CancellationToken cancellationToken = default)
     {
         _ = await _semesterRepository.GetByIdAsync(semesterId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
 
         var version = await _configRepository.GetMaxVersionForSemesterAsync(semesterId, cancellationToken) + 1;
 
-        var config = ChecklistConfig.Create(semesterId, version, ToTuples(criteria), createdBy: _currentUser.UserId);
+        var config = ChecklistConfig.Create(
+            semesterId, version, ToSpecs(criteria), requiredPassCount, sourceFileName: null, createdBy: _currentUser.UserId);
+
+        await _configRepository.AddAsync(config, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return config.Id;
+    }
+
+    public async Task<Guid> ImportConfigAsync(
+        int semesterId, byte[] fileContent, string fileName, int requiredPassCount,
+        CancellationToken cancellationToken = default)
+    {
+        _ = await _semesterRepository.GetByIdAsync(semesterId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+
+        var parsed = _excelService.Parse(fileContent);
+
+        // Report data errors as a 400 (never a 500), naming the offending rows.
+        if (!parsed.IsValid)
+            throw new ValidationException(BuildImportErrorMessage(parsed));
+
+        var specs = parsed.Rows
+            .Select(r => new ChecklistCriterionData(
+                r.TitleVi, r.TitleEn, r.Description, r.MaxScore!.Value, r.PassScore!.Value));
+
+        var version = await _configRepository.GetMaxVersionForSemesterAsync(semesterId, cancellationToken) + 1;
+
+        var config = ChecklistConfig.Create(
+            semesterId, version, ToSpecs(specs.ToList()), requiredPassCount, sourceFileName: fileName, createdBy: _currentUser.UserId);
 
         await _configRepository.AddAsync(config, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -120,13 +156,14 @@ public class ChecklistDomainService : IChecklistDomainService
     }
 
     public async Task UpdateConfigAsync(
-        Guid id, IReadOnlyList<ChecklistCriterionData> criteria, CancellationToken cancellationToken = default)
+        Guid id, IReadOnlyList<ChecklistCriterionData> criteria, int requiredPassCount,
+        CancellationToken cancellationToken = default)
     {
         var config = await _configRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(ChecklistConfig), id);
 
         // Domain enforces "Draft only" — an Active/used config must be copied to a new version instead.
-        config.ReplaceCriteria(ToTuples(criteria), _currentUser.UserId);
+        config.ReplaceCriteria(ToSpecs(criteria), requiredPassCount, _currentUser.UserId);
 
         _configRepository.Update(config);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -145,7 +182,7 @@ public class ChecklistDomainService : IChecklistDomainService
             _configRepository.Update(currentActive);
         }
 
-        // Domain enforces the exactly-10-criteria rule here.
+        // Domain enforces the "≥1 criterion" and "required-pass in range" rules here.
         config.Activate(_currentUser.UserId);
         _configRepository.Update(config);
 
@@ -170,7 +207,15 @@ public class ChecklistDomainService : IChecklistDomainService
         return _currentUser.UserId.Value;
     }
 
-    private static IReadOnlyList<(string TitleVi, string TitleEn, string? Description)> ToTuples(
-        IReadOnlyList<ChecklistCriterionData> criteria)
-        => criteria.Select(c => (c.TitleVi, c.TitleEn, c.Description)).ToList();
+    private static IReadOnlyList<ChecklistCriterionSpec> ToSpecs(IReadOnlyList<ChecklistCriterionData> criteria)
+        => criteria.Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore)).ToList();
+
+    private static string BuildImportErrorMessage(ChecklistImportParseResult parsed)
+    {
+        var messages = parsed.GlobalErrors.ToList();
+        foreach (var row in parsed.Rows.Where(r => !r.IsValid))
+            messages.AddRange(row.Errors.Select(e => $"Dòng {row.RowNumber}: {e}"));
+
+        return "File checklist có dữ liệu không hợp lệ:\n- " + string.Join("\n- ", messages);
+    }
 }

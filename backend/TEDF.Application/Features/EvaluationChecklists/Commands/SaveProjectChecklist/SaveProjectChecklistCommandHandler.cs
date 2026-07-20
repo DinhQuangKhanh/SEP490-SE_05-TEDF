@@ -15,8 +15,11 @@ public class SaveProjectChecklistCommandHandler : ICommandHandler<SaveProjectChe
 
     public async Task<Unit> Handle(SaveProjectChecklistCommand request, CancellationToken cancellationToken)
     {
-        await _checklist.SaveProjectChecklistAsync(
-            request.ProjectId, request.PassedCriterionIds, request.Note, cancellationToken);
+        var scores = request.Items
+            .Select(i => new ChecklistScoreData(i.CriterionId, i.Score, i.Comment))
+            .ToList();
+
+        await _checklist.SaveProjectChecklistAsync(request.ProjectId, scores, request.Note, cancellationToken);
         return Unit.Value;
     }
 }

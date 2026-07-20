@@ -10,7 +10,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
 import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
-import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 
 const container = {
   hidden: { opacity: 0 },

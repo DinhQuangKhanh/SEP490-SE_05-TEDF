@@ -8,22 +8,25 @@ using TEDF.Domain.Enums.Evaluation;
 namespace TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 
 /// <summary>
-/// A versioned, per-semester checklist configuration managed by the Department Head.
-/// Owns its <see cref="ChecklistCriterion"/> collection. At most one Active config may exist per
-/// semester (enforced by the application layer + a filtered unique index).
+/// A versioned, per-semester checklist configuration managed by the Department Head (imported from Excel).
+/// Owns its <see cref="ChecklistCriterion"/> collection. At most one Active config may exist per semester
+/// (enforced by the application layer + a filtered unique index). The number of criteria is dynamic — it
+/// comes entirely from the imported file, with no hard-coded maximum.
 /// </summary>
 public class ChecklistConfig : AggregateRoot<Guid>
 {
-    /// <summary>A checklist must contain exactly this many criteria to be activated.</summary>
-    public const int RequiredCriteriaCount = 10;
-
-    /// <summary>Minimum passed criteria required for an evaluator to approve a topic.</summary>
-    public const int DefaultPassThreshold = 7;
-
     public int SemesterId { get; private set; }
     public int Version { get; private set; }
     public ChecklistConfigStatus Status { get; private set; }
-    public int PassThreshold { get; private set; }
+
+    /// <summary>
+    /// Minimum number of criteria an evaluator must pass to be allowed to approve a topic.
+    /// Configured per checklist by the Department Head; must be in [1, criteria count].
+    /// </summary>
+    public int RequiredPassCount { get; private set; }
+
+    /// <summary>Name of the Excel file this configuration was imported from (null for manual/legacy configs).</summary>
+    public string? SourceFileName { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
     public Guid? CreatedBy { get; private set; }
@@ -39,8 +42,9 @@ public class ChecklistConfig : AggregateRoot<Guid>
     public static ChecklistConfig Create(
         int semesterId,
         int version,
-        IEnumerable<(string TitleVi, string TitleEn, string? Description)> criteria,
-        int passThreshold = DefaultPassThreshold,
+        IEnumerable<ChecklistCriterionSpec> criteria,
+        int requiredPassCount,
+        string? sourceFileName = null,
         Guid? createdBy = null)
     {
         var config = new ChecklistConfig
@@ -49,39 +53,42 @@ public class ChecklistConfig : AggregateRoot<Guid>
             SemesterId = semesterId,
             Version = version,
             Status = ChecklistConfigStatus.Draft,
-            PassThreshold = passThreshold,
+            SourceFileName = string.IsNullOrWhiteSpace(sourceFileName) ? null : sourceFileName.Trim(),
             CreatedAt = DateTime.UtcNow,
             CreatedBy = createdBy
         };
 
         config.SetCriteriaInternal(criteria);
+        config.SetRequiredPassCountInternal(requiredPassCount);
         config.RaiseDomainEvent(new ChecklistConfigCreatedEvent(config.Id, semesterId, version));
         return config;
     }
 
-    /// <summary>Clones this config's criteria into a new Draft for <paramref name="targetSemesterId"/>.</summary>
+    /// <summary>Clones this config's criteria (with scores) into a new Draft for <paramref name="targetSemesterId"/>.</summary>
     public ChecklistConfig CopyTo(int targetSemesterId, int version, Guid? createdBy = null)
     {
         var ordered = _criteria.OrderBy(c => c.Order)
-            .Select(c => (c.TitleVi, c.TitleEn, (string?)c.Description));
-        return Create(targetSemesterId, version, ordered, PassThreshold, createdBy);
+            .Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore));
+        return Create(targetSemesterId, version, ordered, RequiredPassCount, SourceFileName, createdBy);
     }
 
     /// <summary>
-    /// Replaces all criteria (used for editing text and/or reordering). Only allowed while Draft —
-    /// an Active config that already has evaluation history must be forked into a new version instead.
+    /// Replaces all criteria and the required-pass count. Only allowed while Draft — an Active config that
+    /// already has evaluation history must be forked into a new version instead.
     /// </summary>
-    public void ReplaceCriteria(IEnumerable<(string TitleVi, string TitleEn, string? Description)> criteria, Guid? updatedBy = null)
+    public void ReplaceCriteria(IEnumerable<ChecklistCriterionSpec> criteria, int requiredPassCount, Guid? updatedBy = null)
     {
         EnsureDraft();
         SetCriteriaInternal(criteria);
+        SetRequiredPassCountInternal(requiredPassCount);
         Touch(updatedBy);
     }
 
     /// <summary>Activates the config, making it the checklist applied to the semester.</summary>
     public void Activate(Guid? activatedBy = null)
     {
-        CheckRule(new ChecklistConfigMustHaveExactlyTenCriteriaRule(_criteria.Count));
+        CheckRule(new ChecklistMustHaveCriteriaRule(_criteria.Count));
+        CheckRule(new ChecklistRequiredPassCountRule(RequiredPassCount, _criteria.Count));
 
         if (Status == ChecklistConfigStatus.Active)
             return;
@@ -101,16 +108,24 @@ public class ChecklistConfig : AggregateRoot<Guid>
         Touch(deactivatedBy);
     }
 
-    private void SetCriteriaInternal(IEnumerable<(string TitleVi, string TitleEn, string? Description)> criteria)
+    private void SetCriteriaInternal(IEnumerable<ChecklistCriterionSpec> criteria)
     {
         _criteria.Clear();
         var order = 1;
         foreach (var c in criteria)
         {
-            if (string.IsNullOrWhiteSpace(c.TitleVi))
-                throw new BusinessRuleValidationException("Tên tiêu chí (tiếng Việt) không được để trống.");
-            _criteria.Add(ChecklistCriterion.Create(Id, order++, c.TitleVi, c.TitleEn ?? string.Empty, c.Description));
+            // ChecklistCriterion.Create validates title + score bounds and throws a business rule error.
+            _criteria.Add(ChecklistCriterion.Create(
+                Id, order++, c.TitleVi, c.TitleEn ?? string.Empty, c.Description, c.MaxScore, c.PassScore));
         }
+    }
+
+    private void SetRequiredPassCountInternal(int requiredPassCount)
+    {
+        // Allow saving a Draft with an out-of-range value only when there are no criteria yet is NOT needed:
+        // the count is always validated against the current criteria so previews/imports fail fast.
+        CheckRule(new ChecklistRequiredPassCountRule(requiredPassCount, _criteria.Count));
+        RequiredPassCount = requiredPassCount;
     }
 
     private void EnsureDraft()

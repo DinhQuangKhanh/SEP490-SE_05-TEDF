@@ -16,10 +16,10 @@ public class UpdateChecklistConfigCommandHandler : ICommandHandler<UpdateCheckli
     public async Task<Unit> Handle(UpdateChecklistConfigCommand request, CancellationToken cancellationToken)
     {
         var criteria = request.Criteria
-            .Select(c => new ChecklistCriterionData(c.TitleVi, c.TitleEn, c.Description))
+            .Select(c => new ChecklistCriterionData(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
             .ToList();
 
-        await _checklist.UpdateConfigAsync(request.Id, criteria, cancellationToken);
+        await _checklist.UpdateConfigAsync(request.Id, criteria, request.RequiredPassCount, cancellationToken);
         return Unit.Value;
     }
 }

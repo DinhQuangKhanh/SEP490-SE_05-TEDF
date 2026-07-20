@@ -26,6 +26,7 @@ using TEDF.Infrastructure.Middleware;
 using TEDF.Infrastructure.RealTime.Services;
 using TEDF.Infrastructure.Services;
 using TEDF.Infrastructure.Services.DomainServices;
+using TEDF.Infrastructure.Services.Excel;
 using TEDF.Infrastructure.Services.Email;
 using TEDF.Infrastructure.Services.Email.Templates;
 using TEDF.Infrastructure.Services.FileStorage;
@@ -193,6 +194,7 @@ namespace TEDF.Infrastructure
             services.AddScoped<IProjectsDomainService, ProjectsDomainService>();
             services.AddScoped<IEvaluationsDomainService, EvaluationsDomainService>();
             services.AddScoped<IChecklistDomainService, ChecklistDomainService>();
+            services.AddScoped<IChecklistExcelService, ChecklistExcelService>();
             services.AddScoped<ITopicPoolsDomainService, TopicPoolsDomainService>();
             services.AddScoped<ISemestersDomainService, SemestersDomainService>();
             services.AddScoped<IStudentGroupsDomainService, StudentGroupsDomainService>();

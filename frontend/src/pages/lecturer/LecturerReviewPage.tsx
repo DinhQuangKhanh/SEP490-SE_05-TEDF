@@ -3,7 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService, checklistService } from "@/lib";
-import type { ProjectReviewResponse, SimilarTitleDto, ProjectChecklistResponse } from "@/types";
+import type {
+  ProjectReviewResponse,
+  SimilarTitleDto,
+  ProjectChecklistResponse,
+  ChecklistScoreItemInput,
+} from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { EvaluationChecklistModal } from "@/components/lecturer";
@@ -72,10 +77,18 @@ export function LecturerReviewPage() {
   }, [fetchChecklist]);
 
   const handleSaveChecklist = useCallback(
-    async (passedCriterionIds: string[], note: string) => {
+    async (items: ChecklistScoreItemInput[], note: string) => {
       if (!id) return;
-      await checklistService.saveProjectChecklist(id, { passedCriterionIds, note });
+      await checklistService.saveProjectChecklist(id, { items, note });
       fetchChecklist();
+    },
+    [id, fetchChecklist],
+  );
+
+  // Real-time: when a checklist is saved for this project, reload the official data from the API.
+  const handleChecklistUpdated = useCallback(
+    (payload: { projectId: string }) => {
+      if (payload.projectId === id) fetchChecklist();
     },
     [id, fetchChecklist],
   );
@@ -96,6 +109,7 @@ export function LecturerReviewPage() {
 
   const { joinProjectChannel, leaveProjectChannel } = useSignalR({
     onProjectStatusUpdated: handleProjectStatusUpdated,
+    onChecklistUpdated: handleChecklistUpdated,
   });
 
   useEffect(() => {
@@ -118,8 +132,8 @@ export function LecturerReviewPage() {
     }
   }, [id, showError]);
 
-  const checklistRequired = checklist?.requiredPassCount ?? 7;
-  const checklistTotal = checklist?.totalCriteria || 10;
+  const checklistRequired = checklist?.requiredPassCount ?? 0;
+  const checklistTotal = checklist?.totalCriteria ?? 0;
   const canApprove = checklist?.canApprove ?? false;
   const hasActiveConfig = checklist?.hasActiveConfig ?? false;
 
