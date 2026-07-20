@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { Modal } from "@/components/common/Modal";
 import { motion, AnimatePresence } from "framer-motion";
@@ -301,13 +301,17 @@ export function LecturerRepositoryPage() {
 
 // ── Tab button + registration requests tab ───────────────────────────────────
 
-/** Drives the repository tab from the URL so notifications can deep-link (/lecturer vs /lecturer/registrations). */
+/** Drives the repository tab from the URL so notifications can deep-link (/lecturer?tab=registrations). */
 function useRepoTab() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const activeTab: "topics" | "registrations" = location.pathname.endsWith("/registrations") ? "registrations" : "topics";
-  const setActiveTab = (tab: "topics" | "registrations") =>
-    navigate(tab === "registrations" ? "/lecturer/registrations" : "/lecturer");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: "topics" | "registrations" = tabParam === "registrations" ? "registrations" : "topics";
+  const setActiveTab = useCallback(
+    (tab: "topics" | "registrations") => {
+      setSearchParams(tab === "registrations" ? { tab: "registrations" } : {}, { replace: true });
+    },
+    [setSearchParams],
+  );
   return { activeTab, setActiveTab };
 }
 
@@ -391,18 +395,27 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
     load();
   }, [load]);
 
+  const remove = useCallback(
+    (id: string) => {
+      setItems((prev) => {
+        const next = prev.filter((r) => r.registrationId !== id);
+        onCountChange(next.length);
+        return next;
+      });
+    },
+    [onCountChange],
+  );
+
   useSignalR({
     onRegistrationUpdate: (raw) => {
-      const update = raw as RegistrationUpdate;
+      const update = raw as unknown as RegistrationUpdate;
       if (update.action === "removed") {
-        setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== update.registrationId));
+        remove(update.registrationId);
       } else if (update.action === "added") {
         load();
       }
     },
   });
-
-  const remove = (id: string) => setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== id));
 
   const handleConfirm = async (id: string) => {
     setProcessingId(id);
@@ -836,10 +849,16 @@ function MentorOwnTopicsView() {
 // ── Department-Head view: all topics in the department ───────────────────────
 
 function DepartmentTopicsView() {
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Three tabs: department-wide topics, the dept-head's OWN mentor topics, and registration requests.
-  const [activeTab, setActiveTab] = useState<"department" | "mine" | "registrations">(
-    location.pathname.endsWith("/registrations") ? "registrations" : "department",
+  const tabParam = searchParams.get("tab");
+  const activeTab: "department" | "mine" | "registrations" =
+    tabParam === "registrations" ? "registrations" : tabParam === "mine" ? "mine" : "department";
+  const setActiveTab = useCallback(
+    (tab: "department" | "mine" | "registrations") => {
+      setSearchParams(tab === "department" ? {} : { tab }, { replace: true });
+    },
+    [setSearchParams],
   );
   const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<DepartmentProject[]>([]);

@@ -100,6 +100,9 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         var invitee = await _userRepository.GetByStudentCodeAsync(studentCode, ct)
             ?? throw new EntityNotFoundException("User", studentCode);
 
+        if (!await _semesterRepository.IsStudentEligibleAsync(invitee.Id, group.SemesterId, ct))
+            throw new BusinessRuleValidationException("Sinh viên này không đủ điều kiện làm đồ án trong học kỳ này.");
+
         if (await _groupRepository.IsStudentInActiveGroupAsync(invitee.Id, group.SemesterId, ct))
             throw new BusinessRuleValidationException("Sinh viên này đã có nhóm hoạt động trong học kỳ này.");
 
@@ -123,8 +126,14 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
     public async Task<int> RequestJoinAsync(Guid groupId, Guid studentId, string? message, CancellationToken ct = default)
     {
-        var group = await _groupRepository.GetWithJoinRequestsAsync(groupId, ct)
+        var group = await _groupRepository.GetWithJoinRequestsAndInvitationsAsync(groupId, ct)
             ?? throw new EntityNotFoundException(nameof(Group), groupId);
+
+        // If the group already invited this student, they should respond to the invitation, not
+        // send a competing join request.
+        if (group.Invitations.Any(i => i.IsPending && i.InviteeId == studentId))
+            throw new BusinessRuleValidationException(
+                "Nhóm này đã gửi lời mời cho bạn. Vui lòng phản hồi lời mời thay vì gửi yêu cầu tham gia.");
 
         if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, group.SemesterId, ct))
             throw new BusinessRuleValidationException("Bạn đã có nhóm hoạt động trong học kỳ này.");
