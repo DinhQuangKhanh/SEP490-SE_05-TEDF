@@ -27,18 +27,25 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         int? semesterId,
         CancellationToken cancellationToken = default)
     {
-        var targetSemesterId = await ResolveSemesterIdAsync(semesterId, cancellationToken);
-        if (targetSemesterId == 0) return [];
+        var now = DateTime.UtcNow;
 
         var groups = await (
             from pm in _context.ProjectMentors.AsNoTracking()
             where pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active
             join p in _context.Projects on pm.ProjectId equals p.Id
-            where p.SemesterId == targetSemesterId && p.GroupId != null
+            where p.GroupId != null
                   && (p.Status == ProjectStatus.Approved
                    || p.Status == ProjectStatus.InProgress
                    || p.Status == ProjectStatus.Completed)
             join g in _context.Groups on p.GroupId equals g.Id
+            join s in _context.Semesters on g.SemesterId equals s.Id
+            // Filter by the GROUP's semester, not the project's. For a topic registered from the
+            // pool, project.SemesterId is the semester the mentor PROPOSED the topic, which differs
+            // from the registering group's semester; keying on the group aligns pool & direct flows.
+            // When no semester is chosen, show groups in the active OR any upcoming semester
+            // (EndDate ≥ now) — a group is registered for the upcoming term, so restricting to the
+            // current-active semester alone would hide freshly approved groups.
+            where semesterId.HasValue ? g.SemesterId == semesterId.Value : s.EndDate >= now
             select new MentorGroupDto
             {
                 GroupId = g.Id,
@@ -308,15 +315,6 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         ).FirstOrDefaultAsync(cancellationToken);
     }
 
-    private async Task<int> ResolveSemesterIdAsync(int? semesterId, CancellationToken cancellationToken)
-    {
-        return semesterId
-            ?? await _context.Semesters
-                .AsNoTracking()
-                .Where(s => s.StartDate <= DateTime.UtcNow && s.EndDate >= DateTime.UtcNow)
-                .Select(s => s.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-    }
 
     /// <summary>
     /// Resolves the next semester after the currently active one.
@@ -370,6 +368,9 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                   && u.Status == UserStatus.Active
                   && !studentsInGroups.Contains(u.Id)
                   && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleName == "Student" && r.IsActive)
+                  // Only students on this semester's eligible roster may be invited into a group.
+                  && _context.EligibleStudents.Any(e =>
+                        e.StudentId == u.Id && e.SemesterId == semesterId && e.IsEligible)
             orderby u.StudentCode
             select new AvailableStudentDto(u.Id, u.StudentCode!, u.FullName)
         ).ToListAsync(cancellationToken);

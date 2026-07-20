@@ -551,6 +551,12 @@ export function StudentMyTopicPage() {
 
   const handleProjectStatusUpdated = useCallback((payload: ProjectStatusUpdatedPayload) => {
     if (myGroupRef.current?.projectId !== payload.projectId) return;
+    // The status badge, action buttons and feedback banner read from myGroup.projectStatus —
+    // update it live from the payload so the page reflects the mentor's decision without a reload.
+    setMyGroup((prev) =>
+      prev && prev.projectId === payload.projectId ? { ...prev, projectStatus: payload.newStatus } : prev,
+    );
+    // Refetch detail so the mentor's modification note (and any edited content) shows immediately.
     topicService
       .getTopicDetail(payload.projectId)
       .then(setTopicDetail)
@@ -608,6 +614,10 @@ export function StudentMyTopicPage() {
       loadMyTopic();
     },
   });
+
+  // Clicking a topic notification (e.g. "cần chỉnh sửa") while already on this route doesn't
+  // remount, so refetch on the target-refresh event.
+  useNotificationTargetRefresh(loadMyTopic);
 
   const handleCancelRegistration = async (registrationId: string) => {
     if (!myGroup?.groupId) return;
@@ -931,6 +941,28 @@ export function StudentMyTopicPage() {
                 </div>
               </div>
             </motion.section>
+
+            {/* Mentor modification-request note (shown to the student when the topic needs changes) */}
+            {myGroup.projectStatus === "NeedsModification" && (
+              <motion.section
+                variants={item}
+                className="rounded-xl border border-amber-200 bg-amber-50 p-5 flex gap-3"
+              >
+                <span className="mt-0.5 material-symbols-outlined text-amber-600">feedback</span>
+                <div>
+                  <h3 className="mb-1 text-sm font-bold text-amber-800">Giảng viên yêu cầu chỉnh sửa đề tài</h3>
+                  {topicDetail?.mentorFeedback ? (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-amber-900">
+                      {topicDetail.mentorFeedback}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-amber-800/80">
+                      Giảng viên chưa để lại nội dung góp ý cụ thể. Vui lòng chỉnh sửa và gửi lại đề tài.
+                    </p>
+                  )}
+                </div>
+              </motion.section>
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">

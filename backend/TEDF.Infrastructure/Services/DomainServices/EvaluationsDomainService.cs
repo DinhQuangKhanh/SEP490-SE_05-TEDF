@@ -6,6 +6,7 @@ using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
 using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
@@ -33,6 +34,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
     private readonly IProjectEvaluationChecklistRepository _projectChecklistRepository;
+    private readonly ISemesterRepository _semesterRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IBackgroundJobService _backgroundJobService;
@@ -45,6 +47,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         IDepartmentRepository departmentRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
         IProjectEvaluationChecklistRepository projectChecklistRepository,
+        ISemesterRepository semesterRepository,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         IBackgroundJobService backgroundJobService)
@@ -56,6 +59,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         _departmentRepository = departmentRepository;
         _assignmentRepository = assignmentRepository;
         _projectChecklistRepository = projectChecklistRepository;
+        _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _backgroundJobService = backgroundJobService;
@@ -154,6 +158,13 @@ public class EvaluationsDomainService : IEvaluationsDomainService
 
         if (!evaluator.GetActiveRoles().Contains(DomainRoleNames.Evaluator))
             throw new BusinessRuleValidationException("The specified user does not have the Evaluator role.");
+
+        // The evaluator must be on the eligible-lecturer roster of the active/upcoming semester
+        // (the roster is published ahead of the term it applies to). A lecturer never imported —
+        // or dropped from the roster — must not be assignable to evaluate.
+        if (!await _semesterRepository.IsMentorEligibleNowAsync(evaluatorId, ct))
+            throw new BusinessRuleValidationException(
+                "Giảng viên này không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.");
 
         var allProjectMentorIds = project.Mentors.Select(m => m.MentorId).ToList().AsReadOnly();
 

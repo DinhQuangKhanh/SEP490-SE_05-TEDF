@@ -126,7 +126,10 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
             technologies: content.Technologies,
             expectedResults: content.ExpectedResults);
 
-        project.SetMaxStudents(content.MaxStudents);
+        // Only touch the member cap when the caller actually supplied one; the student edit
+        // form omits it, and a missing value must not overwrite the cap with the default 0.
+        if (content.MaxStudents.HasValue)
+            project.SetMaxStudents(content.MaxStudents.Value);
 
         _projectRepository.Update(project);
         await _unitOfWork.SaveChangesAsync(ct);

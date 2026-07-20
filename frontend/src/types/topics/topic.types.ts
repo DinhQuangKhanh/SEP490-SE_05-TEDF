@@ -43,6 +43,8 @@ export interface TopicDetail {
   poolStatusName: string;
   maxStudents: number;
   mentors: TopicMentorDto[];
+  /** Mentor's latest modification-request note; shown to the student when status is NeedsModification. */
+  mentorFeedback: string | null;
   createdAt: string;
   updatedAt: string | null;
 }

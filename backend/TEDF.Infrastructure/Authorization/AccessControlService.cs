@@ -47,6 +47,18 @@ public class AccessControlService : IAccessControlService
                     "Bạn không thuộc danh sách sinh viên đủ điều kiện làm đồ án trong học kỳ hiện tại hoặc sắp tới.");
         }
 
+        // Pure-mentor accounts (Mentor, but not Admin/DepartmentHead) must be on the active/upcoming
+        // eligible-mentor roster. A lecturer dropped from the new semester's import loses access.
+        var isPrivilegedStaff = roles.Contains(DomainRoleNames.Admin)
+            || roles.Contains(DomainRoleNames.DepartmentHead);
+        if (roles.Contains(DomainRoleNames.Mentor) && !isPrivilegedStaff)
+        {
+            var eligible = await _semesterRepository.IsMentorEligibleNowAsync(userId, cancellationToken);
+            if (!eligible)
+                return new AccessDecision(false, "mentor_not_eligible",
+                    "Bạn không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.");
+        }
+
         return new AccessDecision(true, null, null);
     }
 }

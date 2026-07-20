@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { proposedTopicService } from "@/lib";
@@ -131,7 +132,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
     return `${m.academicTitle ? m.academicTitle + ". " : ""}${m.fullName} ${m.email}`.toLowerCase().includes(q);
   });
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -515,6 +516,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
           </>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

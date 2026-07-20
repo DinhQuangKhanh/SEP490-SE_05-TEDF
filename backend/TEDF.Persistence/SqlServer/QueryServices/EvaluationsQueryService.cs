@@ -597,9 +597,14 @@ public class EvaluationsQueryService : IEvaluationsQueryService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessRuleValidationException("Current user is not assigned to any department.");
 
+        // Offer lecturers on the eligible-mentor roster of the active OR any upcoming semester
+        // (a roster is published ahead of the term it applies to), scoped to this department.
+        var now = DateTime.UtcNow;
         var evaluators = await _context.Users
             .Where(u => u.DepartmentId.HasValue && u.DepartmentId.Value == departmentId &&
-                        u.Roles.Any(r => r.RoleName == DomainRoleNames.Evaluator && r.IsActive))
+                        u.Roles.Any(r => r.RoleName == DomainRoleNames.Evaluator && r.IsActive) &&
+                        _context.EligibleMentors.Any(m => m.MentorId == u.Id && m.IsAssigned &&
+                            _context.Semesters.Any(s => s.Id == m.SemesterId && s.EndDate >= now)))
             .ToListAsync(cancellationToken);
 
         var evaluatorIds = evaluators.Select(e => e.Id).ToList();
