@@ -109,6 +109,17 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     setUnreadCount((prev) => prev + 1);
     setPulse(true);
     setTimeout(() => setPulse(false), 2000);
+
+    // If it targets the page the user is already on, refresh that page in place (same event the
+    // click handler fires) so lists/status update live on arrival — no click or reload needed.
+    const path = n.targetUrl;
+    if (path && isSafeInternalPath(path) && window.location.pathname === path) {
+      window.dispatchEvent(
+        new CustomEvent<NotificationTargetRefreshDetail>(NOTIFICATION_TARGET_REFRESH_EVENT, {
+          detail: { targetUrl: path, category: n.category },
+        }),
+      );
+    }
   }, []);
 
   const handleUnreadCountUpdated = useCallback((payload: { count: number }) => {

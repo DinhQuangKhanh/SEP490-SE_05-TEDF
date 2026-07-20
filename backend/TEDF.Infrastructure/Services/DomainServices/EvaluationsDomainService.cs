@@ -4,6 +4,7 @@ using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Entities;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
@@ -29,6 +30,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
+    private readonly ISemesterRepository _semesterRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IBackgroundJobService _backgroundJobService;
@@ -40,6 +42,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         IUserRepository userRepository,
         IDepartmentRepository departmentRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
+        ISemesterRepository semesterRepository,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         IBackgroundJobService backgroundJobService)
@@ -50,6 +53,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
         _assignmentRepository = assignmentRepository;
+        _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _backgroundJobService = backgroundJobService;
@@ -148,6 +152,13 @@ public class EvaluationsDomainService : IEvaluationsDomainService
 
         if (!evaluator.GetActiveRoles().Contains(DomainRoleNames.Evaluator))
             throw new BusinessRuleValidationException("The specified user does not have the Evaluator role.");
+
+        // The evaluator must be on the eligible-lecturer roster of the active/upcoming semester
+        // (the roster is published ahead of the term it applies to). A lecturer never imported —
+        // or dropped from the roster — must not be assignable to evaluate.
+        if (!await _semesterRepository.IsMentorEligibleNowAsync(evaluatorId, ct))
+            throw new BusinessRuleValidationException(
+                "Giảng viên này không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.");
 
         var allProjectMentorIds = project.Mentors.Select(m => m.MentorId).ToList().AsReadOnly();
 

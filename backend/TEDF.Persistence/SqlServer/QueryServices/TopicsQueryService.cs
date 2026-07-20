@@ -162,6 +162,7 @@ public class TopicsQueryService : ITopicsQueryService
                         FullName = u.FullName,
                     })
                     .ToList(),
+                p.MentorFeedback,
                 p.CreatedAt,
                 p.UpdatedAt,
             }
@@ -188,6 +189,7 @@ public class TopicsQueryService : ITopicsQueryService
             PoolStatusName = raw.PoolStatus.HasValue ? raw.PoolStatus.Value.ToString() : "Unknown",
             MaxStudents = raw.MaxStudents,
             Mentors = raw.Mentors,
+            MentorFeedback = raw.MentorFeedback,
             CreatedAt = raw.CreatedAt,
             UpdatedAt = raw.UpdatedAt,
         };

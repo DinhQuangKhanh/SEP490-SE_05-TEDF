@@ -8,6 +8,7 @@ import { useSystemError } from "@/contexts/SystemErrorContext";
 import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
 import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
+import { NotificationDropdown } from "@/components/layout";
 
 const RESULT_DISPLAY: Record<string, { label: string; colors: string; animate: boolean }> = {
   Pending: { label: "Chờ duyệt", colors: "bg-blue-50 text-blue-600 border-blue-100", animate: true },
@@ -160,12 +161,15 @@ export function LecturerModerationPage() {
             </h2>
             <p className="text-blue-100/80 text-sm">Quản lý và thẩm định tất cả các đề tài đồ án được phân công.</p>
           </div>
-          {activeSemesterLabel && (
-            <div className="hidden md:flex items-center bg-primary-dark/50 rounded-lg px-4 py-2 border border-blue-400/30">
-              <span className="text-blue-100 text-xs font-semibold uppercase tracking-wider mr-2">Học kỳ:</span>
-              <span className="text-white text-sm font-bold">{activeSemesterLabel}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {activeSemesterLabel && (
+              <div className="hidden md:flex items-center bg-primary-dark/50 rounded-lg px-4 py-2 border border-blue-400/30">
+                <span className="text-blue-100 text-xs font-semibold uppercase tracking-wider mr-2">Học kỳ:</span>
+                <span className="text-white text-sm font-bold">{activeSemesterLabel}</span>
+              </div>
+            )}
+            <NotificationDropdown role="mentor" isNavy={true} />
+          </div>
         </div>
       </header>
 

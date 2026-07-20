@@ -7,6 +7,8 @@ using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Enums.Notification;
+using TEDF.Infrastructure.EventHandlers.Project;
+using TEDF.Infrastructure.RealTime.Services;
 
 namespace TEDF.Infrastructure.EventHandlers.DirectTopic;
 
@@ -17,6 +19,7 @@ public class ProjectMentorApprovedEventHandler : INotificationHandler<ProjectMen
     private readonly IProjectRepository _projectRepository;
     private readonly IGroupRepository _groupRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
+    private readonly IRealtimeNotificationService _realtimeNotificationService;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProjectMentorApprovedEventHandler(
@@ -25,6 +28,7 @@ public class ProjectMentorApprovedEventHandler : INotificationHandler<ProjectMen
         IProjectRepository projectRepository,
         IGroupRepository groupRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
+        IRealtimeNotificationService realtimeNotificationService,
         IUnitOfWork unitOfWork)
     {
         _logger = logger;
@@ -32,6 +36,7 @@ public class ProjectMentorApprovedEventHandler : INotificationHandler<ProjectMen
         _projectRepository = projectRepository;
         _groupRepository = groupRepository;
         _assignmentRepository = assignmentRepository;
+        _realtimeNotificationService = realtimeNotificationService;
         _unitOfWork = unitOfWork;
     }
 
@@ -42,6 +47,12 @@ public class ProjectMentorApprovedEventHandler : INotificationHandler<ProjectMen
 
         var project = await _projectRepository.GetByIdAsync(notification.ProjectId, cancellationToken);
         if (project?.GroupId is null) return;
+
+        // Push a real-time status update so the student's my-topic page refreshes live
+        // (PendingMentorReview → PendingEvaluation).
+        await ProjectStatusRealtimeNotifier.NotifyAsync(
+            _projectRepository, _realtimeNotificationService, notification.ProjectId,
+            "PendingMentorReview", cancellationToken);
 
         var group = await _groupRepository.GetWithMembersAsync(project.GroupId.Value, cancellationToken);
         if (group?.LeaderId is null) return;

@@ -24,6 +24,8 @@ public class TopicDetailDto
     public string PoolStatusName { get; init; } = string.Empty;
     public int MaxStudents { get; init; }
     public List<MentorSummaryDto> Mentors { get; init; } = [];
+    /// <summary>Mentor's latest modification-request note (set when status is NeedsModification), shown to the student.</summary>
+    public string? MentorFeedback { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
