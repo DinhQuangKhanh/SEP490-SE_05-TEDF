@@ -32,6 +32,7 @@ import {
   MaintenancePage,
   DepartmentHeadDashboardPage,
   AssignEvaluatorsPage,
+  DepartmentHeadStatisticsPage,
   ActivityLogsPage,
   TopicCreatePage,
   ProfilePage,
@@ -160,6 +161,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={["departmenthead"]}>
                       <AssignEvaluatorsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="statistics"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <DepartmentHeadStatisticsPage />
                     </ProtectedRoute>
                   }
                 />
