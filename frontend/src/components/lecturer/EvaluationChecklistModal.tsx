@@ -73,8 +73,15 @@ export function EvaluationChecklistModal({
 
   const meetsThreshold = required > 0 && passedCount >= required;
 
-  function setScore(criterionId: string, value: string) {
+  function setScore(criterionId: string, value: string, maxScore: number) {
     if (readOnly) return;
+    // Block negatives / invalid characters (no minus sign) and values above the criterion max —
+    // an out-of-range keystroke is ignored so the field can never hold an invalid score.
+    if (!/^\d*\.?\d*$/.test(value)) return;
+    if (value !== "") {
+      const num = Number(value);
+      if (Number.isNaN(num) || num > maxScore) return;
+    }
     setScores((prev) => ({ ...prev, [criterionId]: value }));
   }
 
@@ -243,7 +250,7 @@ export function EvaluationChecklistModal({
                               step="0.5"
                               value={scores[item.criterionId] ?? ""}
                               disabled={readOnly}
-                              onChange={(e) => setScore(item.criterionId, e.target.value)}
+                              onChange={(e) => setScore(item.criterionId, e.target.value, item.maxScore)}
                               placeholder={`0 - ${item.maxScore}`}
                               className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
                             />
@@ -252,14 +259,14 @@ export function EvaluationChecklistModal({
                             <label className="mb-1 block text-[11px] font-bold uppercase text-slate-400">
                               Nhận xét
                             </label>
-                            <input
-                              type="text"
+                            <textarea
+                              rows={2}
                               value={comments[item.criterionId] ?? ""}
                               disabled={readOnly}
                               maxLength={2000}
                               onChange={(e) => setComment(item.criterionId, e.target.value)}
                               placeholder="Nhận xét cho tiêu chí này..."
-                              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
+                              className="min-h-[3rem] max-h-40 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-70"
                             />
                           </div>
                         </div>
@@ -267,18 +274,20 @@ export function EvaluationChecklistModal({
                     );
                   })}
 
-                  {!readOnly && (
+                  {/* Show the overall note when editing, or read-only when there is a saved note. */}
+                  {(!readOnly || note.trim().length > 0) && (
                     <div className="pt-1">
                       <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                        Nhận xét tổng quát (tuỳ chọn)
+                        Nhận xét tổng quát{!readOnly && " (tuỳ chọn)"}
                       </label>
                       <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
+                        disabled={readOnly}
                         rows={2}
                         maxLength={2000}
                         placeholder="Nhận xét chung cho lần thẩm định này..."
-                        className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20"
+                        className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 disabled:opacity-80"
                       />
                     </div>
                   )}

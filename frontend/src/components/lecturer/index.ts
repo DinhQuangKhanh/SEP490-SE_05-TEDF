@@ -1,4 +1,6 @@
 export { RegisterTopicModal } from './RegisterTopicModal'
 export { EvaluationChecklistModal } from './EvaluationChecklistModal'
 export { EvaluatorChecklistViewButton } from './EvaluatorChecklistViewButton'
+export { EvaluatorChecklistCard } from './EvaluatorChecklistCard'
+export { DepartmentReviewDetailModal } from './DepartmentReviewDetailModal'
 export { SupervisedProjectDetailModal } from './SupervisedProjectDetailModal'

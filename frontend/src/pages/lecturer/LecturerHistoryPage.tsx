@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorHistoryResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
 import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
+import { DepartmentEvaluationHistory } from "@/pages/department-head/DepartmentEvaluationHistory";
 
 const PAGE_SIZE = 10;
 
@@ -17,6 +19,15 @@ const RESULT_DISPLAY: Record<string, { label: string; colors: string }> = {
 };
 
 export function LecturerHistoryPage() {
+  const { user } = useAuth();
+  // Match the app's DH detection (LecturerSidebar / LecturerRepositoryPage): a user WITH the
+  // departmenthead role gets the department-scoped view; others keep the personal evaluator history.
+  const isDeptHead = !!user?.roles?.includes("departmenthead");
+  if (isDeptHead) return <DepartmentEvaluationHistory />;
+  return <EvaluatorHistoryView />;
+}
+
+function EvaluatorHistoryView() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState("");

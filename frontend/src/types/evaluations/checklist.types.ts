@@ -23,6 +23,8 @@ export interface ProjectChecklistResponse {
   /** False when the project's semester has no Active checklist configured. */
   hasActiveConfig: boolean;
   configId: string | null;
+  /** The checklist config version used (null when no active config). */
+  version: number | null;
   totalCriteria: number;
   requiredPassCount: number;
   passedCount: number;

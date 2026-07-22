@@ -24,6 +24,7 @@ public record ProjectChecklistDto(
     Guid ProjectId,
     bool HasActiveConfig,
     Guid? ConfigId,
+    int? Version,
     int TotalCriteria,
     int RequiredPassCount,
     int PassedCount,
