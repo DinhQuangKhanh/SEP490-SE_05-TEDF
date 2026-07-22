@@ -13,18 +13,15 @@ public class UsersQueryService : IUsersQueryService
 {
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
-    private readonly IMajorReadRepository _majorRepository;
     private readonly AppDbContext _context;
 
     public UsersQueryService(
         IUserRepository userRepository,
         IDepartmentRepository departmentRepository,
-        IMajorReadRepository majorRepository,
         AppDbContext context)
     {
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
-        _majorRepository = majorRepository;
         _context = context;
     }
 
@@ -49,9 +46,9 @@ public class UsersQueryService : IUsersQueryService
             u.FullName,
             u.Email.Value,
             u.AvatarUrl,
-            u.StudentCode,
-            u.EmployeeCode,
-            u.AcademicTitle,
+            u.Student?.StudentCode,
+            u.Lecturer?.EmployeeCode,
+            u.Lecturer?.AcademicTitle,
             u.DepartmentId,
             u.DepartmentId.HasValue && deptMap.TryGetValue(u.DepartmentId.Value, out var deptName)
                 ? deptName
@@ -78,21 +75,15 @@ public class UsersQueryService : IUsersQueryService
             deptName = dept?.Name;
         }
 
-        string? majorName = null;
-        if (user.MajorId.HasValue)
+        string? programCode = null;
+        string? programName = null;
+        var programId = user.Student?.ProgramId;
+        if (programId.HasValue)
         {
-            var major = await _majorRepository.GetByIdAsync(user.MajorId.Value, cancellationToken);
-            majorName = major?.Name;
-        }
-
-        string? majorProgramCode = null;
-        string? majorProgramDescription = null;
-        if (user.MajorProgramId.HasValue)
-        {
-            var program = await _context.MajorPrograms.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == user.MajorProgramId.Value, cancellationToken);
-            majorProgramCode = program?.ProgramCode;
-            majorProgramDescription = program?.ProgramDescription;
+            var program = await _context.Programs.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == programId.Value, cancellationToken);
+            programCode = program?.Code;
+            programName = program?.Name;
         }
 
         return new MyProfileDto(
@@ -100,20 +91,19 @@ public class UsersQueryService : IUsersQueryService
             FullName: user.FullName,
             Email: user.Email.Value,
             AvatarUrl: user.AvatarUrl,
-            StudentCode: user.StudentCode,
-            EmployeeCode: user.EmployeeCode,
+            StudentCode: user.Student?.StudentCode,
+            EmployeeCode: user.Lecturer?.EmployeeCode,
             PhoneNumber: user.PhoneNumber,
             BirthDate: user.BirthDate,
             PrivacySettings: user.PrivacySettings,
-            AcademicTitle: user.AcademicTitle,
+            AcademicTitle: user.Lecturer?.AcademicTitle,
             DepartmentId: user.DepartmentId,
             DepartmentName: deptName,
-            MajorId: user.MajorId,
-            MajorName: majorName,
-            MajorProgramId: user.MajorProgramId,
-            MajorProgramCode: majorProgramCode,
-            MajorProgramDescription: majorProgramDescription,
-            Division: user.Division,
+            ProgramId: programId,
+            ProgramCode: programCode,
+            ProgramName: programName,
+            ComboId: user.Student?.ComboId,
+            ComboName: user.Student?.Combo?.Name,
             Status: user.Status.ToString(),
             Roles: user.GetActiveRoles().ToList(),
             CreatedAt: user.CreatedAt,

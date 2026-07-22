@@ -601,8 +601,10 @@ public class EvaluationsQueryService : IEvaluationsQueryService
         // (a roster is published ahead of the term it applies to), scoped to this department.
         var now = DateTime.UtcNow;
         var evaluators = await _context.Users
+            .Include(u => u.Lecturer)
             .Where(u => u.DepartmentId.HasValue && u.DepartmentId.Value == departmentId &&
-                        u.Roles.Any(r => r.RoleName == DomainRoleNames.Evaluator && r.IsActive) &&
+                        u.Roles.Any(r => r.IsActive &&
+                            _context.Roles.Any(dbRole => dbRole.Id == r.RoleId && dbRole.Name == DomainRoleNames.Evaluator)) &&
                         _context.EligibleMentors.Any(m => m.MentorId == u.Id && m.IsAssigned &&
                             _context.Semesters.Any(s => s.Id == m.SemesterId && s.EndDate >= now)))
             .ToListAsync(cancellationToken);
@@ -621,7 +623,7 @@ public class EvaluationsQueryService : IEvaluationsQueryService
             UserId = e.Id,
             FullName = e.FullName,
             Email = e.Email.Value,
-            AcademicTitle = e.AcademicTitle,
+            AcademicTitle = e.Lecturer?.AcademicTitle,
             ActiveAssignmentCount = assignmentCounts.GetValueOrDefault(e.Id, 0)
         }).OrderBy(e => e.FullName).ToList();
     }

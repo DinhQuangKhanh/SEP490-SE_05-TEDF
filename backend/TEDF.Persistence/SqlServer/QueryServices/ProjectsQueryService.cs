@@ -72,7 +72,7 @@ public class ProjectsQueryService : IProjectsQueryService
         }
 
         var mentorUsers = (await _userRepository.GetByIdsAsync(mentorIds, cancellationToken)).ToList();
-        var mentorMap = mentorUsers.ToDictionary(u => u.Id, u => u.DisplayName);
+        var mentorMap = mentorUsers.ToDictionary(u => u.Id, u => u.FullName);
 
         var groupMap = new Dictionary<Guid, (string? Code, List<Guid> StudentIds)>();
         foreach (var gid in groupIds)

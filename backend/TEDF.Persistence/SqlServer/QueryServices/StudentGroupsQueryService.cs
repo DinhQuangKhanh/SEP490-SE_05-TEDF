@@ -66,7 +66,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                     {
                         StudentId = u.Id,
                         FullName = u.FullName,
-                        StudentCode = u.StudentCode,
+                        StudentCode = u.Student != null ? u.Student.StudentCode : null,
                         Email = u.Email,
                         Role = gm.Role.ToString(),
                         Status = gm.Status.ToString(),
@@ -134,7 +134,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             {
                 StudentId = u.Id,
                 FullName = u.FullName,
-                StudentCode = u.StudentCode,
+                StudentCode = u.Student != null ? u.Student.StudentCode : null,
                 Email = u.Email,
                 Role = m.Role.ToString(),
                 Status = m.Status.ToString(),
@@ -202,7 +202,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 {
                     StudentId = u.Id,
                     FullName = u.FullName,
-                    StudentCode = u.StudentCode,
+                    StudentCode = u.Student != null ? u.Student.StudentCode : null,
                     Email = u.Email,
                     Role = m.Role.ToString(),
                     Status = m.Status.ToString(),
@@ -267,13 +267,13 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             where r.GroupId == groupId
                && r.Status == GroupJoinRequestStatus.Pending
                && r.ExpiresAt > now
-            join u in _context.Users on r.StudentId equals u.Id
+            join u in _context.Users.AsNoTracking() on r.StudentId equals u.Id
             select new JoinRequestDto
             {
                 Id = r.Id,
                 StudentId = u.Id,
                 StudentName = u.FullName,
-                StudentCode = u.StudentCode,
+                StudentCode = u.Student != null ? u.Student.StudentCode : null,
                 Message = r.Message,
                 Status = r.Status.ToString(),
                 CreatedAt = r.CreatedAt
@@ -363,16 +363,16 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             select gm.StudentId;
 
         return await (
-            from u in _context.Users.AsNoTracking()
-            where u.StudentCode != null
-                  && u.Status == UserStatus.Active
+            from s in _context.Students.AsNoTracking()
+            join u in _context.Users.AsNoTracking() on s.Id equals u.Id
+            where u.Status == UserStatus.Active
                   && !studentsInGroups.Contains(u.Id)
-                  && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleName == "Student" && r.IsActive)
+                  && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleId == 3 && r.IsActive)
                   // Only students on this semester's eligible roster may be invited into a group.
                   && _context.EligibleStudents.Any(e =>
                         e.StudentId == u.Id && e.SemesterId == semesterId && e.IsEligible)
-            orderby u.StudentCode
-            select new AvailableStudentDto(u.Id, u.StudentCode!, u.FullName)
+            orderby s.StudentCode
+            select new AvailableStudentDto(u.Id, s.StudentCode, u.FullName)
         ).ToListAsync(cancellationToken);
     }
 }
