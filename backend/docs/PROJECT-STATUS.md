@@ -2,7 +2,7 @@
 
 Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context and by cross-cutting concern. Status is inferred from the source — whether an Application feature has handlers, whether endpoints are mapped, and whether jobs/handlers contain real logic vs. `TODO` stubs.
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-22
 
 > Living document. Update a row when a feature gains endpoints, a job is implemented, or a stub is filled in.
 
@@ -18,12 +18,14 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 ## Summary
 
 - **Core lifecycle is live:** topic pools, direct registration, evaluations, student groups, semesters, supports, notifications, dashboards, and admin/department-head/mentor management are implemented end to end (Application + endpoints).
-- **User profile is live:** `GET /api/users/me` (GetMyProfileQuery) + `PUT /api/users/me` (UpdateMyProfileCommand) — phone number, birth date, privacy settings, MajorProgram/Division display. Supervisor endpoint `GET /api/projects/supervised` also live.
+- **User profile is live:** `GET /api/users/me` (GetMyProfileQuery) + `PUT /api/users/me` (UpdateMyProfileCommand) — phone number, birth date, privacy settings, Programs/Combos display (via `Student.ProgramId` / `Student.ComboId`). Supervisor endpoint `GET /api/projects/supervised` also live.
 - **Semester roster is live:** 8 additional endpoints on `/api/semesters/{id}/` — import eligible students/mentors (CSV), assign major program per mentor, bulk-delete, and publish roster. Roster-published domain events enqueue batch student emails and notify mentors.
-- **User domain extended:** `User` aggregate now has `MajorProgramId` (chuyên ngành hẹp), `Division` (lecturer Bộ môn snapshot), `PhoneNumber`, and `PrivacySettings` fields.
+- **User schema normalized (RefactorUserSchema migration):** Student/lecturer/role data extracted from `User` into dedicated `Students`, `Lecturers`, `Roles` tables; `MajorPrograms` replaced by `Programs` + `Combos`; `User` retains only shared profile fields (`FullName`, email, `DepartmentId`, `PhoneNumber`, `BirthDate`, `PrivacySettings`, `FirebaseUid`). Navigation properties `User.Student?` / `User.Lecturer?` loaded via EF LEFT JOIN.
 - **Admin system settings are live:** the `SystemConfiguration` store is wired (`ISystemSettingsService` + cache), with admin settings CRUD, public branding (color/header/logo), logo upload, test email, backend-enforced maintenance mode, and the Project Archives feature. Registration rules (`MaxGroupMembers`, `AllowDirectRegistration`) are enforced from settings.
 - **Pool-topic registration flow is fully wired:** registration request → mentor confirm/reject → notifications (SignalR + MongoDB) + real-time status updates to the student SPA. Cancel-registration endpoint live.
+- **DirectRegistration flow extended (PR #88):** `MentorFeedback` field added to `Projects`; mentor now attaches a review note when approving or requesting modification. Semester eligibility check wired into `EvaluationsDomainService` and `StudentGroupsDomainService`; `ISemesterRepository` extended with an eligibility lookup.
 - **AccountAccessGate middleware** is live: returns 403 with `ACCOUNT_LOCKED` or `NOT_ELIGIBLE` codes for locked/ineligible accounts on non-public routes.
+- **MongoDB logging consolidated (2026-07-19):** five legacy collections (`user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs`) replaced by two: `activity_logs` (`ActivityLogDocument` — unified command audit with `ActionCode`, `ActionName`, `FeatureCategory`, `CorrelationId`) and `error_logs`. `IActivityLogRepository` + `ActivityLogService` are the single write path.
 - **Auth, caching (L1/L2), domain events, SignalR, and Hangfire scheduling** are wired.
 - **Endpoint structure:** `Endpoints/` is feature-based — `ActivityLogs`, `Archives`, `Authentications`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (`TopicCatalogEndpoints` + `TopicPoolsEndpoints`), `Users`.
 - **Not built / in progress:** Reports (PDF/Excel), real-time Chat feature, and Meetings — their folders are scaffolded but empty.
@@ -35,7 +37,7 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | Context            | App files | Endpoints                | Status | Notes                                                                                                 |
 | ------------------ | --------- | ------------------------ | ------ | ----------------------------------------------------------------------------------------------------- |
 | TopicPools         | 19        | 11 (`Topics`)            | ✅     | Pool CRUD, registration lifecycle (request/confirm/reject/cancel + note-attachment), mentor topic update/resubmit; registration notifications & real-time |
-| Evaluations        | 19        | 9 (`Evaluations`)        | ✅     | Evaluator self-service (submit, history, filter-options, projects, review, similarity) + dept-head management (evaluators, assign-evaluator, final-decision) |
+| Evaluations        | 19+       | 9 (`Evaluations`)        | ✅     | Evaluator self-service (submit, history, filter-options, projects, review, similarity) + dept-head management (evaluators, assign-evaluator, final-decision). Checklist scoring (`Score`, `MaxScore`, `PassScore`, `Comment` on `ChecklistResultItems`/`ChecklistCriteria`) and Excel import for checklist config are on `feature/evaluation-checklist` (not yet merged). |
 | StudentGroups      | 37        | 13 (`Groups`)            | ✅     | Create/invite/join + bulk-approve/reject join requests + invitable-students picker (`/api/groups`) |
 | Supports           | 20        | 6 (`SupportTickets`)     | ✅     | Support tickets (stats, list, detail, create, reply, status) — full event-handler coverage for all ticket lifecycle events |
 | Semesters          | 15+       | 16 (`Semesters`)         | ✅     | Semester + phase lifecycle + full roster: `eligible-students`, `eligible-mentors`, `import`, `bulk-delete`, `major-update`, `roster/publish`; roster-published event handlers live |
@@ -45,7 +47,7 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | Topics             | 7         | 4 (`Topics`)             | ✅     | Topic catalog: list, mentor topics (`/api/topics/mentor`), detail, documents |
 | Projects           | 3+        | 3 (`Projects`)           | ✅     | Admin project list, dept-head department projects, **mentor supervised projects** (`/api/projects/supervised`) |
 | Users              | 7+        | 6 (`Users`)              | ✅     | List + lock/unlock + assign-department-head + **`GET /api/users/me`** (GetMyProfile) + **`PUT /api/users/me`** (UpdateMyProfile) |
-| ActivityLogs       | —         | 5 (`ActivityLogs`)       | ✅     | Activity/error logs (`/api/activity-logs`) |
+| ActivityLogs       | —         | 5 (`ActivityLogs`)       | ✅     | Activity/error logs (`/api/activity-logs`). Admin SPA page has tabbed view (activity / error), filters by role/feature/status, pagination, and clear-log action. |
 | Settings           | 13        | 5 (`Settings`)           | ✅     | `SystemConfiguration` store + cache; admin GET/PUT settings, public branding, logo upload, test email |
 | Archives           | 3         | 2 (`Archives`)           | ✅     | Project archive list (by year) + download |
 | Majors             | —         | 1 (`Majors`)             | ✅     | Major list endpoint (`/api/majors`) |
@@ -79,11 +81,12 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | System settings store            | ✅     | `SystemConfiguration` + `ISystemSettingsService` (cached); admin CRUD + anonymous public-settings endpoint  |
 | Branding (system-wide)           | ✅     | Primary color / header name / logo stored server-side and applied for all users at startup                  |
 | Maintenance mode                 | ✅     | `MaintenanceModeMiddleware` returns 503 to non-admins when enabled (allowlists auth/public-settings/health) |
-| Logging / audit (MongoDB)        | ✅     | Request, activity, system audit, error logs                                                                 |
+| Logging / audit (MongoDB)        | ✅     | Consolidated into two collections: `activity_logs` (all command/action audit via `IActivityLogRepository`) + `error_logs`. Former `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs` removed. |
 | Health checks                    | 🚧     | `sqlserver` + `mongodb` registered; **Redis health check is a `TODO` stub**                                 |
 | User profile endpoints           | ✅     | `GET /api/users/me` + `PUT /api/users/me`; fields: PhoneNumber, BirthDate, PrivacySettings                 |
-| MajorProgram (chuyên ngành hẹp)  | ✅     | `User.MajorProgramId` FK to `MajorProgram` table; exposed on profile; `eligible-mentors/{id}/major` endpoint for admin assignment |
-| Division (Bộ môn)                | ✅     | `User.Division` string snapshot from `EligibleMentor.Division`; display-only on profile                    |
+| Students / Lecturers tables      | ✅     | Schema refactored: `Students (Id PK+FK, StudentCode, ProgramId, ComboId)` và `Lecturers (Id PK+FK, EmployeeCode, AcademicTitle)` tách khỏi `Users`; navigation props `User.Student?` / `User.Lecturer?` loaded via EF LEFT JOIN |
+| Programs + Combos (chuyên ngành) | ✅     | `Programs` table thay thế `MajorPrograms`; `Combos` cho chuyên ngành hẹp (Abbr); `Student.ProgramId` / `Student.ComboId` FK; exposed qua `MyProfileDto.ProgramId/ProgramCode/ProgramName/ComboId/ComboName` |
+| Roles table                      | ✅     | Normalized `Roles` lookup (5 rows, Id cố định: Admin=1, Mentor=2, Student=3, Evaluator=4, DepartmentHead=5); `UserRoles.RoleId int FK` thay thế chuỗi `RoleName`; `DomainRoleIds` constants trong Domain |
 
 ---
 
@@ -111,7 +114,7 @@ Job scheduling is centralized in `Infrastructure/BackgroundJobs/Scheduling/Recur
 
 | Subfolder | Handlers |
 |---|---|
-| `Project/` | `ProjectCreatedEventHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier` |
+| `Project/` | `ProjectCreatedEventHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier`, `ProjectChecklistSavedRealtimeHandler` (on `feature/evaluation-checklist`) |
 | `Group/` | `GroupCreatedEventHandler`, `MemberInvitedEventHandler`, `InvitationAcceptedEventHandler`, `InvitationRejectedEventHandler`, `JoinRequestedEventHandler`, `JoinRequestApprovedEventHandler`, `JoinRequestRejectedEventHandler`, `MemberAddedEventHandler`, `MemberRemovedEventHandler` |
 | `Evaluation/` | `EvaluationAssignedEventHandler`, `EvaluatorAssignedToProjectEventHandler`, `EvaluatorSubmittedResultEventHandler`, `EvaluationCompletedEventHandler`, `EvaluationCancelledEventHandler`, `DepartmentHeadFinalDecisionEventHandler` |
 | `DirectTopic/` | `ProjectSubmittedToMentorEventHandler`, `ProjectMentorApprovedEventHandler`, `ProjectMentorRequestedModificationEventHandler` |
@@ -138,6 +141,7 @@ These handlers are wired into the event pipeline but currently no-op on the noti
 - **Real-time chat** — hub, repositories, and Mongo documents exist, but no `Chats` Application feature or endpoints to expose conversations/messages.
 - **Meetings** — feature and endpoint folders are empty; `MeetingReminderJob` is stubbed pending this.
 - **Defense schedule** — no aggregate/feature wired; `DefenseScheduleReminderJob` is stubbed.
+- **Evaluation checklist scoring** — `feature/evaluation-checklist` branch adds score columns to `ChecklistResultItems`/`ChecklistCriteria`, Excel import for checklist config, per-evaluator checklist view endpoint, and `ProjectChecklistSavedRealtimeHandler`. Not yet merged to dev.
 - **Reminder jobs** (`EvaluationReminderJob`, `DataCleanupJob`) are scheduled but empty — they run on cron but do nothing yet.
 - **TopicPool notification stubs** (2 above) need their notification bodies implemented.
 - **Redis health check** is a `TODO`; only SQL Server and MongoDB are health-checked.
