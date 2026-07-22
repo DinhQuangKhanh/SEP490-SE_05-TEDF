@@ -21,6 +21,12 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         /// <summary>True if the student is on the IsEligible list of any active or upcoming semester (EndDate ≥ now).</summary>
         Task<bool> IsStudentEligibleNowAsync(Guid studentId, CancellationToken cancellationToken = default);
 
+        /// <summary>True if the student is on the IsEligible roster of the given semester.</summary>
+        Task<bool> IsStudentEligibleAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
+
+        /// <summary>True if the mentor is on the IsAssigned eligible-mentor roster of any active or upcoming semester (EndDate ≥ now).</summary>
+        Task<bool> IsMentorEligibleNowAsync(Guid mentorId, CancellationToken cancellationToken = default);
+
         /// <summary>The student's assigned program (Major) on the eligible-student roster of the given semester, or null if not rostered / not yet assigned.</summary>
         Task<int?> GetEligibleStudentMajorAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
 

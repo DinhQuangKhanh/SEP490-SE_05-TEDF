@@ -19,7 +19,9 @@ export function AccountBlockedPage() {
                 ? { icon: 'person_off', title: 'Tài khoản đã bị vô hiệu hóa', fallback: 'Tài khoản của bạn đã bị vô hiệu hóa.' }
                 : kind === 'student_not_eligible'
                     ? { icon: 'school', title: 'Chưa đủ điều kiện', fallback: 'Bạn không thuộc danh sách sinh viên đủ điều kiện làm đồ án trong học kỳ hiện tại hoặc sắp tới.' }
-                    : { icon: 'block', title: 'Không thể truy cập', fallback: 'Tài khoản của bạn hiện không thể truy cập hệ thống.' }
+                    : kind === 'mentor_not_eligible'
+                        ? { icon: 'school', title: 'Chưa được phân công', fallback: 'Bạn không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.' }
+                        : { icon: 'block', title: 'Không thể truy cập', fallback: 'Tài khoản của bạn hiện không thể truy cập hệ thống.' }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-red-50/30 flex items-center justify-center p-6 relative overflow-hidden">
