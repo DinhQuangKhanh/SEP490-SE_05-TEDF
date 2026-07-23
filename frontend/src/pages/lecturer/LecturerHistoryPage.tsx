@@ -88,7 +88,7 @@ function EvaluatorHistoryView() {
             <p className="text-slate-500 text-sm">Xem lại các đề tài đã thẩm định và phản hồi của bạn.</p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+            <button type="button" className="flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
               <span className="material-symbols-outlined text-[20px]">download</span>
               <span>Xuất Excel</span>
             </button>
@@ -278,7 +278,7 @@ function EvaluatorHistoryView() {
                             <p className="text-sm text-slate-500 line-clamp-2 max-w-xs">{histItem.feedback || "—"}</p>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <button
+                            <button type="button"
                               onClick={() => navigate(`/lecturer/moderate/${histItem.projectId}`)}
                               className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
                             >

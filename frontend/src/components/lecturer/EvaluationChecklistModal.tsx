@@ -20,6 +20,14 @@ function parseScore(raw: string): number | null {
   return Number.isFinite(value) ? value : NaN;
 }
 
+/** Per-criterion score status styling/label (extracted so the markup has no nested ternaries). */
+function scoreStatus(hasScore: boolean, isPassed: boolean): { border: string; badge: string; label: string } {
+  if (!hasScore) return { border: "border-gray-200", badge: "bg-gray-100 text-slate-500", label: "Chưa chấm" };
+  if (isPassed)
+    return { border: "border-green-200 bg-green-50/50", badge: "bg-green-100 text-green-600", label: "Đạt" };
+  return { border: "border-amber-200 bg-amber-50/40", badge: "bg-amber-100 text-amber-600", label: "Chưa đạt" };
+}
+
 export function EvaluationChecklistModal({
   open,
   loading,
@@ -27,7 +35,7 @@ export function EvaluationChecklistModal({
   checklist,
   onClose,
   onSave,
-}: EvaluationChecklistModalProps) {
+}: Readonly<EvaluationChecklistModalProps>) {
   const [scores, setScores] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -77,7 +85,7 @@ export function EvaluationChecklistModal({
     if (readOnly) return;
     // Block negatives / invalid characters (no minus sign) and values above the criterion max —
     // an out-of-range keystroke is ignored so the field can never hold an invalid score.
-    if (!/^\d*\.?\d*$/.test(value)) return;
+    if (!/^\d*(?:\.\d*)?$/.test(value)) return;
     if (value !== "") {
       const num = Number(value);
       if (Number.isNaN(num) || num > maxScore) return;
@@ -153,6 +161,7 @@ export function EvaluationChecklistModal({
                 <h3 className="text-base font-bold text-slate-900">Checklist thẩm định đề tài</h3>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100"
               >
@@ -203,16 +212,11 @@ export function EvaluationChecklistModal({
                     const value = parseScore(scores[item.criterionId] ?? "");
                     const hasScore = value != null && !Number.isNaN(value);
                     const isPassed = hasScore && value >= item.passScore;
+                    const status = scoreStatus(hasScore, isPassed);
                     return (
                       <div
                         key={item.criterionId}
-                        className={`rounded-xl border p-3 transition-colors ${
-                          !hasScore
-                            ? "border-gray-200"
-                            : isPassed
-                              ? "border-green-200 bg-green-50/50"
-                              : "border-amber-200 bg-amber-50/40"
-                        }`}
+                        className={`rounded-xl border p-3 transition-colors ${status.border}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1">
@@ -228,22 +232,22 @@ export function EvaluationChecklistModal({
                             </p>
                           </div>
                           <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              !hasScore
-                                ? "bg-gray-100 text-slate-500"
-                                : isPassed
-                                  ? "bg-green-100 text-green-600"
-                                  : "bg-amber-100 text-amber-600"
-                            }`}
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.badge}`}
                           >
-                            {!hasScore ? "Chưa chấm" : isPassed ? "Đạt" : "Chưa đạt"}
+                            {status.label}
                           </span>
                         </div>
 
                         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                           <div className="sm:w-40">
-                            <label className="mb-1 block text-[11px] font-bold uppercase text-slate-400">Điểm</label>
+                            <label
+                              htmlFor={`score-${item.criterionId}`}
+                              className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
+                            >
+                              Điểm
+                            </label>
                             <input
+                              id={`score-${item.criterionId}`}
                               type="number"
                               min={0}
                               max={item.maxScore}
@@ -256,10 +260,14 @@ export function EvaluationChecklistModal({
                             />
                           </div>
                           <div className="flex-1">
-                            <label className="mb-1 block text-[11px] font-bold uppercase text-slate-400">
+                            <label
+                              htmlFor={`comment-${item.criterionId}`}
+                              className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
+                            >
                               Nhận xét
                             </label>
                             <textarea
+                              id={`comment-${item.criterionId}`}
                               rows={2}
                               value={comments[item.criterionId] ?? ""}
                               disabled={readOnly}
@@ -277,10 +285,14 @@ export function EvaluationChecklistModal({
                   {/* Show the overall note when editing, or read-only when there is a saved note. */}
                   {(!readOnly || note.trim().length > 0) && (
                     <div className="pt-1">
-                      <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                      <label
+                        htmlFor="checklist-overall-note"
+                        className="mb-1 block text-xs font-bold uppercase text-slate-500"
+                      >
                         Nhận xét tổng quát{!readOnly && " (tuỳ chọn)"}
                       </label>
                       <textarea
+                        id="checklist-overall-note"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                         disabled={readOnly}
@@ -314,6 +326,7 @@ export function EvaluationChecklistModal({
                   </div>
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={onClose}
                       className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50"
                     >
@@ -321,6 +334,7 @@ export function EvaluationChecklistModal({
                     </button>
                     {!readOnly && (
                       <button
+                        type="button"
                         onClick={handleSave}
                         disabled={saving}
                         className="flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-lg shadow-primary/20 hover:bg-primary-dark disabled:opacity-50"

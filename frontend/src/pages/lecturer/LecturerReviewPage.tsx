@@ -190,7 +190,7 @@ export function LecturerReviewPage() {
         <div className="text-center">
           <span className="material-symbols-outlined text-6xl text-gray-300 mb-4 block">error</span>
           <p className="text-lg font-semibold text-slate-700">Không tìm thấy đề tài</p>
-          <button
+          <button type="button"
             onClick={() => navigate("/lecturer/moderate")}
             className="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark"
           >
@@ -228,7 +228,7 @@ export function LecturerReviewPage() {
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <button
+              <button type="button"
                 onClick={() => navigate("/lecturer/moderate")}
                 className="size-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50"
               >
@@ -265,7 +265,7 @@ export function LecturerReviewPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <button type="button"
                 onClick={handleCheckSimilarity}
                 disabled={loadingSimilarity}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
@@ -397,7 +397,7 @@ export function LecturerReviewPage() {
                         <span className="material-symbols-outlined text-amber-500">compare</span>
                         <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp tiêu đề</h3>
                       </div>
-                      <button
+                      <button type="button"
                         onClick={() => { setShowSimilarity(false); setExpandedCompare(null); }}
                         className="size-7 rounded-lg hover:bg-gray-100 flex items-center justify-center"
                       >
@@ -609,7 +609,7 @@ export function LecturerReviewPage() {
                 const approveGated = value === 1 && !canApprove;
                 const disabled = !!project.existingResult || approveGated;
                 return (
-                  <button
+                  <button type="button"
                     key={value}
                     onClick={() => setVerdict(value)}
                     disabled={disabled}
@@ -646,7 +646,7 @@ export function LecturerReviewPage() {
             </div>
 
             {/* Checklist button + gate hint */}
-            <button
+            <button type="button"
               onClick={() => setChecklistOpen(true)}
               className="mt-3 flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-gray-50"
             >
@@ -700,7 +700,7 @@ export function LecturerReviewPage() {
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">Mẫu nhanh</h3>
               <div className="flex flex-wrap gap-2">
                 {quickFeedback.map((t) => (
-                  <button
+                  <button type="button"
                     key={t}
                     onClick={() => setFeedback((f) => (f ? f + " " : "") + t)}
                     className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-slate-600 hover:bg-primary/10 hover:text-primary"
@@ -743,13 +743,13 @@ export function LecturerReviewPage() {
         {/* Footer buttons */}
         {!project.existingResult && (
           <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
-            <button
+            <button type="button"
               onClick={() => navigate("/lecturer/moderate")}
               className="flex-1 h-11 rounded-xl border border-gray-200 text-slate-700 font-semibold text-sm hover:bg-gray-50"
             >
               Quay lại
             </button>
-            <button
+            <button type="button"
               disabled={
                 verdict === null || submitting || !!project.existingResult || (verdict === 1 && !canApprove)
               }

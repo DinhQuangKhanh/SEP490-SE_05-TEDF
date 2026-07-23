@@ -100,14 +100,14 @@ export function ChecklistConfigPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <button type="button"
               onClick={() => setEditor({ open: true, config: null })}
               className="flex items-center gap-2 h-11 px-4 rounded-xl bg-white/15 text-white font-semibold text-sm hover:bg-white/25"
             >
               <span className="material-symbols-outlined text-[20px]">edit_note</span>
               Tạo thủ công
             </button>
-            <button
+            <button type="button"
               onClick={() => setImportOpen(true)}
               className="flex items-center gap-2 h-11 px-5 rounded-xl bg-white text-primary font-semibold text-sm hover:bg-blue-50 shadow"
             >
@@ -194,14 +194,14 @@ export function ChecklistConfigPage() {
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1">
-                            <button
+                            <button type="button"
                               onClick={() => setEditor({ open: true, config })}
                               className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
                               title={config.status === "Draft" ? "Chỉnh sửa" : "Xem"}
                             >
                               {config.status === "Draft" ? "Sửa" : "Xem"}
                             </button>
-                            <button
+                            <button type="button"
                               onClick={() => setCopyFor(config)}
                               className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
                               title="Sao chép sang học kỳ khác"
@@ -209,7 +209,7 @@ export function ChecklistConfigPage() {
                               Sao chép
                             </button>
                             {config.status !== "Active" && (
-                              <button
+                              <button type="button"
                                 onClick={() => setConfirm({ kind: "activate", config })}
                                 className="px-2 py-1 text-xs font-semibold text-green-600 rounded-lg hover:bg-green-50"
                               >
@@ -217,7 +217,7 @@ export function ChecklistConfigPage() {
                               </button>
                             )}
                             {config.status === "Active" && (
-                              <button
+                              <button type="button"
                                 onClick={() => setConfirm({ kind: "deactivate", config })}
                                 className="px-2 py-1 text-xs font-semibold text-red-600 rounded-lg hover:bg-red-50"
                               >
@@ -299,12 +299,12 @@ function ChecklistImportDialog({
   semesters,
   onClose,
   onImported,
-}: {
+}: Readonly<{
   open: boolean;
   semesters: ChecklistSemesterOptionDto[];
   onClose: () => void;
   onImported: () => void;
-}) {
+}>) {
   const { showError } = useSystemError();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -408,7 +408,7 @@ function ChecklistImportDialog({
                   Chọn học kỳ và file .xlsx. Hệ thống kiểm tra dữ liệu trước khi tạo checklist (bản nháp).
                 </p>
               </div>
-              <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
+              <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
@@ -431,7 +431,7 @@ function ChecklistImportDialog({
                   </select>
                 </div>
                 <div className="flex items-end">
-                  <button
+                  <button type="button"
                     onClick={handleDownloadTemplate}
                     disabled={downloading}
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-semibold text-slate-600 hover:bg-gray-50 disabled:opacity-50"
@@ -534,10 +534,10 @@ function ChecklistImportDialog({
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-6 py-4">
-              <button onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
+              <button type="button" onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
                 Huỷ
               </button>
-              <button
+              <button type="button"
                 onClick={handleImport}
                 disabled={!canImport}
                 className="flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
@@ -584,13 +584,13 @@ function ChecklistConfigEditor({
   semesters,
   onClose,
   onSaved,
-}: {
+}: Readonly<{
   open: boolean;
   config: ChecklistConfigDto | null;
   semesters: ChecklistSemesterOptionDto[];
   onClose: () => void;
   onSaved: () => void;
-}) {
+}>) {
   const { showError } = useSystemError();
   const isEdit = !!config;
   const readOnly = !!config && config.status !== "Draft";
@@ -718,7 +718,7 @@ function ChecklistConfigEditor({
                   Cấu hình tiêu chí, điểm tối đa/điểm đạt và số tiêu chí tối thiểu cần đạt.
                 </p>
               </div>
-              <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
+              <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
@@ -829,7 +829,7 @@ function ChecklistConfigEditor({
                         </div>
                         {!readOnly && (
                           <div className="flex flex-col gap-1">
-                            <button
+                            <button type="button"
                               onClick={() => move(index, -1)}
                               disabled={index === 0}
                               className="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100 disabled:opacity-30"
@@ -837,7 +837,7 @@ function ChecklistConfigEditor({
                             >
                               <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
                             </button>
-                            <button
+                            <button type="button"
                               onClick={() => move(index, 1)}
                               disabled={index === rows.length - 1}
                               className="flex size-7 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100 disabled:opacity-30"
@@ -845,7 +845,7 @@ function ChecklistConfigEditor({
                             >
                               <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
                             </button>
-                            <button
+                            <button type="button"
                               onClick={() => removeRow(row.key)}
                               disabled={rows.length <= 1}
                               className="flex size-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 disabled:opacity-30"
@@ -859,7 +859,7 @@ function ChecklistConfigEditor({
                     </div>
                   ))}
                   {!readOnly && (
-                    <button
+                    <button type="button"
                       onClick={addRow}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-semibold text-slate-500 hover:bg-gray-50"
                     >
@@ -874,11 +874,11 @@ function ChecklistConfigEditor({
             <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
               <span className="text-sm font-semibold text-slate-600">{rows.length} tiêu chí</span>
               <div className="flex gap-2">
-                <button onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
+                <button type="button" onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
                   {readOnly ? "Đóng" : "Huỷ"}
                 </button>
                 {!readOnly && (
-                  <button
+                  <button type="button"
                     onClick={handleSave}
                     disabled={saving || prefilling}
                     className="flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
@@ -908,12 +908,12 @@ function CopyChecklistDialog({
   semesters,
   onClose,
   onCopied,
-}: {
+}: Readonly<{
   source: ChecklistConfigDto | null;
   semesters: ChecklistSemesterOptionDto[];
   onClose: () => void;
   onCopied: () => void;
-}) {
+}>) {
   const { showError } = useSystemError();
   const [target, setTarget] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -973,10 +973,10 @@ function CopyChecklistDialog({
               ))}
             </select>
             <div className="flex justify-end gap-2">
-              <button onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
+              <button type="button" onClick={onClose} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
                 Huỷ
               </button>
-              <button
+              <button type="button"
                 onClick={handleCopy}
                 disabled={busy}
                 className="h-10 rounded-xl bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-50"
@@ -1001,7 +1001,7 @@ function ConfirmDialog({
   danger,
   onCancel,
   onConfirm,
-}: {
+}: Readonly<{
   open: boolean;
   busy: boolean;
   title: string;
@@ -1010,7 +1010,7 @@ function ConfirmDialog({
   danger?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
-}) {
+}>) {
   return (
     <AnimatePresence>
       {open && (
@@ -1031,10 +1031,10 @@ function ConfirmDialog({
             <h3 className="mb-2 text-base font-bold text-slate-900">{title}</h3>
             <p className="mb-5 text-sm text-slate-600">{message}</p>
             <div className="flex justify-end gap-2">
-              <button onClick={onCancel} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
+              <button type="button" onClick={onCancel} className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50">
                 Huỷ
               </button>
-              <button
+              <button type="button"
                 onClick={onConfirm}
                 disabled={busy}
                 className={`h-10 rounded-xl px-5 text-sm font-semibold text-white disabled:opacity-50 ${
