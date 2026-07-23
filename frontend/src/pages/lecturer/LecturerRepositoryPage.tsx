@@ -368,17 +368,6 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
     setRejectAttachments([]);
   };
 
-  const setItemsAndCount = useCallback(
-    (updater: (prev: MentorRegistrationRequestDto[]) => MentorRegistrationRequestDto[]) => {
-      setItems((prev) => {
-        const next = updater(prev);
-        onCountChange(next.length);
-        return next;
-      });
-    },
-    [onCountChange],
-  );
-
   const load = useCallback(() => {
     setLoading(true);
     topicPoolService
