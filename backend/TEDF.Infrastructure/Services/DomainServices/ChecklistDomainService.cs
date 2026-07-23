@@ -207,7 +207,7 @@ public class ChecklistDomainService : IChecklistDomainService
         return _currentUser.UserId.Value;
     }
 
-    private static IReadOnlyList<ChecklistCriterionSpec> ToSpecs(IReadOnlyList<ChecklistCriterionData> criteria)
+    private static List<ChecklistCriterionSpec> ToSpecs(IReadOnlyList<ChecklistCriterionData> criteria)
         => criteria.Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore)).ToList();
 
     private static string BuildImportErrorMessage(ChecklistImportParseResult parsed)

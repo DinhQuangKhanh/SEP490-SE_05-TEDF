@@ -30,7 +30,7 @@ function reviewedAt(project: DepartmentProject): string | null {
   const dates = project.evaluators
     .map((e) => e.evaluatedAt)
     .filter((d): d is string => !!d)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   return dates.length > 0 ? dates[dates.length - 1] : (project.submittedAt ?? null);
 }
 
@@ -135,7 +135,7 @@ export function DepartmentEvaluationHistory() {
     const csv = [header, ...rows].map((r) => r.map((c) => toCsvValue(String(c))).join(",")).join("\r\n");
     // Prepend a UTF-8 BOM so Excel opens Vietnamese characters correctly
     // (fromCharCode avoids embedding a literal BOM in the source file).
-    const blob = new Blob([String.fromCharCode(0xfeff) + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([String.fromCodePoint(0xfeff) + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -160,6 +160,7 @@ export function DepartmentEvaluationHistory() {
           </div>
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={exportCsv}
               disabled={totalCount === 0}
               className="flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -287,6 +288,7 @@ export function DepartmentEvaluationHistory() {
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <button
+                              type="button"
                               onClick={() => setDetailProject(p)}
                               className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
                             >
@@ -326,13 +328,13 @@ function StatCard({
   value,
   label,
   loading,
-}: {
+}: Readonly<{
   icon: string;
   tone: "primary" | "green" | "amber" | "red";
   value: number;
   label: string;
   loading: boolean;
-}) {
+}>) {
   const toneClasses: Record<string, string> = {
     primary: "bg-primary/10 text-primary",
     green: "bg-green-50 text-green-600",

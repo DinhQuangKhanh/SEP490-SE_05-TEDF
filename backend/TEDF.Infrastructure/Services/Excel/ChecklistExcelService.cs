@@ -67,53 +67,60 @@ public sealed class ChecklistExcelService : IChecklistExcelService
 
         for (var rowNumber = FirstDataRow; rowNumber <= lastRow; rowNumber++)
         {
-            var row = worksheet.Row(rowNumber);
-
-            var titleVi = GetString(row, columns, ColumnKey.TitleVi);
-            var titleEn = GetString(row, columns, ColumnKey.TitleEn);
-            var description = GetString(row, columns, ColumnKey.Description);
-            var maxRaw = GetString(row, columns, ColumnKey.MaxScore);
-            var passRaw = GetString(row, columns, ColumnKey.PassScore);
-
-            // Skip fully blank rows so trailing empty rows in the sheet don't count as criteria.
-            if (string.IsNullOrWhiteSpace(titleVi) && string.IsNullOrWhiteSpace(titleEn) &&
-                string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(maxRaw) &&
-                string.IsNullOrWhiteSpace(passRaw))
-            {
-                continue;
-            }
-
-            var errors = new List<string>();
-
-            if (string.IsNullOrWhiteSpace(titleVi))
-                errors.Add("Tên tiêu chí (tiếng Việt) không được để trống.");
-
-            var maxScore = TryParseScore(maxRaw, out var maxOk);
-            if (!maxOk)
-                errors.Add("Điểm tối đa không hợp lệ (phải là số).");
-            else if (maxScore <= 0)
-                errors.Add("Điểm tối đa phải lớn hơn 0.");
-
-            var passScore = TryParseScore(passRaw, out var passOk);
-            if (!passOk)
-                errors.Add("Điểm đạt không hợp lệ (phải là số).");
-            else if (passScore < 0)
-                errors.Add("Điểm đạt không được âm.");
-
-            if (maxOk && passOk && maxScore > 0 && passScore > maxScore)
-                errors.Add("Điểm đạt không được lớn hơn điểm tối đa.");
-
-            rows.Add(new ChecklistImportRow(
-                RowNumber: rowNumber,
-                TitleVi: titleVi.Trim(),
-                TitleEn: titleEn.Trim(),
-                Description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-                MaxScore: maxOk ? maxScore : null,
-                PassScore: passOk ? passScore : null,
-                Errors: errors));
+            var parsed = ParseDataRow(worksheet.Row(rowNumber), rowNumber, columns);
+            if (parsed is not null)
+                rows.Add(parsed);
         }
 
         return rows;
+    }
+
+    /// <summary>Parses one data row into a criterion, or null if the row is entirely blank.</summary>
+    private static ChecklistImportRow? ParseDataRow(IXLRow row, int rowNumber, IReadOnlyDictionary<ColumnKey, int> columns)
+    {
+        var titleVi = GetString(row, columns, ColumnKey.TitleVi);
+        var titleEn = GetString(row, columns, ColumnKey.TitleEn);
+        var description = GetString(row, columns, ColumnKey.Description);
+        var maxRaw = GetString(row, columns, ColumnKey.MaxScore);
+        var passRaw = GetString(row, columns, ColumnKey.PassScore);
+
+        if (IsBlankRow(titleVi, titleEn, description, maxRaw, passRaw))
+            return null;
+
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(titleVi))
+            errors.Add("Tên tiêu chí (tiếng Việt) không được để trống.");
+
+        var maxScore = TryParseScore(maxRaw, out var maxOk);
+        var passScore = TryParseScore(passRaw, out var passOk);
+        ValidateScores(maxScore, maxOk, passScore, passOk, errors);
+
+        return new ChecklistImportRow(
+            RowNumber: rowNumber,
+            TitleVi: titleVi.Trim(),
+            TitleEn: titleEn.Trim(),
+            Description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+            MaxScore: maxOk ? maxScore : null,
+            PassScore: passOk ? passScore : null,
+            Errors: errors);
+    }
+
+    private static bool IsBlankRow(params string[] values) => values.All(string.IsNullOrWhiteSpace);
+
+    private static void ValidateScores(decimal maxScore, bool maxOk, decimal passScore, bool passOk, List<string> errors)
+    {
+        if (!maxOk)
+            errors.Add("Điểm tối đa không hợp lệ (phải là số).");
+        else if (maxScore <= 0)
+            errors.Add("Điểm tối đa phải lớn hơn 0.");
+
+        if (!passOk)
+            errors.Add("Điểm đạt không hợp lệ (phải là số).");
+        else if (passScore < 0)
+            errors.Add("Điểm đạt không được âm.");
+
+        if (maxOk && passOk && maxScore > 0 && passScore > maxScore)
+            errors.Add("Điểm đạt không được lớn hơn điểm tối đa.");
     }
 
     public byte[] GenerateTemplate()

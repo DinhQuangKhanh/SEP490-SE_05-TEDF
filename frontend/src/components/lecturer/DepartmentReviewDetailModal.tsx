@@ -14,7 +14,7 @@ interface DepartmentReviewDetailModalProps {
  * checklist (fetched per evaluator). Refetches whenever the project changes / the modal reopens, so stale
  * data from a previously viewed project is never shown. DH cannot edit anything here.
  */
-export function DepartmentReviewDetailModal({ project, onClose }: DepartmentReviewDetailModalProps) {
+export function DepartmentReviewDetailModal({ project, onClose }: Readonly<DepartmentReviewDetailModalProps>) {
   const [loading, setLoading] = useState(false);
   const [checklists, setChecklists] = useState<Record<string, ProjectChecklistResponse>>({});
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +60,57 @@ export function DepartmentReviewDetailModal({ project, onClose }: DepartmentRevi
 
   const mentorName = project?.mentors[0]?.mentorName;
 
+  function renderBody() {
+    if (error) {
+      return (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
+          <p className="text-sm font-medium text-slate-600">{error}</p>
+        </div>
+      );
+    }
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center gap-3 py-12 text-slate-400">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          <span className="text-sm">Đang tải checklist...</span>
+        </div>
+      );
+    }
+    if (submittedEvaluators.length === 0) {
+      return (
+        <div className="flex flex-col items-center gap-2 py-12 text-center text-slate-400">
+          <span className="material-symbols-outlined text-4xl">inbox</span>
+          <p className="text-sm font-medium">Chưa có người thẩm định nào nộp kết quả.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {submittedEvaluators.map((ev) => {
+          const checklist = checklists[ev.evaluatorId];
+          return checklist ? (
+            <EvaluatorChecklistCard
+              key={ev.evaluatorId}
+              evaluatorName={ev.evaluatorName}
+              verdict={ev.individualResult}
+              feedback={ev.feedback}
+              checklist={checklist}
+            />
+          ) : (
+            <div
+              key={ev.evaluatorId}
+              className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-slate-500"
+            >
+              <span className="font-semibold text-slate-700">{ev.evaluatorName}</span> — chưa có checklist
+              chi tiết cho lần thẩm định này.
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <AnimatePresence>
       {project && (
@@ -94,6 +145,7 @@ export function DepartmentReviewDetailModal({ project, onClose }: DepartmentRevi
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-gray-100"
               >
@@ -106,51 +158,13 @@ export function DepartmentReviewDetailModal({ project, onClose }: DepartmentRevi
               <h4 className="mb-3 text-xs font-bold uppercase text-slate-500">
                 Checklist thẩm định của từng người ({submittedEvaluators.length})
               </h4>
-
-              {error ? (
-                <div className="flex flex-col items-center gap-2 py-12 text-center">
-                  <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
-                  <p className="text-sm font-medium text-slate-600">{error}</p>
-                </div>
-              ) : loading ? (
-                <div className="flex items-center justify-center gap-3 py-12 text-slate-400">
-                  <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                  <span className="text-sm">Đang tải checklist...</span>
-                </div>
-              ) : submittedEvaluators.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-12 text-center text-slate-400">
-                  <span className="material-symbols-outlined text-4xl">inbox</span>
-                  <p className="text-sm font-medium">Chưa có người thẩm định nào nộp kết quả.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {submittedEvaluators.map((ev) => {
-                    const checklist = checklists[ev.evaluatorId];
-                    return checklist ? (
-                      <EvaluatorChecklistCard
-                        key={ev.evaluatorId}
-                        evaluatorName={ev.evaluatorName}
-                        verdict={ev.individualResult}
-                        feedback={ev.feedback}
-                        checklist={checklist}
-                      />
-                    ) : (
-                      <div
-                        key={ev.evaluatorId}
-                        className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-slate-500"
-                      >
-                        <span className="font-semibold text-slate-700">{ev.evaluatorName}</span> — chưa có
-                        checklist chi tiết cho lần thẩm định này.
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {renderBody()}
             </div>
 
             {/* Footer */}
             <div className="flex justify-end border-t border-gray-200 px-6 py-4">
               <button
+                type="button"
                 onClick={onClose}
                 className="h-10 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-slate-700 hover:bg-gray-50"
               >
