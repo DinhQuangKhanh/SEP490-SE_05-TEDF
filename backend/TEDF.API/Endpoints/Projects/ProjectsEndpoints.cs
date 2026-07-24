@@ -2,6 +2,7 @@ using MediatR;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
+using TEDF.Application.Features.Projects.Queries.GetProjectAuditLogs;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
@@ -29,6 +30,11 @@ public sealed class ProjectsEndpoints : IEndpoint
         group.MapGet("/supervised", GetMySupervisedProjects)
             .WithTags("Projects").WithName("GetMySupervisedProjects")
             .Produces(200).Produces(401);
+
+        // Audit logs for a project.
+        group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
+            .WithTags("Projects").WithName("GetProjectAuditLogs")
+            .Produces(200).Produces(401);
     }
 
     private static async Task<IResult> GetProjects(
@@ -48,4 +54,7 @@ public sealed class ProjectsEndpoints : IEndpoint
     private static async Task<IResult> GetMySupervisedProjects(
         ISender sender, string? search, string? sort, int page = 1, int pageSize = 10, CancellationToken ct = default)
         => Ok(await sender.Send(new GetMySupervisedProjectsQuery(search, sort, page, pageSize), ct));
+
+    private static async Task<IResult> GetProjectAuditLogs(ISender sender, Guid id, CancellationToken ct = default)
+        => Ok(await sender.Send(new GetProjectAuditLogsQuery(id), ct));
 }

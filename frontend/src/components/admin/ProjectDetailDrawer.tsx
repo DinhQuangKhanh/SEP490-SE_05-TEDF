@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { projectService } from "@/lib";
 import type { ProjectDetail, ProjectListItem } from "@/types";
+import { ProjectAuditLogList } from './ProjectAuditLogList';
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -291,6 +292,13 @@ export function ProjectDetailDrawer({ project, isOpen, onClose }: ProjectDetailD
                                         <p className="text-xs text-slate-400 pt-2 border-t border-slate-100">
                                             Cập nhật lần cuối: {formatDate(detail.updatedAt)}
                                         </p>
+                                    )}
+
+                                    {/* Audit Logs */}
+                                    {project && (
+                                        <div className="pt-6 mt-2 border-t border-slate-100">
+                                            <ProjectAuditLogList projectId={project.id} />
+                                        </div>
                                     )}
                                 </div>
                             )}

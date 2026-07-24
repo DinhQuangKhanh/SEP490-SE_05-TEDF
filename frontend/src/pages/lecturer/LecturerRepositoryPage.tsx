@@ -368,17 +368,6 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
     setRejectAttachments([]);
   };
 
-  const setItemsAndCount = useCallback(
-    (updater: (prev: MentorRegistrationRequestDto[]) => MentorRegistrationRequestDto[]) => {
-      setItems((prev) => {
-        const next = updater(prev);
-        onCountChange(next.length);
-        return next;
-      });
-    },
-    [onCountChange],
-  );
-
   const load = useCallback(() => {
     setLoading(true);
     topicPoolService
@@ -408,7 +397,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
 
   useSignalR({
     onRegistrationUpdate: (raw) => {
-      const update = raw as RegistrationUpdate;
+      const update = raw as unknown as RegistrationUpdate;
       if (update.action === "removed") {
         remove(update.registrationId);
       } else if (update.action === "added") {

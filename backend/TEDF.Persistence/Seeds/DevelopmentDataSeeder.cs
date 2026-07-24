@@ -11,7 +11,7 @@ namespace TEDF.Persistence.Seeds;
 public static class DevelopmentDataSeeder
 {
     // Department
-    private const int DeptCNTT = 1; // Khoa Công nghệ thông tin
+    private const int DeptCNTT = 1; // Khoa Kỹ Thuật Phần Mềm
 
     // Majors (all belong to DeptCNTT)
     private const int MajorSE = 1; // Kỹ thuật phần mềm
@@ -59,7 +59,7 @@ public static class DevelopmentDataSeeder
         var sql = @"
             SET IDENTITY_INSERT Departments ON;
             INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
-            VALUES (@p0, N'Công nghệ thông tin', 'CNTT', N'Khoa Công nghệ thông tin', NULL, 1, @p1, NULL);
+            VALUES (@p0, N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
             SET IDENTITY_INSERT Departments OFF;";
 
         await context.Database.ExecuteSqlRawAsync(sql, DeptCNTT, SeedDate);

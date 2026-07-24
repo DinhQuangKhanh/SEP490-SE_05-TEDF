@@ -120,6 +120,7 @@ namespace TEDF.Persistence
             // Add Log Services
             services.AddScoped<IRequestLogService, RequestLogService>();
             services.AddScoped<IErrorLogService, ErrorLogService>();
+            services.AddScoped<ISystemAuditLogWriteService, SystemAuditLogWriteService>();
 
             return services;
         }

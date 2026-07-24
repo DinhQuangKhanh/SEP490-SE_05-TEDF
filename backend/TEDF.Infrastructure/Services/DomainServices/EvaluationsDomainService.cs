@@ -122,7 +122,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     }
 
     // ── Write operations ──
-    public async Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, Guid evaluatorId, int evaluatorOrder, CancellationToken ct = default)
+    public async Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, int phaseId, Guid evaluatorId, int evaluatorOrder, CancellationToken ct = default)
     {
         var currentUser = await _userRepository.GetByIdAsync(currentUserId, ct)
             ?? throw new UnauthorizedAccessException("Current user not found.");
@@ -155,6 +155,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
 
         var assignment = ProjectEvaluatorAssignment.Create(
             projectId: projectId,
+            phaseId: phaseId,
             evaluatorId: evaluatorId,
             order: evaluatorOrder,
             assignedBy: currentUserId,
@@ -165,7 +166,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         await _unitOfWork.SaveChangesAsync(ct);
 
         await _publisher.Publish(new EvaluatorAssignedToProjectEvent(
-            assignment.Id, projectId, evaluatorId, evaluatorOrder, currentUserId), ct);
+            assignment.Id, projectId, phaseId, evaluatorId, evaluatorOrder, currentUserId), ct);
     }
 
     public async Task SubmitEvaluationAsync(Guid evaluatorId, Guid projectId, int result, string? feedback, CancellationToken ct = default)
@@ -201,7 +202,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
                     case EvaluationResult.Rejected:
                         project.Reject();
                         _backgroundJobService.Schedule<IProjectRepository>(
-                            repo => repo.CancelRejectedProjectAsync(projectId, default),
+                            repo => repo.CancelRejectedProjectAsync(projectId, CancellationToken.None),
                             TimeSpan.FromMinutes(5));
                         break;
                 }
@@ -255,7 +256,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
             case EvaluationResult.Rejected:
                 project.Reject();
                 _backgroundJobService.Schedule<IProjectRepository>(
-                    repo => repo.CancelRejectedProjectAsync(projectId, default),
+                    repo => repo.CancelRejectedProjectAsync(projectId, CancellationToken.None),
                     TimeSpan.FromMinutes(5));
                 break;
             default:
