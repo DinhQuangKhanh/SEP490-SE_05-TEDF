@@ -643,15 +643,15 @@ function AssignEvaluatorModal({
           setSubmitting(false);
           return;
         }
-        await evaluatorService.assignEvaluator(project.projectId, eval1, 1);
-        await evaluatorService.assignEvaluator(project.projectId, eval2, 2);
+        await evaluatorService.assignEvaluator(project.projectId, 1, eval1, 1);
+        await evaluatorService.assignEvaluator(project.projectId, 1, eval2, 2);
       } else {
         if (!eval1) {
           setError("Vui lòng chọn evaluator");
           setSubmitting(false);
           return;
         }
-        await evaluatorService.assignEvaluator(project.projectId, eval1, nextOrder);
+        await evaluatorService.assignEvaluator(project.projectId, 1, eval1, nextOrder);
       }
       setSuccess(true);
       setTimeout(onSuccess, 1500);

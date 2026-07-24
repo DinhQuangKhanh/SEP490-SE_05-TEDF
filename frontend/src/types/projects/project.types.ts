@@ -97,3 +97,17 @@ export interface SupervisedProjectFilters {
   page?: number;
   pageSize?: number;
 }
+
+export interface ProjectAuditLogDto {
+  id: string;
+  action: string;
+  performedBy: string | null;
+  performedByName: string | null;
+  timestamp: string;
+  metadata: any | null;
+}
+
+export interface ProjectAuditLogResponse {
+  logs: ProjectAuditLogDto[];
+  revisionCount: number;
+}
