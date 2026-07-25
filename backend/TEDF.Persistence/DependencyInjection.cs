@@ -155,9 +155,6 @@ namespace TEDF.Persistence
             await dbContext.Database.MigrateAsync();
             logger.LogInformation("EF Core migrations applied successfully.");
 
-            // Seed development data (idempotent - skips if data already exists)
-            //await DevelopmentDataSeeder.SeedAsync(dbContext);
-
             // Load-test data: seed 1000 users + relationships when Firebase Emulator is enabled
             var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var useEmulator = configuration.GetValue<bool>("Firebase:UseEmulator");
