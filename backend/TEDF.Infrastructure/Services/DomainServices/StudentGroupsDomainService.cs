@@ -42,12 +42,6 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
     }
 
     // ── Helper queries ──
-    public async Task<string> GenerateGroupCodeAsync(int year, CancellationToken ct = default)
-    {
-        var sequence = await _groupRepository.GetNextSequenceAsync(year, ct);
-        return $"G-{year}-{sequence:D4}";
-    }
-
     public async Task<(bool CanJoin, string? Reason)> CanStudentJoinGroupAsync(Guid studentId, int semesterId, CancellationToken ct = default)
     {
         var isInActiveGroup = await _groupRepository.IsStudentInActiveGroupAsync(studentId, semesterId, ct);
@@ -60,7 +54,7 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         => await _groupRepository.GetActiveGroupIdsWithoutProjectAsync(semesterId, ct);
 
     // ── Write operations ──
-    public async Task<Guid> CreateGroupAsync(Guid studentId, string? name, CancellationToken ct = default)
+    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken ct = default)
     {
         var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, ct)
             ?? throw new BusinessRuleValidationException("No next semester found.");
@@ -71,12 +65,13 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         if (await _groupRepository.HasPendingJoinRequestAsync(studentId, nextSemester.Id, ct))
             throw new BusinessRuleValidationException("Student has a pending join request and cannot create a new group yet.");
 
-        var year = DateTime.UtcNow.Year;
-        var seq = await _groupRepository.GetNextSequenceAsync(year, ct);
-        var code = GroupCode.Generate(year, seq);
+        // Numbering is per semester, so the code prefix and the sequence must come from the same
+        // semester the group is being created in — not from the calendar year.
+        var seq = await _groupRepository.GetNextSequenceAsync(nextSemester.Id, ct);
+        var code = GroupCode.Generate(nextSemester.Code.Value, seq);
 
         var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, ct);
-        var group = Group.Create(code, nextSemester.Id, studentId, name, maxMembers);
+        var group = Group.Create(code, nextSemester.Id, studentId, displayName, maxMembers);
 
         await _groupRepository.AddAsync(group, ct);
 
