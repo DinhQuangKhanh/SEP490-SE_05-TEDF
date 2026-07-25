@@ -608,6 +608,8 @@ function OpenGroupsContent() {
   const [requestMessage, setRequestMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [pendingJoinRequest, setPendingJoinRequest] = useState<PendingJoinRequestDto | null>(null);
+  const [invitations, setInvitations] = useState<InvitationDto[]>([]);
+  const [respondingInvite, setRespondingInvite] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -619,14 +621,16 @@ function OpenGroupsContent() {
   const fetchOpenGroups = async () => {
     try {
       setLoading(true);
-      const [groups, pending, currentGroup] = await Promise.all([
+      const [groups, pending, currentGroup, myInvitations] = await Promise.all([
         studentGroupService.getOpenGroups(),
         studentGroupService.getMyPendingJoinRequest(),
         studentGroupService.getMyGroup(),
+        studentGroupService.getMyInvitations(),
       ]);
       setOpenGroups(groups);
       setPendingJoinRequest(pending);
       setMyGroup(currentGroup ? { groupCode: currentGroup.groupCode, groupName: currentGroup.groupName } : null);
+      setInvitations(myInvitations);
     } catch (err) {
       showError(err instanceof Error ? err.message : "Có lỗi khi tải dữ liệu");
     } finally {
@@ -635,6 +639,32 @@ function OpenGroupsContent() {
   };
 
   const hasGroupInCurrentSemester = !!myGroup;
+
+  // A group that already invited this student is answered via accept/reject, not a join request.
+  const invitationForGroup = (groupId: string) =>
+    invitations.find(
+      (inv) =>
+        inv.groupId === groupId &&
+        inv.status.toLowerCase() === "pending" &&
+        new Date(inv.expiresAt) >= new Date(),
+    );
+
+  const handleRespondInvitation = async (groupId: string, invitationId: number, accept: boolean) => {
+    try {
+      setRespondingInvite(true);
+      if (accept) await studentGroupService.acceptInvitation(groupId, invitationId);
+      else await studentGroupService.rejectInvitation(groupId, invitationId);
+      setShowDetailModal(false);
+      setSelectedGroup(null);
+      setToastMessage(accept ? "Đã chấp nhận lời mời tham gia nhóm." : "Đã từ chối lời mời tham gia nhóm.");
+      setTimeout(() => setToastMessage(null), 4000);
+      await fetchOpenGroups();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Không thể xử lý lời mời");
+    } finally {
+      setRespondingInvite(false);
+    }
+  };
 
   // Client-side search + pagination
   const filteredGroups = useMemo(() => {
@@ -756,7 +786,14 @@ function OpenGroupsContent() {
                 className="p-6 transition bg-white border border-gray-200 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-primary/30"
               >
                 <div className="mb-4">
-                  <h3 className="mb-1 text-lg font-bold text-gray-800">{group.groupName || group.groupCode}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="mb-1 text-lg font-bold text-gray-800">{group.groupName || group.groupCode}</h3>
+                    {invitationForGroup(group.groupId) && (
+                      <span className="shrink-0 inline-block px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                        Đã được mời
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600">Mã: {group.groupCode}</p>
                 </div>
 
@@ -887,22 +924,54 @@ function OpenGroupsContent() {
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setShowDetailModal(false);
-                if (!pendingJoinRequest && !hasGroupInCurrentSemester) {
-                  setShowRequestModal(true);
-                }
-              }}
-              disabled={!!pendingJoinRequest || hasGroupInCurrentSemester}
-              className="w-full px-4 py-3 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              {hasGroupInCurrentSemester
-                ? "Bạn đã có nhóm ở kỳ này"
-                : pendingJoinRequest
-                  ? "Đang chờ phê duyệt"
-                  : "Yêu cầu tham gia"}
-            </button>
+            {(() => {
+              const invitation = invitationForGroup(selectedGroup.groupId);
+              if (invitation && !hasGroupInCurrentSemester) {
+                // The group already invited this student → respond to the invitation instead of
+                // sending a competing join request (mirrors the "Lời mời" tab behaviour).
+                return (
+                  <>
+                    <div className="px-4 py-3 mb-3 text-sm border rounded-lg bg-yellow-50 border-yellow-200 text-yellow-800">
+                      Nhóm này đã gửi lời mời cho bạn. Hãy phản hồi lời mời bên dưới.
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleRespondInvitation(selectedGroup.groupId, invitation.id, false)}
+                        disabled={respondingInvite}
+                        className="flex-1 px-4 py-3 font-semibold text-red-700 transition border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {respondingInvite ? "Đang xử lý..." : "Từ chối"}
+                      </button>
+                      <button
+                        onClick={() => handleRespondInvitation(selectedGroup.groupId, invitation.id, true)}
+                        disabled={respondingInvite}
+                        className="flex-1 px-4 py-3 font-semibold text-white transition bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {respondingInvite ? "Đang xử lý..." : "Chấp nhận"}
+                      </button>
+                    </div>
+                  </>
+                );
+              }
+              return (
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    if (!pendingJoinRequest && !hasGroupInCurrentSemester) {
+                      setShowRequestModal(true);
+                    }
+                  }}
+                  disabled={!!pendingJoinRequest || hasGroupInCurrentSemester}
+                  className="w-full px-4 py-3 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {hasGroupInCurrentSemester
+                    ? "Bạn đã có nhóm ở kỳ này"
+                    : pendingJoinRequest
+                      ? "Đang chờ phê duyệt"
+                      : "Yêu cầu tham gia"}
+                </button>
+              );
+            })()}
           </div>
         </div>
       )}

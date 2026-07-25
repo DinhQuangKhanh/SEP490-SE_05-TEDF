@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
+import { EvaluatorChecklistViewButton } from "@/components/lecturer";
 import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
@@ -183,7 +184,7 @@ export function AssignEvaluatorsPage() {
   const pageNumbers = getPageNumbers(page, totalPages);
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <Header
         title="Phân công thẩm định"
         subtitle="Phân công evaluator và theo dõi kết quả thẩm định đề tài"
@@ -191,7 +192,7 @@ export function AssignEvaluatorsPage() {
         showSearch={false}
       />
 
-      <div className="p-8">
+      <div className="flex-1 overflow-y-auto p-8">
         {/* Search */}
         <div className="mb-4">
           <div className="relative max-w-md">
@@ -206,8 +207,7 @@ export function AssignEvaluatorsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
             {search && (
-              <button
-                type="button"
+              <button type="button"
                 onClick={() => setSearch("")}
                 className="absolute -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600"
               >
@@ -222,8 +222,7 @@ export function AssignEvaluatorsPage() {
           <div className="px-4 border-b border-slate-200">
             <div className="flex gap-1">
               {tabs.map((tab) => (
-                <button
-                  type="button"
+                <button type="button"
                   key={tab.key}
                   onClick={() => navigate(tab.key === "pending" ? "/lecturer/assign" : `/lecturer/assign/${tab.key}`)}
                   className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
@@ -307,8 +306,7 @@ export function AssignEvaluatorsPage() {
                 trên <span className="font-medium text-slate-900">{filteredData.length}</span> đề tài
               </span>
               <div className="flex justify-center w-full gap-1 sm:w-auto sm:justify-end">
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
@@ -321,8 +319,7 @@ export function AssignEvaluatorsPage() {
                       ...
                     </span>
                   ) : (
-                    <button
-                      type="button"
+                    <button type="button"
                       key={p}
                       onClick={() => setPage(p)}
                       className={`px-3 py-1 rounded text-sm transition-colors ${
@@ -335,8 +332,7 @@ export function AssignEvaluatorsPage() {
                     </button>
                   ),
                 )}
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
@@ -425,8 +421,7 @@ function PendingTab({
               </span>
             </div>
           </div>
-          <button
-            type="button"
+          <button type="button"
             onClick={() => onAssign(p)}
             className="flex items-center gap-2 px-4 py-2 ml-4 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 shrink-0"
           >
@@ -527,13 +522,21 @@ function NeedsDecisionTab({
                   {resultLabel(a.individualResult)}
                 </p>
                 {a.feedback && <p className="mt-1 text-xs text-slate-500 line-clamp-3">{a.feedback}</p>}
+                {a.hasSubmitted && (
+                  <div className="mt-2">
+                    <EvaluatorChecklistViewButton
+                      projectId={p.projectId}
+                      evaluatorId={a.evaluatorId}
+                      evaluatorName={a.evaluatorName}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
 
           <div className="flex justify-end mt-3">
-            <button
-              type="button"
+            <button type="button"
               onClick={() => onDecide(p)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600"
             >
@@ -872,15 +875,13 @@ function AssignEvaluatorModal({
 
             {/* Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
-              <button
-                type="button"
+              <button type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
-              <button
-                type="button"
+              <button type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
@@ -1008,8 +1009,7 @@ function FinalDecisionModal({
                 <label className="block mb-2 text-sm font-medium text-slate-700">Quyết định của bạn</label>
                 <div className="grid grid-cols-3 gap-2">
                   {decisions.map((d) => (
-                    <button
-                      type="button"
+                    <button type="button"
                       key={d.value}
                       onClick={() => setResult(d.value)}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${
@@ -1039,15 +1039,13 @@ function FinalDecisionModal({
 
             {/* Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
-              <button
-                type="button"
+              <button type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
-              <button
-                type="button"
+              <button type="button"
                 onClick={handleSubmit}
                 disabled={submitting || result === null}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50"

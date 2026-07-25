@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.SemesterAggregate;
@@ -84,6 +85,8 @@ namespace TEDF.Persistence
             services.AddScoped<IDepartmentRepository, DepartmentRepository>();
             services.AddScoped<IMajorReadRepository, MajorRepository>();
             services.AddScoped<IProjectEvaluatorAssignmentRepository, ProjectEvaluatorAssignmentRepository>();
+            services.AddScoped<IChecklistConfigRepository, ChecklistConfigRepository>();
+            services.AddScoped<IProjectEvaluationChecklistRepository, ProjectEvaluationChecklistRepository>();
             services.AddScoped<ISystemConfigurationRepository, SystemConfigurationRepository>();
             services.AddScoped<IProjectArchiveRepository, ProjectArchiveRepository>();
 
@@ -93,6 +96,7 @@ namespace TEDF.Persistence
             // Add Query Services
             services.AddScoped<IStudentGroupsQueryService, StudentGroupsQueryService>();
             services.AddScoped<IEvaluationsQueryService, EvaluationsQueryService>();
+            services.AddScoped<IChecklistQueryService, ChecklistQueryService>();
             services.AddScoped<ITopicPoolsQueryService, TopicPoolsQueryService>();
             services.AddScoped<ITopicsQueryService, TopicsQueryService>();
             services.AddScoped<IDashboardQueryService, DashboardQueryService>();
@@ -166,6 +170,9 @@ namespace TEDF.Persistence
                 await LoadTestDataSeeder.SeedAsync(dbContext, logger);
                 await FirebaseEmulatorSeeder.SeedAsync(logger);
             }
+
+            // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
+            await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
 
             var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
             await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);

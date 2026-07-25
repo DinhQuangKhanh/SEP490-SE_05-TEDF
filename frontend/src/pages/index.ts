@@ -13,4 +13,5 @@ export * from "./student";
 export * from "./errors";
 export { DepartmentHeadDashboardPage } from "./department-head/DepartmentHeadDashboardPage";
 export { AssignEvaluatorsPage } from "./department-head/AssignEvaluatorsPage";
+export { ChecklistConfigPage } from "./department-head/ChecklistConfigPage";
 export { DepartmentHeadStatisticsPage } from "./department-head/DepartmentHeadStatisticsPage";

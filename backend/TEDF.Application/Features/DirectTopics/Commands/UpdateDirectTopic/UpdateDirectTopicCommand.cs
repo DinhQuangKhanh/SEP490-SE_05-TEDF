@@ -12,7 +12,7 @@ public sealed record UpdateDirectTopicCommand(
     string? Scope,
     string? Technologies,
     string? ExpectedResults,
-    int MaxStudents
+    int? MaxStudents
 ) : ICacheInvalidatingCommand
 {
   public IReadOnlyCollection<string> CachePrefixesToInvalidate =>

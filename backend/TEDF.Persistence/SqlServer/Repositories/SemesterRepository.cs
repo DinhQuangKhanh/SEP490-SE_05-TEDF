@@ -91,6 +91,24 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .AnyAsync(endDate => endDate >= now, cancellationToken);
         }
 
+        public async Task<bool> IsStudentEligibleAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)
+        {
+            return await _context.EligibleStudents
+                .AsNoTracking()
+                .AnyAsync(e => e.StudentId == studentId && e.SemesterId == semesterId && e.IsEligible, cancellationToken);
+        }
+
+        public async Task<bool> IsMentorEligibleNowAsync(Guid mentorId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            // Eligible on the active or any upcoming semester (i.e. one that hasn't ended yet).
+            return await _context.EligibleMentors
+                .AsNoTracking()
+                .Where(m => m.MentorId == mentorId && m.IsAssigned)
+                .Join(_context.Semesters.AsNoTracking(), m => m.SemesterId, s => s.Id, (m, s) => s.EndDate)
+                .AnyAsync(endDate => endDate >= now, cancellationToken);
+        }
+
         public async Task<int?> GetEligibleStudentMajorAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)
         {
             return await _context.EligibleStudents

@@ -155,6 +155,207 @@ namespace TEDF.Persistence.Migrations
                     b.ToTable("EvaluationSubmissions", (string)null);
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RequiredPassCount")
+                        .HasColumnType("int")
+                        .HasColumnName("PassThreshold");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ChecklistConfigs_Active_Semester")
+                        .HasFilter("[Status] = 'Active'");
+
+                    b.HasIndex("SemesterId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ChecklistConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChecklistConfigId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PassScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TitleVi")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChecklistConfigId");
+
+                    b.ToTable("ChecklistCriteria", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChecklistCriteria_MaxScore", "[MaxScore] > 0");
+
+                            t.HasCheckConstraint("CK_ChecklistCriteria_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+                        });
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistResultItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPassed")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PassScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid>("ProjectEvaluationChecklistId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("Score")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TitleVi")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectEvaluationChecklistId");
+
+                    b.ToTable("ChecklistResultItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChecklistResultItems_MaxScore", "[MaxScore] > 0");
+
+                            t.HasCheckConstraint("CK_ChecklistResultItems_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+
+                            t.HasCheckConstraint("CK_ChecklistResultItems_Score", "[Score] IS NULL OR ([Score] >= 0 AND [Score] <= [MaxScore])");
+                        });
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ChecklistConfigId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EvaluatorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvaluatorNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("PassedCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RequiredPassCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SubmissionNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChecklistConfigId");
+
+                    b.HasIndex("EvaluatorId");
+
+                    b.HasIndex("ProjectId", "EvaluatorId", "SubmissionNumber")
+                        .IsUnique();
+
+                    b.ToTable("ProjectEvaluationChecklists", (string)null);
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.GroupAggregate.Entities.GroupInvitation", b =>
                 {
                     b.Property<int>("Id")
@@ -502,6 +703,9 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<int>("MaxStudents")
                         .HasColumnType("int");
+
+                    b.Property<string>("MentorFeedback")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NameAbbr")
                         .IsRequired()
@@ -1587,6 +1791,54 @@ namespace TEDF.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.SemesterAggregate.Semester", null)
+                        .WithMany()
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistCriterion", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", null)
+                        .WithMany("Criteria")
+                        .HasForeignKey("ChecklistConfigId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistResultItem", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", null)
+                        .WithMany("Items")
+                        .HasForeignKey("ProjectEvaluationChecklistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", null)
+                        .WithMany()
+                        .HasForeignKey("ChecklistConfigId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("EvaluatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Aggregates.ProjectAggregate.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.GroupAggregate.Entities.GroupInvitation", b =>
                 {
                     b.HasOne("TEDF.Domain.Aggregates.GroupAggregate.Group", null)
@@ -1960,6 +2212,16 @@ namespace TEDF.Persistence.Migrations
                         .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.Navigation("Criteria");
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.GroupAggregate.Group", b =>
