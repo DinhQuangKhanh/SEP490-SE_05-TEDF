@@ -23,7 +23,7 @@ public class AssignEvaluatorCommandHandler : ICommandHandler<AssignEvaluatorComm
             throw new UnauthorizedAccessException("User is not authenticated.");
 
         await _evaluations.AssignEvaluatorAsync(
-            _currentUser.UserId.Value, request.ProjectId, request.EvaluatorId, request.EvaluatorOrder, cancellationToken);
+            _currentUser.UserId.Value, request.ProjectId, request.PhaseId, request.EvaluatorId, request.EvaluatorOrder, cancellationToken);
         return Unit.Value;
     }
 }

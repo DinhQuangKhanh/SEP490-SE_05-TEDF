@@ -120,6 +120,22 @@ export const apiClient = {
       method: "DELETE",
     }),
 
+  /** Authenticated binary GET (e.g. Excel/PDF downloads). Returns the raw Blob. */
+  getBlob: async (path: string): Promise<Blob> => {
+    const token = getToken();
+    const headers = new Headers();
+    headers.set("X-Route-Path", window.location.pathname);
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, { headers });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.blob();
+  },
+
   postForm: <T>(path: string, formData: FormData): Promise<T> => {
     const token = getToken();
     const headers = new Headers();

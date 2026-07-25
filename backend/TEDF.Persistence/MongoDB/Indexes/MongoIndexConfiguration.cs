@@ -9,6 +9,7 @@ public static class MongoIndexConfiguration
     {
         await CreateActivityLogIndexesAsync(context);
         await CreateErrorLogIndexesAsync(context);
+        await CreateSystemAuditLogIndexesAsync(context);
         await CreateNotificationIndexesAsync(context);
         await CreateConversationIndexesAsync(context);
         await CreateMessageIndexesAsync(context);
@@ -49,6 +50,20 @@ public static class MongoIndexConfiguration
             new CreateIndexModel<ErrorLogDocument>(
                 idx.Combine(idx.Ascending(x => x.ActionCode), idx.Descending(x => x.Timestamp))),
             new CreateIndexModel<ErrorLogDocument>(idx.Ascending(x => x.CorrelationId)),
+        ]);
+    }
+
+    private static async Task CreateSystemAuditLogIndexesAsync(MongoDbContext context)
+    {
+        var collection = context.GetCollection<SystemAuditLogDocument>(MongoDbContext.Collections.SystemAuditLogs);
+        var idx = Builders<SystemAuditLogDocument>.IndexKeys;
+
+        await collection.Indexes.CreateManyAsync(
+        [
+            new CreateIndexModel<SystemAuditLogDocument>(
+                idx.Combine(idx.Ascending(x => x.EntityType), idx.Ascending(x => x.EntityId))),
+            new CreateIndexModel<SystemAuditLogDocument>(idx.Descending(x => x.Timestamp)),
+            new CreateIndexModel<SystemAuditLogDocument>(idx.Ascending(x => x.PerformedBy)),
         ]);
     }
 

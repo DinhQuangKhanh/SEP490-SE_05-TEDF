@@ -50,8 +50,8 @@ export const evaluatorService = {
   getDepartmentEvaluators: (): Promise<DepartmentEvaluator[]> =>
     apiClient.get<DepartmentEvaluator[]>(routes.departmentHead.evaluators),
 
-  assignEvaluator: (projectId: string, evaluatorId: string, order: number): Promise<unknown> =>
-    apiClient.post(routes.departmentHead.assignEvaluator, { projectId, evaluatorId, evaluatorOrder: order }),
+  assignEvaluator: (projectId: string, phaseId: number, evaluatorId: string, order: number): Promise<unknown> =>
+    apiClient.post(routes.departmentHead.assignEvaluator, { projectId, phaseId, evaluatorId, evaluatorOrder: order }),
 
   submitFinalDecision: (projectId: string, result: number, notes?: string): Promise<unknown> =>
     apiClient.post(routes.departmentHead.finalDecision(projectId), { result, notes }),

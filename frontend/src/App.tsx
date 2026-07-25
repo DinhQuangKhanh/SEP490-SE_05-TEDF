@@ -32,6 +32,9 @@ import {
   MaintenancePage,
   DepartmentHeadDashboardPage,
   AssignEvaluatorsPage,
+  ChecklistConfigPage,
+  DepartmentHeadStatisticsPage,
+  ProjectAuditLogsPage,
   ActivityLogsPage,
   TopicCreatePage,
   ProfilePage,
@@ -127,7 +130,8 @@ function App() {
               >
                 {/* Research topic repository (own topics; all topics for DepartmentHead) */}
                 <Route index element={<LecturerRepositoryPage />} />
-                <Route path="registrations" element={<LecturerRepositoryPage />} />
+                {/* Legacy deep-link: redirect /lecturer/registrations → /lecturer?tab=registrations */}
+                <Route path="registrations" element={<Navigate to="/lecturer?tab=registrations" replace />} />
                 <Route path="groups" element={<LecturerGroupsPage />} />
                 <Route path="groups/:id" element={<LecturerGroupDetailPage />} />
                 <Route path="create" element={<TopicCreatePage />} />
@@ -159,6 +163,30 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={["departmenthead"]}>
                       <AssignEvaluatorsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="checklist-config"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <ChecklistConfigPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="statistics"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <DepartmentHeadStatisticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="audit-logs"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <ProjectAuditLogsPage />
                     </ProtectedRoute>
                   }
                 />

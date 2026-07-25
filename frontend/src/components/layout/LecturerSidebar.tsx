@@ -18,6 +18,9 @@ export function LecturerSidebar() {
             ? [
                   { label: 'Tổng quan', icon: 'dashboard', path: '/lecturer/dashboard' },
                   { label: 'Phân công thẩm định', icon: 'assignment_ind', path: '/lecturer/assign' },
+                  { label: 'Checklist thẩm định', icon: 'checklist', path: '/lecturer/checklist-config' },
+                  { label: 'Thống kê', icon: 'bar_chart', path: '/lecturer/statistics' },
+                  { label: 'Nhật ký thao tác', icon: 'manage_search', path: '/lecturer/audit-logs' },
               ]
             : []),
     ]

@@ -9,6 +9,7 @@ using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
+using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -23,6 +24,7 @@ public class ProjectsQueryService : IProjectsQueryService
     private readonly IMajorReadRepository _majorRepository;
     private readonly IUserRepository _userRepository;
     private readonly IGroupRepository _groupRepository;
+    private readonly ISystemAuditLogRepository _auditLogRepository;
 
     public ProjectsQueryService(
         AppDbContext context,
@@ -30,7 +32,8 @@ public class ProjectsQueryService : IProjectsQueryService
         ISemesterRepository semesterRepository,
         IMajorReadRepository majorRepository,
         IUserRepository userRepository,
-        IGroupRepository groupRepository)
+        IGroupRepository groupRepository,
+        ISystemAuditLogRepository auditLogRepository)
     {
         _context = context;
         _projectRepository = projectRepository;
@@ -38,6 +41,7 @@ public class ProjectsQueryService : IProjectsQueryService
         _majorRepository = majorRepository;
         _userRepository = userRepository;
         _groupRepository = groupRepository;
+        _auditLogRepository = auditLogRepository;
     }
 
     public async Task<GetProjectsQueryResult> GetProjectsAsync(
@@ -305,5 +309,31 @@ public class ProjectsQueryService : IProjectsQueryService
             p.CreatedAt)).ToList();
 
         return new GetMySupervisedProjectsResult(items, totalCount, page, pageSize, totalPages);
+    }
+
+    public async Task<GetProjectAuditLogsResponse> GetProjectAuditLogsAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var logs = await _auditLogRepository.GetByEntityAsync("Project", projectId, cancellationToken);
+        
+        var userIds = logs.Where(l => l.PerformedBy.HasValue).Select(l => l.PerformedBy!.Value).Distinct().ToList();
+        var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+
+        var dtos = logs.Select(l => new ProjectAuditLogDto
+        {
+            Id = l.Id,
+            Action = l.Action,
+            PerformedBy = l.PerformedBy,
+            PerformedByName = l.PerformedBy.HasValue ? users.GetValueOrDefault(l.PerformedBy.Value) : null,
+            Timestamp = l.Timestamp,
+            Metadata = l.Metadata != null ? global::MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(l.Metadata) : null
+        }).ToList();
+
+        var revisionCount = dtos.Count(d => d.Action == "NeedsModification" || d.Action == "MentorNeedsModification");
+
+        return new GetProjectAuditLogsResponse
+        {
+            Logs = dtos,
+            RevisionCount = revisionCount
+        };
     }
 }

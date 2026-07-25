@@ -17,6 +17,9 @@ namespace TEDF.Persistence.SqlServer.Configurations.Evaluation
 
             builder.Property(e => e.ProjectId)
                 .IsRequired();
+                
+            builder.Property(e => e.PhaseId)
+                .IsRequired();
 
             builder.Property(e => e.EvaluatorId)
                 .IsRequired();

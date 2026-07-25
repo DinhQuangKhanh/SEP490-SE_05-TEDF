@@ -3,10 +3,14 @@ using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Entities;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Common.Rules;
 using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Evaluation;
@@ -29,6 +33,8 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
+    private readonly IProjectEvaluationChecklistRepository _projectChecklistRepository;
+    private readonly ISemesterRepository _semesterRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
     private readonly IBackgroundJobService _backgroundJobService;
@@ -40,6 +46,8 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         IUserRepository userRepository,
         IDepartmentRepository departmentRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
+        IProjectEvaluationChecklistRepository projectChecklistRepository,
+        ISemesterRepository semesterRepository,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
         IBackgroundJobService backgroundJobService)
@@ -50,28 +58,30 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
         _assignmentRepository = assignmentRepository;
+        _projectChecklistRepository = projectChecklistRepository;
+        _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
         _backgroundJobService = backgroundJobService;
     }
 
     // ── Helper queries / policies ──
-    public async Task<bool> CanResubmitAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<bool> CanResubmitAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var remaining = await GetRemainingResubmissionsAsync(projectId, ct);
-        var deadlinePassed = await IsModificationDeadlinePassedAsync(projectId, ct);
+        var remaining = await GetRemainingResubmissionsAsync(projectId, cancellationToken);
+        var deadlinePassed = await IsModificationDeadlinePassedAsync(projectId, cancellationToken);
         return remaining > 0 && !deadlinePassed;
     }
 
-    public async Task<int> GetRemainingResubmissionsAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<int> GetRemainingResubmissionsAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var submissionCount = await _submissionRepository.GetSubmissionCountByProjectIdAsync(projectId, ct);
+        var submissionCount = await _submissionRepository.GetSubmissionCountByProjectIdAsync(projectId, cancellationToken);
         return Math.Max(0, MaxResubmissions - submissionCount + 1);
     }
 
-    public async Task<bool> IsModificationDeadlinePassedAsync(Guid projectId, CancellationToken ct = default)
+    public async Task<bool> IsModificationDeadlinePassedAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var latestSubmission = await _submissionRepository.GetLatestByProjectIdAsync(projectId, ct);
+        var latestSubmission = await _submissionRepository.GetLatestByProjectIdAsync(projectId, cancellationToken);
         if (latestSubmission is null) return false;
         if (latestSubmission.Result != EvaluationResult.NeedsModification) return false;
 
@@ -79,9 +89,9 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         return deadline.HasValue && _dateTimeService.UtcNow > deadline.Value;
     }
 
-    public async Task<EvaluationStatistics> GetStatisticsAsync(int semesterId, CancellationToken ct = default)
+    public async Task<EvaluationStatistics> GetStatisticsAsync(int semesterId, CancellationToken cancellationToken = default)
     {
-        var submissions = await _submissionRepository.GetBySemesterWithSnapshotAsync(semesterId, ct);
+        var submissions = await _submissionRepository.GetBySemesterWithSnapshotAsync(semesterId, cancellationToken);
 
         var evaluatorWorkload = submissions
             .Where(s => s.AssignedEvaluatorId.HasValue)
@@ -106,15 +116,15 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         );
     }
 
-    public async Task<Guid?> SuggestEvaluatorAsync(Guid submissionId, CancellationToken ct = default)
+    public async Task<Guid?> SuggestEvaluatorAsync(Guid submissionId, CancellationToken cancellationToken = default)
     {
-        var submission = await _submissionRepository.GetByIdAsync(submissionId, ct);
+        var submission = await _submissionRepository.GetByIdAsync(submissionId, cancellationToken);
         if (submission is null) return null;
 
-        var project = await _projectRepository.GetByIdAsync(submission.ProjectId, ct);
+        var project = await _projectRepository.GetByIdAsync(submission.ProjectId, cancellationToken);
         if (project is null) return null;
 
-        var evaluatorWorkloads = await _submissionRepository.GetActiveEvaluatorWorkloadCountsAsync(ct);
+        var evaluatorWorkloads = await _submissionRepository.GetActiveEvaluatorWorkloadCountsAsync(cancellationToken);
         if (evaluatorWorkloads.Count == 0) return null;
 
         var leastLoaded = evaluatorWorkloads.MinBy(e => e.Value);
@@ -122,9 +132,9 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     }
 
     // ── Write operations ──
-    public async Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, Guid evaluatorId, int evaluatorOrder, CancellationToken ct = default)
+    public async Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, int phaseId, Guid evaluatorId, int evaluatorOrder, CancellationToken cancellationToken = default)
     {
-        var currentUser = await _userRepository.GetByIdAsync(currentUserId, ct)
+        var currentUser = await _userRepository.GetByIdAsync(currentUserId, cancellationToken)
             ?? throw new UnauthorizedAccessException("Current user not found.");
 
         if (!currentUser.DepartmentId.HasValue)
@@ -132,54 +142,77 @@ public class EvaluationsDomainService : IEvaluationsDomainService
 
         var departmentId = currentUser.DepartmentId.Value;
 
-        _ = await _departmentRepository.GetByIdAsync(departmentId, ct)
+        _ = await _departmentRepository.GetByIdAsync(departmentId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Department), departmentId);
 
-        var project = await _projectRepository.GetWithMentorsAsync(projectId, ct)
+        var project = await _projectRepository.GetWithMentorsAsync(projectId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Project), projectId);
 
-        var isInDepartment = await _departmentRepository.IsMajorInDepartmentAsync(project.MajorId, departmentId, ct);
+        var isInDepartment = await _departmentRepository.IsMajorInDepartmentAsync(project.MajorId, departmentId, cancellationToken);
         if (!isInDepartment)
             throw new BusinessRuleValidationException(
                 "This project does not belong to your department. You can only assign evaluators to projects within your department.");
 
-        var evaluator = await _userRepository.GetByIdAsync(evaluatorId, ct)
+        var evaluator = await _userRepository.GetByIdAsync(evaluatorId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(User), evaluatorId);
 
         if (!evaluator.GetActiveRoles().Contains(DomainRoleNames.Evaluator))
             throw new BusinessRuleValidationException("The specified user does not have the Evaluator role.");
 
+        // The evaluator must be on the eligible-lecturer roster of the active/upcoming semester
+        // (the roster is published ahead of the term it applies to). A lecturer never imported —
+        // or dropped from the roster — must not be assignable to evaluate.
+        if (!await _semesterRepository.IsMentorEligibleNowAsync(evaluatorId, cancellationToken))
+            throw new BusinessRuleValidationException(
+                "Giảng viên này không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.");
+
         var allProjectMentorIds = project.Mentors.Select(m => m.MentorId).ToList().AsReadOnly();
 
-        var currentActiveEvaluatorCount = await _assignmentRepository.GetActiveCountByProjectIdAsync(projectId, ct);
+        var currentActiveEvaluatorCount = await _assignmentRepository.GetActiveCountByProjectIdAsync(projectId, cancellationToken);
 
         var assignment = ProjectEvaluatorAssignment.Create(
             projectId: projectId,
+            phaseId: phaseId,
             evaluatorId: evaluatorId,
             order: evaluatorOrder,
             assignedBy: currentUserId,
             allProjectMentorIds: allProjectMentorIds,
             currentActiveEvaluatorCount: currentActiveEvaluatorCount);
 
-        await _assignmentRepository.AddAsync(assignment, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _assignmentRepository.AddAsync(assignment, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _publisher.Publish(new EvaluatorAssignedToProjectEvent(
-            assignment.Id, projectId, evaluatorId, evaluatorOrder, currentUserId), ct);
+            assignment.Id, projectId, phaseId, evaluatorId, evaluatorOrder, currentUserId), cancellationToken);
     }
 
-    public async Task SubmitEvaluationAsync(Guid evaluatorId, Guid projectId, int result, string? feedback, CancellationToken ct = default)
+    public async Task SubmitEvaluationAsync(Guid evaluatorId, Guid projectId, int result, string? feedback, CancellationToken cancellationToken = default)
     {
-        var assignment = await _assignmentRepository.GetActiveByProjectAndEvaluatorAsync(projectId, evaluatorId, ct)
+        var assignment = await _assignmentRepository.GetActiveByProjectAndEvaluatorAsync(projectId, evaluatorId, cancellationToken)
             ?? throw new UnauthorizedAccessException("Bạn không được gán để thẩm định đề tài này.");
 
         var evalResult = (EvaluationResult)result;
+
+        // Server-side gate: approving a topic requires the evaluator's saved checklist to meet the
+        // minimum passed-criteria threshold (default 7/10). This makes the requirement impossible to
+        // bypass by calling the evaluate endpoint directly. Reject/NeedsModification are unaffected.
+        if (evalResult == EvaluationResult.Approved)
+        {
+            var projectForGate = await _projectRepository.GetByIdAsync(projectId, cancellationToken)
+                ?? throw new EntityNotFoundException(nameof(Project), projectId);
+            var checklist = await _projectChecklistRepository
+                .GetByProjectEvaluatorAsync(projectId, evaluatorId, projectForGate.EvaluationCount, cancellationToken);
+            BusinessRuleValidator.CheckRule(new ChecklistApprovalThresholdRule(checklist));
+            checklist!.MarkApproved();
+            _projectChecklistRepository.Update(checklist);
+        }
+
         assignment.SubmitEvaluation(evalResult, feedback);
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Auto-resolve when both evaluators have submitted matching results.
-        var allAssignments = (await _assignmentRepository.GetActiveByProjectIdAsync(projectId, ct)).ToList();
+        var allAssignments = (await _assignmentRepository.GetActiveByProjectIdAsync(projectId, cancellationToken)).ToList();
         var submittedAssignments = allAssignments.Where(a => a.HasSubmittedEvaluation).ToList();
 
         if (submittedAssignments.Count >= 2)
@@ -187,7 +220,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
             var results = submittedAssignments.Select(a => a.IndividualResult!.Value).Distinct().ToList();
             if (results.Count == 1)
             {
-                var project = await _projectRepository.GetWithMentorsAsync(projectId, ct)
+                var project = await _projectRepository.GetWithMentorsAsync(projectId, cancellationToken)
                     ?? throw new InvalidOperationException("Project not found.");
 
                 switch (results[0])
@@ -206,34 +239,34 @@ public class EvaluationsDomainService : IEvaluationsDomainService
                         break;
                 }
 
-                await _unitOfWork.SaveChangesAsync(ct);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
 
         await _publisher.Publish(
-            new EvaluatorSubmittedResultEvent(assignment.Id, projectId, evaluatorId, evalResult), ct);
+            new EvaluatorSubmittedResultEvent(assignment.Id, projectId, evaluatorId, evalResult), cancellationToken);
     }
 
-    public async Task SubmitFinalDecisionAsync(Guid currentUserId, Guid projectId, int result, string? notes, CancellationToken ct = default)
+    public async Task SubmitFinalDecisionAsync(Guid currentUserId, Guid projectId, int result, string? notes, CancellationToken cancellationToken = default)
     {
-        var currentUser = await _userRepository.GetByIdAsync(currentUserId, ct)
+        var currentUser = await _userRepository.GetByIdAsync(currentUserId, cancellationToken)
             ?? throw new UnauthorizedAccessException("Current user not found.");
 
         if (!currentUser.DepartmentId.HasValue)
             throw new BusinessRuleValidationException("Current user is not assigned to any department.");
 
-        _ = await _departmentRepository.GetByIdAsync(currentUser.DepartmentId.Value, ct)
+        _ = await _departmentRepository.GetByIdAsync(currentUser.DepartmentId.Value, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Department), currentUser.DepartmentId.Value);
 
-        var project = await _projectRepository.GetWithMentorsAsync(projectId, ct)
+        var project = await _projectRepository.GetWithMentorsAsync(projectId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Project), projectId);
 
         var isInDepartment = await _departmentRepository.IsMajorInDepartmentAsync(
-            project.MajorId, currentUser.DepartmentId.Value, ct);
+            project.MajorId, currentUser.DepartmentId.Value, cancellationToken);
         if (!isInDepartment)
             throw new BusinessRuleValidationException("This project does not belong to your department.");
 
-        var assignments = (await _assignmentRepository.GetActiveByProjectIdAsync(projectId, ct)).ToList();
+        var assignments = (await _assignmentRepository.GetActiveByProjectIdAsync(projectId, cancellationToken)).ToList();
         var submittedAssignments = assignments.Where(a => a.HasSubmittedEvaluation).ToList();
 
         if (submittedAssignments.Count < 2)
@@ -262,8 +295,8 @@ public class EvaluationsDomainService : IEvaluationsDomainService
                 throw new ArgumentException("Invalid result. Must be Approved, NeedsModification, or Rejected.");
         }
 
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _publisher.Publish(new DepartmentHeadFinalDecisionEvent(projectId, finalResult, currentUserId), ct);
+        await _publisher.Publish(new DepartmentHeadFinalDecisionEvent(projectId, finalResult, currentUserId), cancellationToken);
     }
 }

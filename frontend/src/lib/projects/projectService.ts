@@ -1,4 +1,4 @@
-import { DepartmentProjectsResponse, ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse, SupervisedProjectFilters, SupervisedProjectsResponse } from "@/types";
+import { DepartmentProjectsResponse, ProjectAuditLogResponse, ProjectDetail, ProjectDetailRaw, ProjectFilters, ProjectListResponse, SupervisedProjectFilters, SupervisedProjectsResponse } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -29,6 +29,11 @@ export const projectService = {
       ...raw,
       technologies: raw.technologies ?? raw.techologies ?? null,
     };
+  },
+
+  /** Get audit logs for a project */
+  getAuditLogs: (projectId: string): Promise<ProjectAuditLogResponse> => {
+    return apiClient.get<ProjectAuditLogResponse>(`${routes.admin.projects}/${projectId}/audit-logs`);
   },
 };
 

@@ -16,7 +16,7 @@ namespace TEDF.Domain.Services
         // ── Evaluations feature write operations ──
 
         /// <summary>Department head assigns an evaluator to a project (validates department ownership + role).</summary>
-        Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, Guid evaluatorId, int evaluatorOrder, CancellationToken cancellationToken = default);
+        Task AssignEvaluatorAsync(Guid currentUserId, Guid projectId, int phaseId, Guid evaluatorId, int evaluatorOrder, CancellationToken cancellationToken = default);
 
         /// <summary>Evaluator submits their individual result; auto-resolves the project if both agree.</summary>
         Task SubmitEvaluationAsync(Guid evaluatorId, Guid projectId, int result, string? feedback, CancellationToken cancellationToken = default);

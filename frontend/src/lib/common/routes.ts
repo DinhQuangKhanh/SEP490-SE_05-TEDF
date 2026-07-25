@@ -63,6 +63,21 @@ export const routes = {
     review: (projectId: string) => `/api/evaluations/projects/${projectId}/review`,
     similarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity`,
     evaluate: (projectId: string) => `/api/evaluations/projects/${projectId}/evaluate`,
+    checklist: (projectId: string) => `/api/evaluations/projects/${projectId}/checklist`,
+    evaluatorChecklist: (projectId: string, evaluatorId: string) =>
+      `/api/evaluations/projects/${projectId}/evaluators/${evaluatorId}/checklist`,
+  },
+  // Department-head managed topic-evaluation checklist configurations.
+  checklistConfigs: {
+    base: "/api/checklist-configs",
+    defaultCriteria: "/api/checklist-configs/default-criteria",
+    template: "/api/checklist-configs/template",
+    preview: "/api/checklist-configs/preview",
+    import: "/api/checklist-configs/import",
+    byId: (id: string) => `/api/checklist-configs/${id}`,
+    copy: (id: string) => `/api/checklist-configs/${id}/copy`,
+    activate: (id: string) => `/api/checklist-configs/${id}/activate`,
+    deactivate: (id: string) => `/api/checklist-configs/${id}/deactivate`,
   },
   // Mentor actions distributed into features: dashboard→Dashboard, topics→Topics,
   // update/resubmit→TopicPools, groups→Groups, review→DirectTopics.

@@ -36,6 +36,11 @@ namespace TEDF.Persistence.MongoDB
         {
             public const string ActivityLogs = "activity_logs";
             public const string ErrorLogs = "error_logs";
+
+            /// <summary>Per-entity audit trail (who changed what on a Project/Group/...).
+            /// Distinct from <see cref="ActivityLogs"/>, which is the admin-facing request log.</summary>
+            public const string SystemAuditLogs = "system_audit_logs";
+
             public const string Notifications = "notifications";
             public const string Conversations = "conversations";
             public const string Messages = "messages";
