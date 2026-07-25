@@ -120,7 +120,7 @@ public class SemestersQueryService : ISemestersQueryService
                 {
                     MentorId = r.MentorId,
                     EmployeeCode = r.EmployeeCode,
-                    FullName = user?.DisplayName,
+                    FullName = user?.FullName,
                     Email = r.Email ?? user?.Email.Value,
                     PhoneNumber = r.PhoneNumber,
                     Division = r.Division,

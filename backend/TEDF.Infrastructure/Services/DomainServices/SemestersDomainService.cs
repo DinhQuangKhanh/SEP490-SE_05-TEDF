@@ -426,12 +426,15 @@ public class SemestersDomainService : ISemestersDomainService
             firebaseUid: $"{User.PendingUidPrefix}{req.Code}",
             email: normalized,
             fullName: string.IsNullOrWhiteSpace(req.FullName) ? req.Code : req.FullName.Trim(),
-            studentCode: req.IsStudent ? req.Code : null,
-            employeeCode: req.IsStudent ? null : req.Code,
             departmentId: req.Major?.DepartmentId,
             phoneNumber: string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim());
 
-        user.AssignRole(req.Role);
+        if (req.IsStudent)
+            user.InitializeStudentProfile(req.Code);
+        else
+            user.InitializeStaffProfile(req.Code);
+
+        user.AssignRole(DomainRoleIds.FromName(req.Role), req.Role);
         await _userRepository.AddAsync(user, cancellationToken);
         return user;
     }
@@ -446,9 +449,9 @@ public class SemestersDomainService : ISemestersDomainService
         foreach (var (mentorId, majorId) in poolMentors)
         {
             var user = await _userRepository.GetByIdAsync(mentorId, cancellationToken);
-            if (user is null || string.IsNullOrEmpty(user.EmployeeCode)) continue;
+            if (user is null || string.IsNullOrEmpty(user.Lecturer?.EmployeeCode)) continue;
 
-            semester.AddEligibleMentor(mentorId, user.EmployeeCode, majorId, user.Email.Value, user.PhoneNumber, division: null, importedBy: null);
+            semester.AddEligibleMentor(mentorId, user.Lecturer.EmployeeCode, majorId, user.Email.Value, user.PhoneNumber, division: null, importedBy: null);
         }
     }
 }

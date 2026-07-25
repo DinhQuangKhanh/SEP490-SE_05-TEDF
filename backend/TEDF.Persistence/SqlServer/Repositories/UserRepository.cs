@@ -34,7 +34,8 @@ namespace TEDF.Persistence.SqlServer.Repositories
         {
             return await _dbSet
                 .Include(u => u.Roles)
-                .Where(u => u.Roles.Any(r => r.RoleName == roleName && r.IsActive))
+                .Where(u => u.Roles.Any(r => r.IsActive &&
+                    _context.Roles.Any(dbRole => dbRole.Id == r.RoleId && dbRole.Name == roleName)))
                 .ToListAsync(ct);
         }
 
@@ -43,6 +44,9 @@ namespace TEDF.Persistence.SqlServer.Repositories
         {
             return await _dbSet
                 .Include(u => u.Roles)
+                .Include(u => u.Student).ThenInclude(s => s!.Program)
+                .Include(u => u.Student).ThenInclude(s => s!.Combo)
+                .Include(u => u.Lecturer)
                 .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
         }
 
@@ -51,6 +55,8 @@ namespace TEDF.Persistence.SqlServer.Repositories
             var idList = ids.ToList();
             if (!idList.Any()) return Enumerable.Empty<User>();
             return await _context.Users
+                .Include(u => u.Student)
+                .Include(u => u.Lecturer)
                 .Where(u => idList.Contains(u.Id))
                 .ToListAsync(ct);
         }
@@ -68,17 +74,27 @@ namespace TEDF.Persistence.SqlServer.Repositories
         /// <inheritdoc/>
         public async Task<User?> GetByStudentCodeAsync(string studentCode, CancellationToken ct = default)
         {
-            return await _dbSet
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.StudentCode == studentCode, ct);
+            var userId = await _context.Students.AsNoTracking()
+                .Where(s => s.StudentCode == studentCode)
+                .Select(s => (Guid?)s.Id)
+                .FirstOrDefaultAsync(ct);
+
+            return userId.HasValue
+                ? await _dbSet.FirstOrDefaultAsync(u => u.Id == userId.Value, ct)
+                : null;
         }
 
         /// <inheritdoc/>
         public async Task<User?> GetByEmployeeCodeAsync(string employeeCode, CancellationToken ct = default)
         {
-            return await _dbSet
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.EmployeeCode == employeeCode, ct);
+            var userId = await _context.Lecturers.AsNoTracking()
+                .Where(l => l.EmployeeCode == employeeCode)
+                .Select(l => (Guid?)l.Id)
+                .FirstOrDefaultAsync(ct);
+
+            return userId.HasValue
+                ? await _dbSet.FirstOrDefaultAsync(u => u.Id == userId.Value, ct)
+                : null;
         }
 
         /// <inheritdoc/>
@@ -98,10 +114,15 @@ namespace TEDF.Persistence.SqlServer.Repositories
         public async Task<(IEnumerable<User> Items, int TotalCount)> GetPagedAsync(
             string? role, string? search, int page, int pageSize, CancellationToken ct = default)
         {
-            var query = _dbSet.AsNoTracking().Include(u => u.Roles).AsQueryable();
+            var query = _dbSet.AsNoTracking()
+                .Include(u => u.Roles)
+                .Include(u => u.Student)
+                .Include(u => u.Lecturer)
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(role))
-                query = query.Where(u => u.Roles.Any(r => r.RoleName == role && r.IsActive));
+                query = query.Where(u => u.Roles.Any(r => r.IsActive &&
+                    _context.Roles.Any(dbRole => dbRole.Id == r.RoleId && dbRole.Name == role)));
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -109,8 +130,8 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 query = query.Where(u =>
                     u.FullName.Contains(term) ||
                     EF.Property<string>(u, "Email").Contains(term) ||
-                    (u.StudentCode != null && u.StudentCode.Contains(term)) ||
-                    (u.EmployeeCode != null && u.EmployeeCode.Contains(term)));
+                    _context.Students.Any(s => s.Id == u.Id && s.StudentCode.Contains(term)) ||
+                    _context.Lecturers.Any(l => l.Id == u.Id && l.EmployeeCode.Contains(term)));
             }
 
             var totalCount = await query.CountAsync(ct);

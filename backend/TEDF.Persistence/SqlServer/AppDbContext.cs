@@ -30,6 +30,8 @@ public class AppDbContext : DbContext
     #region User Aggregate
     public DbSet<User> Users => Set<User>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<Student> Students => Set<Student>();
+    public DbSet<Lecturer> Lecturers => Set<Lecturer>();
     #endregion
 
     #region Project Aggregate
@@ -74,7 +76,9 @@ public class AppDbContext : DbContext
     #region Standalone Entities
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Major> Majors => Set<Major>();
-    public DbSet<MajorProgram> MajorPrograms => Set<MajorProgram>();
+    public DbSet<MajorProgram> Programs => Set<MajorProgram>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Combo> Combos => Set<Combo>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
     public DbSet<ProjectArchive> ProjectArchives => Set<ProjectArchive>();
     #endregion
