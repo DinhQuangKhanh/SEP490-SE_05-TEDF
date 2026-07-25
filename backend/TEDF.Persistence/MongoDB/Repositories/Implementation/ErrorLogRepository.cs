@@ -21,34 +21,28 @@ public class ErrorLogRepository : IErrorLogRepository
         => await _collection.Find(l => l.Id == id).FirstOrDefaultAsync(ct);
 
     public async Task<(IEnumerable<ErrorLogDocument> Items, long TotalCount)> GetPagedAsync(
-        string? severity = null,
-        string? source = null,
-        string? searchTerm = null,
-        DateTime? from = null,
-        DateTime? to = null,
-        int page = 1,
-        int pageSize = 20,
+        ErrorLogFilter filter,
         CancellationToken ct = default)
     {
         var builder = Builders<ErrorLogDocument>.Filter;
-        var filter = builder.Empty;
+        var mongoFilter = builder.Empty;
 
-        if (!string.IsNullOrEmpty(severity))
-            filter &= builder.Eq(l => l.Severity, severity);
+        if (!string.IsNullOrEmpty(filter.Severity))
+            mongoFilter &= builder.Eq(l => l.Severity, filter.Severity);
 
-        if (!string.IsNullOrEmpty(source))
-            filter &= builder.Eq(l => l.Source, source);
+        if (!string.IsNullOrEmpty(filter.Source))
+            mongoFilter &= builder.Eq(l => l.Source, filter.Source);
 
-        if (from.HasValue)
-            filter &= builder.Gte(l => l.Timestamp, from.Value);
+        if (filter.From.HasValue)
+            mongoFilter &= builder.Gte(l => l.Timestamp, filter.From.Value);
 
-        if (to.HasValue)
-            filter &= builder.Lte(l => l.Timestamp, to.Value);
+        if (filter.To.HasValue)
+            mongoFilter &= builder.Lte(l => l.Timestamp, filter.To.Value);
 
-        if (!string.IsNullOrEmpty(searchTerm))
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
-            var regex = new BsonRegularExpression(searchTerm, "i");
-            filter &= builder.Or(
+            var regex = new BsonRegularExpression(filter.SearchTerm, "i");
+            mongoFilter &= builder.Or(
                 builder.Regex(l => l.ErrorMessage, regex),
                 builder.Regex(l => l.ErrorType, regex),
                 builder.Regex(l => l.Action, regex),
@@ -56,13 +50,13 @@ public class ErrorLogRepository : IErrorLogRepository
             );
         }
 
-        var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: ct);
+        var totalCount = await _collection.CountDocumentsAsync(mongoFilter, cancellationToken: ct);
 
         var items = await _collection
-            .Find(filter)
+            .Find(mongoFilter)
             .SortByDescending(l => l.Timestamp)
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Limit(filter.PageSize)
             .ToListAsync(ct);
 
         return (items, totalCount);
@@ -97,5 +91,15 @@ public class ErrorLogRepository : IErrorLogRepository
             .Limit(limit);
 
         return await pipeline.ToListAsync(ct);
+    }
+
+    public async Task<long> DeleteOlderThanAsync(DateTime? cutoff, CancellationToken ct = default)
+    {
+        var filter = cutoff.HasValue
+            ? Builders<ErrorLogDocument>.Filter.Lt(l => l.Timestamp, cutoff.Value)
+            : Builders<ErrorLogDocument>.Filter.Empty;
+
+        var result = await _collection.DeleteManyAsync(filter, cancellationToken: ct);
+        return result.DeletedCount;
     }
 }

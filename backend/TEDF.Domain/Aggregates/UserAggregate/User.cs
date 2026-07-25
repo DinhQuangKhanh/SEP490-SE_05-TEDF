@@ -2,30 +2,19 @@ using TEDF.Domain.Aggregates.UserAggregate.Entities;
 using TEDF.Domain.Aggregates.UserAggregate.Events;
 using TEDF.Domain.Aggregates.UserAggregate.ValueObjects;
 using TEDF.Domain.Common.Primitives;
+using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.User;
 
 namespace TEDF.Domain.Aggregates.UserAggregate
 {
-    /// <summary>
-    /// User aggregate root representing a system user authenticated via Firebase.
-    /// </summary>
     public class User : AggregateRoot<Guid>
     {
         public Email Email { get; private set; } = null!;
         public string FullName { get; private set; } = string.Empty;
         public string? AvatarUrl { get; private set; }
-        public string? StudentCode { get; private set; }
-        public string? EmployeeCode { get; private set; }
         public string? PhoneNumber { get; private set; }
         public DateOnly? BirthDate { get; private set; }
-        public string? AcademicTitle { get; private set; }
         public int? DepartmentId { get; private set; }
-        /// <summary>Chuyên ngành (Major) the user studies — set for students.</summary>
-        public int? MajorId { get; private set; }
-        /// <summary>Chuyên ngành hẹp (MajorProgram) the student studies.</summary>
-        public int? MajorProgramId { get; private set; }
-        /// <summary>Bộ môn đang giảng dạy (SE/CF/AI/IA/IC) — set for lecturers. Display-only snapshot, mirrors EligibleMentor.Division.</summary>
-        public string? Division { get; private set; }
         public string? PrivacySettings { get; private set; }
         public UserStatus Status { get; private set; }
         public string FirebaseUid { get; private set; } = string.Empty;
@@ -33,22 +22,19 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         public DateTime? UpdatedAt { get; private set; }
         public DateTime? LastLoginAt { get; private set; }
 
+        public Student? Student { get; private set; }
+        public Lecturer? Lecturer { get; private set; }
+
         private readonly List<UserRole> _roles = [];
         public IReadOnlyCollection<UserRole> Roles => _roles.AsReadOnly();
 
         private User() { }
 
-        /// <summary>
-        /// Creates a new User aggregate.
-        /// </summary>
         public static User Create(
             string firebaseUid,
             string email,
             string fullName,
             string? avatarUrl = null,
-            string? studentCode = null,
-            string? employeeCode = null,
-            string? academicTitle = null,
             int? departmentId = null,
             string? phoneNumber = null,
             DateOnly? birthDate = null)
@@ -62,11 +48,8 @@ namespace TEDF.Domain.Aggregates.UserAggregate
                 Email = emailValueObject,
                 FullName = fullName,
                 AvatarUrl = avatarUrl,
-                StudentCode = studentCode,
-                EmployeeCode = employeeCode,
                 PhoneNumber = phoneNumber,
                 BirthDate = birthDate,
-                AcademicTitle = academicTitle,
                 DepartmentId = departmentId,
                 Status = UserStatus.Active,
                 CreatedAt = DateTime.UtcNow
@@ -77,9 +60,6 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             return user;
         }
 
-        /// <summary>
-        /// Records a user login event.
-        /// </summary>
         public void RecordLogin()
         {
             LastLoginAt = DateTime.UtcNow;
@@ -99,15 +79,9 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>
-        /// Updates user profile information.
-        /// </summary>
         public void UpdateProfile(
             string? fullName = null,
             string? avatarUrl = null,
-            string? studentCode = null,
-            string? employeeCode = null,
-            string? academicTitle = null,
             int? departmentId = null,
             string? phoneNumber = null,
             DateOnly? birthDate = null,
@@ -118,15 +92,6 @@ namespace TEDF.Domain.Aggregates.UserAggregate
 
             if (avatarUrl != null)
                 AvatarUrl = avatarUrl;
-
-            if (studentCode != null)
-                StudentCode = studentCode;
-
-            if (employeeCode != null)
-                EmployeeCode = employeeCode;
-
-            if (academicTitle != null)
-                AcademicTitle = academicTitle;
 
             if (departmentId.HasValue)
                 DepartmentId = departmentId;
@@ -144,34 +109,27 @@ namespace TEDF.Domain.Aggregates.UserAggregate
         }
 
         /// <summary>
-        /// Assigns a role to the user.
+        /// Assigns a role to the user by roleId. roleName is used for the domain event only.
+        /// Requires UserRole.Role navigation to be loaded for HasRole/GetActiveRoles to work.
         /// </summary>
-        public void AssignRole(string roleName, Guid? assignedBy = null)
+        public void AssignRole(int roleId, string roleName, Guid? assignedBy = null)
         {
-            if (_roles.Any(r => r.RoleName == roleName && r.IsActive))
+            if (_roles.Any(r => r.RoleId == roleId && r.IsActive))
                 return;
 
-            var existingRole = _roles.FirstOrDefault(r => r.RoleName == roleName);
+            var existingRole = _roles.FirstOrDefault(r => r.RoleId == roleId);
             if (existingRole != null)
-            {
                 existingRole.Reactivate();
-            }
             else
-            {
-                var role = UserRole.Create(Id, roleName, assignedBy);
-                _roles.Add(role);
-            }
+                _roles.Add(UserRole.Create(Id, roleId, assignedBy));
 
             RaiseDomainEvent(new UserRoleAssignedEvent(Id, roleName, assignedBy));
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>
-        /// Removes a role from the user.
-        /// </summary>
-        public void RemoveRole(string roleName)
+        public void RemoveRole(int roleId)
         {
-            var role = _roles.FirstOrDefault(r => r.RoleName == roleName && r.IsActive);
+            var role = _roles.FirstOrDefault(r => r.RoleId == roleId && r.IsActive);
             if (role != null)
             {
                 role.Deactivate();
@@ -179,70 +137,53 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             }
         }
 
-        /// <summary>
-        /// Checks if the user has a specific role.
-        /// </summary>
+        public void InitializeStudentProfile(string studentCode)
+        {
+            Student = TEDF.Domain.Entities.Student.Create(Id, studentCode);
+        }
+
+        public void InitializeStaffProfile(string employeeCode, string? academicTitle = null)
+        {
+            Lecturer = TEDF.Domain.Entities.Lecturer.Create(Id, employeeCode, academicTitle);
+        }
+
+        /// <summary>Requires UserRole.Role navigation to be eagerly loaded.</summary>
         public bool HasRole(string roleName)
         {
             return _roles.Any(r => r.RoleName == roleName && r.IsActive);
         }
 
-        /// <summary>
-        /// Gets all active role names for this user.
-        /// </summary>
+        public bool HasRole(int roleId)
+        {
+            return _roles.Any(r => r.RoleId == roleId && r.IsActive);
+        }
+
+        /// <summary>Requires UserRole.Role navigation to be eagerly loaded.</summary>
         public IEnumerable<string> GetActiveRoles()
         {
             return _roles.Where(r => r.IsActive).Select(r => r.RoleName);
         }
 
-        /// <summary>
-        /// Activates the user account.
-        /// </summary>
         public void Activate()
         {
             Status = UserStatus.Active;
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>
-        /// Locks the user account.
-        /// </summary>
         public void Lock()
         {
             Status = UserStatus.Locked;
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>
-        /// Deactivates the user account.
-        /// </summary>
         public void Deactivate()
         {
             Status = UserStatus.Inactive;
             UpdatedAt = DateTime.UtcNow;
         }
 
-        /// <summary>Tiền tố FirebaseUid tạm cho tài khoản tạo lúc import, chờ liên kết khi đăng nhập lần đầu.</summary>
         public const string PendingUidPrefix = "pending:";
 
-        /// <summary>Tài khoản được tạo lúc import nhưng chưa đăng nhập Google lần đầu (chưa có FirebaseUid thật).</summary>
         public bool IsPendingActivation => FirebaseUid.StartsWith(PendingUidPrefix, StringComparison.Ordinal);
-
-        /// <summary>
-        /// Checks if the user is a student.
-        /// </summary>
-        public bool IsStudent => !string.IsNullOrEmpty(StudentCode);
-
-        /// <summary>
-        /// Checks if the user is a staff member (mentor/admin).
-        /// </summary>
-        public bool IsStaff => !string.IsNullOrEmpty(EmployeeCode);
-
-        /// <summary>
-        /// Gets the display name (with academic title if available).
-        /// </summary>
-        public string DisplayName => string.IsNullOrEmpty(AcademicTitle)
-            ? FullName
-            : $"{AcademicTitle} {FullName}";
     }
 }

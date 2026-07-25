@@ -30,6 +30,14 @@ namespace TEDF.Persistence.SqlServer.Configurations.Group
             builder.HasIndex(m => m.Status);
             builder.HasIndex(m => new { m.GroupId, m.StudentId, m.Status });
 
+            // A student can be an ACTIVE member of a given group at most once.
+            // Filtered so historical "Left" rows (Status = 1) don't block re-joining
+            // (members leave via soft state, and re-joining inserts a new row).
+            builder.HasIndex(m => new { m.GroupId, m.StudentId })
+                .IsUnique()
+                .HasFilter("[Status] = 0")
+                .HasDatabaseName("UX_GroupMembers_GroupId_StudentId_Active");
+
             // Foreign key to User (Student)
             builder.HasOne<Domain.Aggregates.UserAggregate.User>()
                 .WithMany()

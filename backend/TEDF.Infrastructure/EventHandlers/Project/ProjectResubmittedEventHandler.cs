@@ -4,19 +4,15 @@ using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Domain.Common.Interfaces;
-using TEDF.Domain.Enums.Evaluation;
 using TEDF.Domain.Enums.Notification;
 using TEDF.Infrastructure.Caching;
 using TEDF.Application.Common.Interfaces;
-using TEDF.Persistence.MongoDB.Documents;
-using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Infrastructure.EventHandlers.Project
 {
     public class ProjectResubmittedEventHandler : INotificationHandler<ProjectResubmittedEvent>
     {
         private readonly INotificationService _notificationService;
-        private readonly IEvaluationLogRepository _evaluationLogRepository;
         private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
         private readonly IProjectRepository _projectRepository;
         private readonly ICacheInvalidationService _cacheInvalidation;
@@ -25,7 +21,6 @@ namespace TEDF.Infrastructure.EventHandlers.Project
 
         public ProjectResubmittedEventHandler(
             INotificationService notificationService,
-            IEvaluationLogRepository evaluationLogRepository,
             IProjectEvaluatorAssignmentRepository assignmentRepository,
             IProjectRepository projectRepository,
             ICacheInvalidationService cacheInvalidation,
@@ -33,7 +28,6 @@ namespace TEDF.Infrastructure.EventHandlers.Project
             ILogger<ProjectResubmittedEventHandler> logger)
         {
             _notificationService = notificationService;
-            _evaluationLogRepository = evaluationLogRepository;
             _assignmentRepository = assignmentRepository;
             _projectRepository = projectRepository;
             _cacheInvalidation = cacheInvalidation;
@@ -45,15 +39,6 @@ namespace TEDF.Infrastructure.EventHandlers.Project
         {
             try
             {
-                // Log the resubmission
-                await _evaluationLogRepository.AddAsync(new EvaluationLogDocument
-                {
-                    ProjectId = notification.ProjectId,
-                    Action = EvaluationAction.Resubmitted,
-                    PerformedBy = notification.SubmittedBy,
-                    PerformedAt = DateTime.UtcNow,
-                }, cancellationToken);
-
                 // Only reset evaluator assignments on resubmission (not first submission)
                 if (notification.SubmissionNumber <= 1) return;
 

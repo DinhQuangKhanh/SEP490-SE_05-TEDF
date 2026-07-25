@@ -1,15 +1,20 @@
-// ── Types (flat / legacy) ───────────────────────────────────────────────────
+// ── Activity log (flat list) ─────────────────────────────────────────────────
 export interface ActivityLogItem {
   id: string;
   userId: string;
   userName: string;
   userEmail: string | null;
-  activeRole: string;
-  action: string;
-  category: string | null;
+  role: string;
+  actionCode: string;
+  actionName: string;
+  featureCategory: string;
+  requestPath: string;
+  requestMethod: string;
   entityType: string | null;
   entityId: string | null;
-  severity: string;
+  status: "Success" | "Failure";
+  durationMs: number;
+  correlationId: string | null;
   ipAddress: string | null;
   timestamp: string;
 }
@@ -24,8 +29,8 @@ export interface ActivityLogResponse {
 
 export interface ActivityLogFilters {
   role?: string;
-  category?: string;
-  severity?: string;
+  featureCategory?: string;
+  status?: string;
   search?: string;
   from?: string;
   to?: string;
@@ -33,51 +38,50 @@ export interface ActivityLogFilters {
   pageSize?: number;
 }
 
-// ── Types (grouped) ─────────────────────────────────────────────────────────
-export interface SeverityCounts {
-  info: number;
-  warning: number;
-  error: number;
-  critical: number;
-}
-
-export interface SeveritySummary extends SeverityCounts {
+// ── Summary ──────────────────────────────────────────────────────────────────
+export interface ActivityLogSummary {
+  roleCounts: Record<string, number>;
+  success: number;
+  failure: number;
   total: number;
 }
 
-export interface GroupedActivityLogItem {
-  userId: string;
-  userName: string;
-  userEmail: string | null;
-  activeRole: string;
-  action: string;
-  category: string | null;
-  totalCount: number;
-  latestTimestamp: string;
-  severityCounts: SeverityCounts;
+// ── Error logs (list) ────────────────────────────────────────────────────────
+export interface ErrorLogItem {
+  id: string;
+  userId: string | null;
+  userName: string | null;
+  activeRole: string | null;
+  severity: string;
+  source: string;
+  actionCode: string | null;
+  requestPath: string;
+  requestMethod: string;
+  errorMessage: string;
+  errorType: string;
+  correlationId: string | null;
+  timestamp: string;
 }
 
-export interface GroupedActivityLogResponse {
-  items: GroupedActivityLogItem[];
-  totalGroups: number;
+export interface ErrorLogResponse {
+  items: ErrorLogItem[];
+  totalCount: number;
   page: number;
   pageSize: number;
   totalPages: number;
-  roleCounts: Record<string, number>;
 }
 
-export interface ErrorDetailItem {
-  message: string;
-  errorType: string | null;
-  count: number;
-  latestAt: string;
+export interface ErrorLogFilters {
+  severity?: string;
+  source?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export interface ErrorDetailsResponse {
-  errors: ErrorDetailItem[];
-}
-
-// ── Types (error log detail) ────────────────────────────────────────────────
+// ── Error log detail ─────────────────────────────────────────────────────────
 export interface InnerException {
   message: string;
   type: string;

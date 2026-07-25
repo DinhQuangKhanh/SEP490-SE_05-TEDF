@@ -27,14 +27,14 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 
 | Aggregate (root) | Tables |
 |------------------|--------|
-| **User** | `Users`, `UserRoles` |
+| **User** | `Users`, `UserRoles`, `Students`, `Lecturers` |
 | **Project** | `Projects`, `ProjectMentors`, `Documents` |
 | **TopicPool** | `TopicPools`, `TopicRegistrations` |
 | **Group** | `Groups`, `GroupMembers`, `GroupInvitations`, `GroupJoinRequests` |
 | **Semester** | `Semesters`, `SemesterPhases`, `EligibleStudents` |
 | **Evaluation** | `EvaluationSubmissions`, `ProjectEvaluatorAssignments` |
 | **Support** | `SupportTickets`, `TicketMessages`, `SupportTicketAttachments`, `TicketMessageAttachments` |
-| **Standalone** | `Departments`, `Majors`, `SystemConfigurations`, `ProjectArchives` |
+| **Standalone / reference** | `Departments`, `Majors`, `SystemConfigurations`, `ProjectArchives`, `Roles`, `Programs`, `Combos` |
 
 > **Not persisted:** the `Defense` and `Meeting` aggregates exist in the Domain but have **no tables / `DbSet`s** yet — those features are not wired (see `backend/docs/PROJECT-STATUS.md`).
 
@@ -42,12 +42,14 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 
 #### User aggregate
 
-- **`Users`** — application user (Firebase-authenticated; no ASP.NET Identity). Holds profile, `FullName`, email, status. One user → many `UserRoles`.
-- **`UserRoles`** — role assignments per user (Admin, Mentor, Student, Evaluator, DepartmentHead). Drives the role claims injected at token validation.
+- **`Users`** — application user (Firebase-authenticated; no ASP.NET Identity). Shared profile only: `FullName`, `Email`, `AvatarUrl`, `PhoneNumber`, `BirthDate`, `PrivacySettings`, `DepartmentId`, `Status`, `FirebaseUid`. Student-specific and lecturer-specific data live in separate tables below.
+- **`UserRoles`** — role assignments per user. `RoleId int FK → Roles.Id` (unique index `(UserId, RoleId)`). Drives the role claims injected at token validation.
+- **`Students`** — student-specific profile (shared-PK pattern: `Id uniqueidentifier` is both PK and FK → `Users.Id` cascade). Columns: `StudentCode nvarchar(20) UNIQUE`, `ProgramId int? FK → Programs` (set-null), `ComboId int? FK → Combos` (set-null). Access via `User.Student` navigation property.
+- **`Lecturers`** — lecturer/staff-specific profile (shared-PK: `Id` PK + FK → `Users.Id` cascade). Columns: `EmployeeCode nvarchar(20) UNIQUE`, `AcademicTitle nvarchar(50)?`. Access via `User.Lecturer` navigation property.
 
 #### Project aggregate
 
-- **`Projects`** — core thesis topic/project. Key columns: `Code` (`ProjectCode`, unique, ≤20), `NameVi`/`NameEn` (`ProjectName`, ≤350), `Description`/`Objectives`/`Scope`/`ExpectedResults` (≤2000), `Technologies` (`TechnologyStack`, ≤500), `Status`/`Priority`/`SourceType`/`RegistrationType` (int enums), `PoolStatus` (string enum), `SemesterId`, `MajorId`, `GroupId?`.
+- **`Projects`** — core thesis topic/project. Key columns: `Code` (`ProjectCode`, unique, ≤20), `NameVi`/`NameEn` (`ProjectName`, ≤350), `Description`/`Objectives`/`Scope`/`ExpectedResults` (≤2000), `Technologies` (`TechnologyStack`, ≤500), `Status`/`Priority`/`SourceType`/`RegistrationType` (int enums), `PoolStatus` (string enum), `SemesterId`, `MajorId`, `GroupId?`, `MentorFeedback nvarchar(max)?` (mentor's review note for DirectRegistration topics).
 - **`ProjectMentors`** — mentors on a project (FK `ProjectId` → cascade), with `IsActive`.
 - **`Documents`** — uploaded project documents (FK `ProjectId` → cascade, `UploadedBy` → restrict). Has an explicit soft-delete query filter.
 
@@ -86,6 +88,9 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 - **`Majors`** — `Code` (unique), `DepartmentId` (restrict), `IsActive`.
 - **`SystemConfigurations`** — key/value config; `Key` (unique), `Category`.
 - **`ProjectArchives`** — archived project snapshots; indexed on `MajorId`, `AcademicYear`, `(ProjectName, Tags)`.
+- **`Roles`** — normalized role lookup (5 seed rows with stable IDs: Admin=1, Mentor=2, Student=3, Evaluator=4, DepartmentHead=5). `Name nvarchar(50) UNIQUE`. Referenced by `UserRoles.RoleId`. Constants exposed via `DomainRoleIds` and `DomainRoleNames`.
+- **`Programs`** — training programs (formerly `MajorPrograms`). 24 seed rows. Columns: `Code nvarchar(50) UNIQUE`, `Name nvarchar(500)`, `Description nvarchar(max)`, `TotalCredit int`. Referenced by `Students.ProgramId` (set-null).
+- **`Combos`** — narrow specialization tracks within a program. 10 seed rows with explicit IDs. Columns: `Name nvarchar(500)`, `Abbr nvarchar(20)`. Referenced by `Students.ComboId` (set-null). The display string is formed as `{ProgramCode without 'K'}_{Abbr}` (e.g. `BIT_SE_18C_.NET`).
 
 ### Referential Integrity (delete behavior)
 
@@ -100,7 +105,7 @@ EF configures FK delete behavior explicitly per relationship:
 
 ### Indexes (selected)
 
-- **Unique:** `Departments.Code`, `Majors.Code`, `Groups.Code`, `SystemConfigurations.Key`, `EvaluationSubmissions(ProjectId, SubmissionNumber)`.
+- **Unique:** `Departments.Code`, `Majors.Code`, `Groups.Code`, `SystemConfigurations.Key`, `EvaluationSubmissions(ProjectId, SubmissionNumber)`, `Students.StudentCode`, `Lecturers.EmployeeCode`, `Roles.Name`, `Programs.Code`, `UserRoles(UserId, RoleId)`.
 - **Lookup/filter:** status and foreign-key columns across most tables (`Status`, `SemesterId`, `ProjectId`, `EvaluatorId`, `AssignedEvaluatorId`, …) plus composite indexes for invitation/join-request/registration uniqueness-style lookups.
 
 ---
@@ -114,19 +119,17 @@ Document store for high-write, append-mostly, and flexible-schema data. Collecti
 | `conversations` | `ConversationDocument` | Chat conversations (participants, type) |
 | `messages` | `MessageDocument` | Chat messages (conversation, sender, content, sentAt) |
 | `notifications` | `NotificationDocument` | User notifications (category, isRead) — paired with SignalR |
-| `evaluation_logs` | `EvaluationLogDocument` | Evaluation action/audit trail |
-| `project_modifications` | `ProjectModificationHistoryDocument` | Field-level project change history (old/new value, by, at) |
-| `user_activity_logs` | `UserActivityLogDocument` | User activity audit (action, role, route, severity) |
-| `system_audit_logs` | `SystemAuditLogDocument` | System-level audit events |
-| `error_logs` | `ErrorLogDocument` | Full unhandled-exception detail (stack trace, inner chain, correlation id) |
-| `request_logs` | `RequestLogDocument` | HTTP request logs (method, path, status, duration) |
+| `activity_logs` | `ActivityLogDocument` | Consolidated user-action audit: `ActionCode` (command class name), `ActionName` (human-readable), `FeatureCategory`, `Role`, `RequestPath`, `EntityType/EntityId`, `Status`, `DurationMs`, `CorrelationId`, `IpAddress`. Replaces the former `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, and `request_logs` collections. |
+| `error_logs` | `ErrorLogDocument` | Full unhandled-exception detail (stack trace, inner chain, correlation id). Linked to an `activity_logs` entry via `CorrelationId` for drill-down from the admin log view. |
 | `quarantined_attachments` | `QuarantinedAttachmentDocument` | Uploaded files quarantined by the ClamAV malware scan |
 
-Collection-name constants for the core set live in `MongoDbContext.Collections`.
+Collection-name constants live in `MongoDbContext.Collections` (`ActivityLogs`, `ErrorLogs`, `Notifications`, `Conversations`, `Messages`).
+
+> **Removed collections (2026-07-19 logging refactor):** `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs` were all replaced by the single `activity_logs` collection. The `IActivityLogRepository` + `ActivityLogService` pair now handles all write paths previously spread across five separate repositories.
 
 ### Logging linkage
 
-On an unhandled exception, `ExceptionHandlingMiddleware` writes the full detail to `error_logs` and a linked summary entry to `user_activity_logs` (with the `ErrorLogId`), so the admin activity feed can drill into the underlying error.
+On an unhandled exception, `ExceptionHandlingMiddleware` writes the full detail to `error_logs` and stamps the linked `activity_logs` entry (same `CorrelationId`) with `Status = "Failure"`, so the admin log page can drill into the underlying error without a separate query.
 
 ### Why MongoDB here
 

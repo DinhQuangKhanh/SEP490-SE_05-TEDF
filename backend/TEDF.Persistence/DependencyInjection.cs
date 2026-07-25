@@ -1,4 +1,3 @@
-using System.Net.Mime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -111,18 +110,16 @@ namespace TEDF.Persistence
             services.AddScoped<IAuthenticationsQueryService, AuthenticationsQueryService>();
 
             // Add MongoDB Repositories
-            services.AddScoped<IEvaluationLogRepository, EvaluationLogRepository>();
-            services.AddScoped<IProjectModificationHistoryRepository, ProjectModificationHistoryRepository>();
+            services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
+            services.AddScoped<IErrorLogRepository, ErrorLogRepository>();
+            services.AddScoped<ISystemAuditLogRepository, SystemAuditLogRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IConversationRepository, ConversationRepository>();
             services.AddScoped<IMessageRepository, MessageRepository>();
-            services.AddScoped<IUserActivityLogRepository, UserActivityLogRepository>();
-            services.AddScoped<ISystemAuditLogRepository, SystemAuditLogRepository>();
-            services.AddScoped<IErrorLogRepository, ErrorLogRepository>();
             services.AddScoped<IQuarantinedAttachmentRepository, QuarantinedAttachmentRepository>();
 
             // Add Log Services
-            services.AddScoped<IRequestLogService, RequestLogService>();
+            services.AddScoped<IActivityLogService, ActivityLogService>();
             services.AddScoped<IErrorLogService, ErrorLogService>();
             services.AddScoped<ISystemAuditLogWriteService, SystemAuditLogWriteService>();
 

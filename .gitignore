@@ -390,8 +390,3 @@ TEDF.API/appsettings.Development.json
 **/*secret*.yml
 **/*secret*.yaml
 **/service-account.json
-
-# Frontend build output
-frontend/dist/
-dist/
-
