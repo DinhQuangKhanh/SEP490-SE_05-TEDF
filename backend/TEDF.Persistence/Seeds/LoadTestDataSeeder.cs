@@ -49,6 +49,11 @@ public static class LoadTestDataSeeder
     private const int Spring2026Id = 101;
     private const int Summer2026Id = 102;
 
+    // Must stay identical to Semesters.Code below — group codes are {SemesterCode}-SE_NN.
+    private const string Fall2025Code = "FALL2025";
+    private const string Spring2026Code = "SPRING2026";
+    private const string Summer2026Code = "SUMMER2026";
+
     private const int Fall25GroupCount = 50;
     private const int Spring26GroupCount = 40;
     private const int Summer26GroupCount = 15;
@@ -444,7 +449,7 @@ public static class LoadTestDataSeeder
 
         foreach (var l in lecturers)
             await context.Database.ExecuteSqlRawAsync(
-                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle ?? DBNull.Value);
+                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -765,16 +770,16 @@ public static class LoadTestDataSeeder
                 {
                     semesterId = Fall2025Id;
                     groupStatus = 2; // Disbaned
-                    code = $"FA25-G-{i:D3}";
                     name = $"SE_{i:D2}";
+                    code = $"{Fall2025Code}-{name}";
                 }
                 else
                 {
                     var springIdx = i - Fall25GroupCount;
                     semesterId = Spring2026Id;
                     groupStatus = 2; // Disbaned
-                    code = $"SP26-G-{springIdx:D3}";
                     name = $"SE_{springIdx:D2}";
+                    code = $"{Spring2026Code}-{name}";
                 }
 
                 var leaderId = StudentId(StudentStartIndex(i));
@@ -788,7 +793,8 @@ public static class LoadTestDataSeeder
                 var pDate = $"@p{paramIndex++}";
                 var pIsOpen = $"@p{paramIndex++}";
 
-                valueClauses.Add($"({pId}, {pCode}, {pName}, NULL, {pSemester}, {pLeader}, {pStatus}, 5, {pIsOpen}, {pDate}, NULL)");
+                // DisplayName NULL: seeded load-test groups have no student-chosen nickname.
+                valueClauses.Add($"({pId}, {pCode}, {pName}, NULL, NULL, {pSemester}, {pLeader}, {pStatus}, 5, {pIsOpen}, {pDate}, NULL)");
                 parameters.Add(GroupId(i));
                 parameters.Add(code);
                 parameters.Add(name);
@@ -800,7 +806,7 @@ public static class LoadTestDataSeeder
             }
 
             var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
+                INSERT INTO Groups (Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
                 VALUES {string.Join(",\n                       ", valueClauses)};";
 
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
@@ -1042,10 +1048,15 @@ public static class LoadTestDataSeeder
             {
                 var leaderIdx = groupMembers[g][0];
                 var pId = $"@p{pi++}"; var pCode = $"@p{pi++}"; var pName = $"@p{pi++}";
+                var pDisplay = $"@p{pi++}";
                 var pSemester = $"@p{pi++}"; var pLeader = $"@p{pi++}"; var pDate = $"@p{pi++}";
-                values.Add($"({pId}, {pCode}, {pName}, NULL, {pSemester}, {pLeader}, 0, 5, 0, {pDate}, NULL)");
+                values.Add($"({pId}, {pCode}, {pName}, {pDisplay}, NULL, {pSemester}, {pLeader}, 0, 5, 0, {pDate}, NULL)");
+
+                // The real group's own name is kept as the nickname; Name/Code follow the SE_NN scheme.
+                var groupName = $"SE_{g + 1:D2}";
                 parameters.Add(RealGroupId(g + 1));
-                parameters.Add($"SU26-R-{g + 1:D3}");
+                parameters.Add($"{Summer2026Code}-{groupName}");
+                parameters.Add(groupName);
                 parameters.Add(Summer26RealGroups[g].Name);
                 parameters.Add(Summer2026Id);
                 parameters.Add(RealStudentId(leaderIdx));
@@ -1053,7 +1064,7 @@ public static class LoadTestDataSeeder
             }
 
             var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
+                INSERT INTO Groups (Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
                 VALUES {string.Join(",\n                       ", values)};";
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
@@ -1754,6 +1765,24 @@ public static class LoadTestDataSeeder
         // Order matters: delete children before parents to respect FK constraints.
         var tables = new[]
         {
+            // Evaluation checklist tree. Every FK out of it — ProjectEvaluationChecklists to
+            // Projects/Users/ChecklistConfigs, ChecklistConfigs to Semesters — is Restrict, so
+            // these have to go before Projects, Users and Semesters below.
+            "ChecklistResultItems",
+            "ProjectEvaluationChecklists",
+            "ChecklistCriteria",
+            "ChecklistConfigs",
+
+            // Support ticket tree: children before SupportTickets.
+            "TicketMessageAttachments",
+            "TicketMessages",
+            "SupportTicketAttachments",
+
+            // Group child tables. These cascade from Groups, but are deleted explicitly so the
+            // reset does not silently break if that cascade is ever changed to Restrict.
+            "GroupInvitations",
+            "GroupJoinRequests",
+
             // Leaf tables (no dependents)
             "EligibleStudents",
             "EligibleMentors",
@@ -1807,7 +1836,7 @@ public static class LoadTestDataSeeder
             var identityTables = new[]
             {
                 "SemesterPhases", "GroupMembers", "UserRoles", "ProjectMentors",
-                "Departments", "Majors"
+                "Departments", "Majors", "GroupInvitations", "GroupJoinRequests"
             };
 
             foreach (var table in identityTables)
