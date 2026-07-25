@@ -17,4 +17,6 @@ public interface IProjectsQueryService
     /// <summary>Mentor: projects the given user actively supervises (for the profile supervision history), with search/sort/paging.</summary>
     Task<GetMySupervisedProjectsResult> GetMySupervisedProjectsAsync(
         Guid mentorId, string? search, string? sort, int page, int pageSize, CancellationToken cancellationToken = default);
+
+    Task<GetProjectAuditLogsResponse> GetProjectAuditLogsAsync(Guid projectId, CancellationToken cancellationToken = default);
 }

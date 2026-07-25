@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Persistence.ValueConverters;
@@ -15,6 +15,8 @@ namespace TEDF.Persistence.SqlServer.Configurations.Evaluation
             builder.ToTable("EvaluationSubmissions");
 
             builder.HasKey(e => e.Id);
+            
+            builder.Property(e => e.PhaseId).IsRequired();
 
             // Value Object conversions
             builder.Property(e => e.SubmissionNumber)

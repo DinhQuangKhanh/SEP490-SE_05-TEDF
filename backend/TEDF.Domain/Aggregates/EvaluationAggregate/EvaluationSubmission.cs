@@ -1,4 +1,4 @@
-﻿using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
+using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Rules;
 using TEDF.Domain.Aggregates.EvaluationAggregate.ValueObjects;
 using TEDF.Domain.Common.Exceptions;
@@ -10,6 +10,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate
     public class EvaluationSubmission : AggregateRoot<Guid>
     {
         public Guid ProjectId { get; private set; }
+        public int PhaseId { get; private set; }
         public SubmissionNumber SubmissionNumber { get; private set; } = null!;
         public Guid SubmittedBy { get; private set; }
         public DateTime SubmittedAt { get; private set; }
@@ -25,13 +26,14 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate
 
         private EvaluationSubmission() { }
 
-        public static EvaluationSubmission Create(Guid projectId, int submissionNumber, Guid submittedBy,
+        public static EvaluationSubmission Create(Guid projectId, int phaseId, int submissionNumber, Guid submittedBy,
             ProjectSnapshot? snapshot = null, string? notes = null)
         {
             var submission = new EvaluationSubmission
             {
                 Id = Guid.NewGuid(),
                 ProjectId = projectId,
+                PhaseId = phaseId,
                 SubmissionNumber = SubmissionNumber.Create(submissionNumber),
                 SubmittedBy = submittedBy,
                 SubmittedAt = DateTime.UtcNow,
@@ -41,7 +43,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate
                 Notes = notes,
                 CreatedAt = DateTime.UtcNow
             };
-            submission.RaiseDomainEvent(new SubmissionCreatedEvent(submission.Id, projectId, submittedBy, submissionNumber));
+            submission.RaiseDomainEvent(new SubmissionCreatedEvent(submission.Id, projectId, phaseId, submittedBy, submissionNumber));
             return submission;
         }
 

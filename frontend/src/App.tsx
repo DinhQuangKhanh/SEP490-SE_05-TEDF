@@ -34,6 +34,7 @@ import {
   AssignEvaluatorsPage,
   ChecklistConfigPage,
   DepartmentHeadStatisticsPage,
+  ProjectAuditLogsPage,
   ActivityLogsPage,
   TopicCreatePage,
   ProfilePage,
@@ -178,6 +179,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={["departmenthead"]}>
                       <DepartmentHeadStatisticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="audit-logs"
+                  element={
+                    <ProtectedRoute allowedRoles={["departmenthead"]}>
+                      <ProjectAuditLogsPage />
                     </ProtectedRoute>
                   }
                 />

@@ -1,4 +1,4 @@
-﻿using TEDF.Domain.Aggregates.ProjectAggregate.Entities;
+using TEDF.Domain.Aggregates.ProjectAggregate.Entities;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
@@ -411,12 +411,13 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             return document;
         }
 
-        public void RemoveDocument(Guid documentId)
+        public void RemoveDocument(Guid documentId, Guid deletedBy)
         {
             var document = _documents.FirstOrDefault(d => d.Id == documentId && !d.IsDeleted)
                 ?? throw new EntityNotFoundException(nameof(Document), documentId);
             document.Delete();
             UpdatedAt = DateTime.UtcNow;
+            RaiseDomainEvent(new DocumentDeletedEvent(Id, documentId, deletedBy));
         }
 
         #endregion

@@ -65,7 +65,7 @@ public sealed class EvaluationEndpoints : IEndpoint
 
     private static async Task<IResult> AssignEvaluator([FromBody] AssignEvaluatorRequest request, ISender sender, CancellationToken ct)
     {
-        await sender.Send(new AssignEvaluatorCommand(request.ProjectId, request.EvaluatorId, request.EvaluatorOrder), ct);
+        await sender.Send(new AssignEvaluatorCommand(request.ProjectId, request.PhaseId, request.EvaluatorId, request.EvaluatorOrder), ct);
         return NoContent("Gán người thẩm định thành công.");
     }
 

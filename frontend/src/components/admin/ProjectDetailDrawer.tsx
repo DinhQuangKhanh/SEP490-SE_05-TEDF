@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { projectService } from "@/lib";
 import type { ProjectDetail, ProjectListItem } from "@/types";
+import { ProjectAuditLogList } from './ProjectAuditLogList';
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ export function ProjectDetailDrawer({ project, isOpen, onClose }: ProjectDetailD
                                     )}
                                 </div>
                                 <button
+                                    type="button"
                                     onClick={onClose}
                                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
                                 >
@@ -292,6 +294,13 @@ export function ProjectDetailDrawer({ project, isOpen, onClose }: ProjectDetailD
                                             Cập nhật lần cuối: {formatDate(detail.updatedAt)}
                                         </p>
                                     )}
+
+                                    {/* Audit Logs */}
+                                    {project && (
+                                        <div className="pt-6 mt-2 border-t border-slate-100">
+                                            <ProjectAuditLogList projectId={project.id} />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -299,6 +308,7 @@ export function ProjectDetailDrawer({ project, isOpen, onClose }: ProjectDetailD
                         {/* Footer */}
                         <div className="px-6 py-4 border-t border-slate-100 flex justify-end shrink-0">
                             <button
+                                type="button"
                                 onClick={onClose}
                                 className="px-5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                             >
