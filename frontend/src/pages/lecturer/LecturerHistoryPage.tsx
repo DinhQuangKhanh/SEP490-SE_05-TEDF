@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 import { evaluatorService } from "@/lib";
 import type { EvaluatorHistoryResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
 import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
+import { DepartmentEvaluationHistory } from "@/pages/department-head/DepartmentEvaluationHistory";
 
 const PAGE_SIZE = 10;
 
@@ -17,6 +19,15 @@ const RESULT_DISPLAY: Record<string, { label: string; colors: string }> = {
 };
 
 export function LecturerHistoryPage() {
+  const { user } = useAuth();
+  // Match the app's DH detection (LecturerSidebar / LecturerRepositoryPage): a user WITH the
+  // departmenthead role gets the department-scoped view; others keep the personal evaluator history.
+  const isDeptHead = !!user?.roles?.includes("departmenthead");
+  if (isDeptHead) return <DepartmentEvaluationHistory />;
+  return <EvaluatorHistoryView />;
+}
+
+function EvaluatorHistoryView() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState("");
@@ -77,7 +88,7 @@ export function LecturerHistoryPage() {
             <p className="text-slate-500 text-sm">Xem lại các đề tài đã thẩm định và phản hồi của bạn.</p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+            <button type="button" className="flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
               <span className="material-symbols-outlined text-[20px]">download</span>
               <span>Xuất Excel</span>
             </button>
@@ -267,7 +278,7 @@ export function LecturerHistoryPage() {
                             <p className="text-sm text-slate-500 line-clamp-2 max-w-xs">{histItem.feedback || "—"}</p>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <button
+                            <button type="button"
                               onClick={() => navigate(`/lecturer/moderate/${histItem.projectId}`)}
                               className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
                             >

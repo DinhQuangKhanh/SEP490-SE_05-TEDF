@@ -2,10 +2,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { evaluatorService } from "@/lib";
-import type { ProjectReviewResponse, SimilarTitleDto } from "@/types";
+import { evaluatorService, checklistService } from "@/lib";
+import type {
+  ProjectReviewResponse,
+  SimilarTitleDto,
+  ProjectChecklistResponse,
+  ChecklistScoreItemInput,
+} from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
+import { EvaluationChecklistModal } from "@/components/lecturer";
 
 export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +30,11 @@ export function LecturerReviewPage() {
   const [showSimilarity, setShowSimilarity] = useState(false);
   const [loadingSimilarity, setLoadingSimilarity] = useState(false);
   const [expandedCompare, setExpandedCompare] = useState<string | null>(null);
+
+  // Evaluation checklist state (gates the "Duyệt" verdict on the backend and here).
+  const [checklist, setChecklist] = useState<ProjectChecklistResponse | null>(null);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+  const [checklistLoading, setChecklistLoading] = useState(false);
 
   const fetchProjectForReview = useCallback(() => {
     if (!id) return;
@@ -50,6 +61,38 @@ export function LecturerReviewPage() {
     fetchProjectForReview();
   }, [fetchProjectForReview]);
 
+  const fetchChecklist = useCallback(() => {
+    if (!id) return;
+    setChecklistLoading(true);
+    checklistService
+      .getProjectChecklist(id)
+      .then(setChecklist)
+      // 403/404 (e.g. not the assigned evaluator) simply leaves the gate closed.
+      .catch(() => setChecklist(null))
+      .finally(() => setChecklistLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    fetchChecklist();
+  }, [fetchChecklist]);
+
+  const handleSaveChecklist = useCallback(
+    async (items: ChecklistScoreItemInput[], note: string) => {
+      if (!id) return;
+      await checklistService.saveProjectChecklist(id, { items, note });
+      fetchChecklist();
+    },
+    [id, fetchChecklist],
+  );
+
+  // Real-time: when a checklist is saved for this project, reload the official data from the API.
+  const handleChecklistUpdated = useCallback(
+    (payload: { projectId: string }) => {
+      if (payload.projectId === id) fetchChecklist();
+    },
+    [id, fetchChecklist],
+  );
+
   // Clicking a "Phân công thẩm định" notification while already on this exact
   // project's page doesn't trigger a route change, so refetch on the refresh event.
   useNotificationTargetRefresh(fetchProjectForReview);
@@ -66,6 +109,7 @@ export function LecturerReviewPage() {
 
   const { joinProjectChannel, leaveProjectChannel } = useSignalR({
     onProjectStatusUpdated: handleProjectStatusUpdated,
+    onChecklistUpdated: handleChecklistUpdated,
   });
 
   useEffect(() => {
@@ -88,8 +132,24 @@ export function LecturerReviewPage() {
     }
   }, [id, showError]);
 
+  const checklistRequired = checklist?.requiredPassCount ?? 0;
+  const checklistTotal = checklist?.totalCriteria ?? 0;
+  const canApprove = checklist?.canApprove ?? false;
+  const hasActiveConfig = checklist?.hasActiveConfig ?? false;
+
   const handleSubmit = useCallback(async () => {
     if (!id || verdict === null) return;
+
+    // Server-side is authoritative, but block here too for a clear, immediate message.
+    if (verdict === 1 && !canApprove) {
+      showError(
+        hasActiveConfig
+          ? `Đề tài cần đạt ít nhất ${checklistRequired}/${checklistTotal} tiêu chí thẩm định trước khi được duyệt.`
+          : "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.",
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       await evaluatorService.submitEvaluation(id, {
@@ -103,7 +163,7 @@ export function LecturerReviewPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [id, verdict, feedback, navigate, showError]);
+  }, [id, verdict, feedback, navigate, showError, canApprove, hasActiveConfig, checklistRequired, checklistTotal]);
 
   const getSimilarityBadge = (similarity: number) => {
     if (similarity >= 70)
@@ -130,7 +190,7 @@ export function LecturerReviewPage() {
         <div className="text-center">
           <span className="material-symbols-outlined text-6xl text-gray-300 mb-4 block">error</span>
           <p className="text-lg font-semibold text-slate-700">Không tìm thấy đề tài</p>
-          <button
+          <button type="button"
             onClick={() => navigate("/lecturer/moderate")}
             className="mt-4 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark"
           >
@@ -168,7 +228,7 @@ export function LecturerReviewPage() {
         >
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <button
+              <button type="button"
                 onClick={() => navigate("/lecturer/moderate")}
                 className="size-10 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50"
               >
@@ -205,7 +265,7 @@ export function LecturerReviewPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <button type="button"
                 onClick={handleCheckSimilarity}
                 disabled={loadingSimilarity}
                 className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-200 bg-white text-slate-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
@@ -337,7 +397,7 @@ export function LecturerReviewPage() {
                         <span className="material-symbols-outlined text-amber-500">compare</span>
                         <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp tiêu đề</h3>
                       </div>
-                      <button
+                      <button type="button"
                         onClick={() => { setShowSimilarity(false); setExpandedCompare(null); }}
                         className="size-7 rounded-lg hover:bg-gray-100 flex items-center justify-center"
                       >
@@ -545,11 +605,21 @@ export function LecturerReviewPage() {
             <div className="grid grid-cols-3 gap-2">
               {verdictOptions.map(({ value, label, color, icon }) => {
                 const selected = verdict === value;
+                // "Duyệt" (value 1) is gated by the checklist threshold.
+                const approveGated = value === 1 && !canApprove;
+                const disabled = !!project.existingResult || approveGated;
                 return (
-                  <button
+                  <button type="button"
                     key={value}
                     onClick={() => setVerdict(value)}
-                    disabled={!!project.existingResult}
+                    disabled={disabled}
+                    title={
+                      approveGated
+                        ? hasActiveConfig
+                          ? `Đề tài cần đạt ít nhất ${checklistRequired}/${checklistTotal} tiêu chí thẩm định trước khi được duyệt.`
+                          : "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn."
+                        : undefined
+                    }
                     className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                       selected
                         ? `border-${color}-500 bg-${color}-50`
@@ -574,6 +644,42 @@ export function LecturerReviewPage() {
                 );
               })}
             </div>
+
+            {/* Checklist button + gate hint */}
+            <button type="button"
+              onClick={() => setChecklistOpen(true)}
+              className="mt-3 flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-gray-50"
+            >
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-primary">checklist</span>
+                Checklist thẩm định
+              </span>
+              {checklistLoading ? (
+                <span className="material-symbols-outlined animate-spin text-[18px] text-slate-400">
+                  progress_activity
+                </span>
+              ) : checklist?.hasActiveConfig ? (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                    canApprove ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {checklist.passedCount}/{checklistTotal}
+                </span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px] text-amber-500">report</span>
+              )}
+            </button>
+            {!checklistLoading && checklist && !hasActiveConfig && (
+              <p className="mt-2 text-xs text-amber-600">
+                Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.
+              </p>
+            )}
+            {!checklistLoading && hasActiveConfig && !canApprove && !project.existingResult && (
+              <p className="mt-2 text-xs text-amber-600">
+                Đề tài cần đạt ít nhất {checklistRequired}/{checklistTotal} tiêu chí thẩm định trước khi được duyệt.
+              </p>
+            )}
           </div>
 
           {/* Feedback */}
@@ -594,7 +700,7 @@ export function LecturerReviewPage() {
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">Mẫu nhanh</h3>
               <div className="flex flex-wrap gap-2">
                 {quickFeedback.map((t) => (
-                  <button
+                  <button type="button"
                     key={t}
                     onClick={() => setFeedback((f) => (f ? f + " " : "") + t)}
                     className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-slate-600 hover:bg-primary/10 hover:text-primary"
@@ -637,14 +743,16 @@ export function LecturerReviewPage() {
         {/* Footer buttons */}
         {!project.existingResult && (
           <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
-            <button
+            <button type="button"
               onClick={() => navigate("/lecturer/moderate")}
               className="flex-1 h-11 rounded-xl border border-gray-200 text-slate-700 font-semibold text-sm hover:bg-gray-50"
             >
               Quay lại
             </button>
-            <button
-              disabled={verdict === null || submitting || !!project.existingResult}
+            <button type="button"
+              disabled={
+                verdict === null || submitting || !!project.existingResult || (verdict === 1 && !canApprove)
+              }
               onClick={handleSubmit}
               className="flex-1 h-11 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-dark shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
@@ -660,6 +768,16 @@ export function LecturerReviewPage() {
           </div>
         )}
       </motion.aside>
+
+      {/* Evaluation checklist modal */}
+      <EvaluationChecklistModal
+        open={checklistOpen}
+        loading={checklistLoading}
+        readOnly={!!project.existingResult}
+        checklist={checklist}
+        onClose={() => setChecklistOpen(false)}
+        onSave={handleSaveChecklist}
+      />
 
       {/* Success Modal */}
       <AnimatePresence>

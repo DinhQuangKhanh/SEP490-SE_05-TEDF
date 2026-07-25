@@ -3,11 +3,14 @@ using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Entities;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Events;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Common.Rules;
 using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Evaluation;
@@ -30,6 +33,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
     private readonly IUserRepository _userRepository;
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
+    private readonly IProjectEvaluationChecklistRepository _projectChecklistRepository;
     private readonly ISemesterRepository _semesterRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPublisher _publisher;
@@ -42,6 +46,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         IUserRepository userRepository,
         IDepartmentRepository departmentRepository,
         IProjectEvaluatorAssignmentRepository assignmentRepository,
+        IProjectEvaluationChecklistRepository projectChecklistRepository,
         ISemesterRepository semesterRepository,
         IUnitOfWork unitOfWork,
         IPublisher publisher,
@@ -53,6 +58,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
         _assignmentRepository = assignmentRepository;
+        _projectChecklistRepository = projectChecklistRepository;
         _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
         _publisher = publisher;
@@ -185,6 +191,21 @@ public class EvaluationsDomainService : IEvaluationsDomainService
             ?? throw new UnauthorizedAccessException("Bạn không được gán để thẩm định đề tài này.");
 
         var evalResult = (EvaluationResult)result;
+
+        // Server-side gate: approving a topic requires the evaluator's saved checklist to meet the
+        // minimum passed-criteria threshold (default 7/10). This makes the requirement impossible to
+        // bypass by calling the evaluate endpoint directly. Reject/NeedsModification are unaffected.
+        if (evalResult == EvaluationResult.Approved)
+        {
+            var projectForGate = await _projectRepository.GetByIdAsync(projectId, ct)
+                ?? throw new EntityNotFoundException(nameof(Project), projectId);
+            var checklist = await _projectChecklistRepository
+                .GetByProjectEvaluatorAsync(projectId, evaluatorId, projectForGate.EvaluationCount, ct);
+            BusinessRuleValidator.CheckRule(new ChecklistApprovalThresholdRule(checklist));
+            checklist!.MarkApproved();
+            _projectChecklistRepository.Update(checklist);
+        }
+
         assignment.SubmitEvaluation(evalResult, feedback);
 
         await _unitOfWork.SaveChangesAsync(ct);
