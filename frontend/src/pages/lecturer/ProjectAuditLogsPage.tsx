@@ -322,6 +322,10 @@ export function ProjectAuditLogsPage() {
   const [page, setPage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
   // Mock data (replace with API call when real data is available)
   const allLogs = useMemo(() => generateMockData(), []);
 
@@ -351,8 +355,8 @@ export function ProjectAuditLogsPage() {
     }
 
     if (actionFilter) {
-      const actions = actionFilter.split(",");
-      result = result.filter((log) => actions.includes(log.action));
+      const actions = new Set(actionFilter.split(","));
+      result = result.filter((log) => actions.has(log.action));
     }
 
     return result;
@@ -424,12 +428,12 @@ export function ProjectAuditLogsPage() {
               {ACTION_FILTERS.map((tab) => (
                 <button
                   key={tab.key}
+                  type="button"
                   onClick={() => setActionFilter(tab.key)}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                    actionFilter === tab.key
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${actionFilter === tab.key
                       ? "bg-primary text-white shadow-sm"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
                   {tab.label}
@@ -451,6 +455,7 @@ export function ProjectAuditLogsPage() {
               />
               {search && (
                 <button
+                  type="button"
                   onClick={() => setSearch("")}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
@@ -483,19 +488,13 @@ export function ProjectAuditLogsPage() {
                         <span className="material-symbols-outlined text-[40px] mb-2 block text-slate-300">
                           search_off
                         </span>
-                        Không tìm thấy bản ghi nào
+                        <span>Không tìm thấy bản ghi nào</span>
                       </td>
                     </tr>
                   ) : (
                     pagedLogs.map((log) => {
                       const ac = getActionConfig(log.action);
                       const isExpanded = expandedIds.includes(log.id);
-                      
-                      const toggleExpand = (id: string) => {
-                        setExpandedIds((prev) =>
-                          prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-                        );
-                      };
 
                       return (
                         <React.Fragment key={log.id}>
@@ -555,9 +554,8 @@ export function ProjectAuditLogsPage() {
                             <td className="px-6 py-4 text-center">
                               {log.metadata ? (
                                 <span
-                                  className={`material-symbols-outlined text-[20px] text-slate-400 transition-transform ${
-                                    isExpanded ? "rotate-180" : ""
-                                  }`}
+                                  className={`material-symbols-outlined text-[20px] text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""
+                                    }`}
                                 >
                                   expand_more
                                 </span>
@@ -617,30 +615,32 @@ export function ProjectAuditLogsPage() {
                 </span>
                 <div className="flex items-center gap-1">
                   <button
+                    type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Trước
                   </button>
-                  {getPageNumbers(page, totalPages).map((p, i) =>
+                  {getPageNumbers(page, totalPages).map((p, i, arr) =>
                     p === "..." ? (
-                      <span key={`dots-${i}`} className="px-2 py-1 text-slate-400">
+                      <span key={`dots-after-${arr[i - 1]}`} className="px-2 py-1 text-slate-400">
                         ...
                       </span>
                     ) : (
                       <button
                         key={p}
+                        type="button"
                         onClick={() => setPage(p as number)}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                          p === page ? "bg-primary text-white" : "text-slate-600 border border-slate-200 hover:bg-slate-50"
-                        }`}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${p === page ? "bg-primary text-white" : "text-slate-600 border border-slate-200 hover:bg-slate-50"
+                          }`}
                       >
                         {p}
                       </button>
                     )
                   )}
                   <button
+                    type="button"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -664,13 +664,13 @@ function StatCard({
   icon,
   color,
   bg,
-}: {
+}: Readonly<{
   label: string;
   count: number;
   icon: string;
   color: string;
   bg: string;
-}) {
+}>) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
       <div className={`${bg} p-2.5 rounded-lg`}>

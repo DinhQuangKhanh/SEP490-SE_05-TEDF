@@ -10,6 +10,8 @@ namespace TEDF.API.Endpoints.Projects;
 
 public sealed class ProjectsEndpoints : IEndpoint
 {
+    private const string Tag = "Projects";
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/projects").RequireAuthorization();
@@ -17,23 +19,23 @@ public sealed class ProjectsEndpoints : IEndpoint
         // Admin oversight of all projects.
         group.MapGet("", GetProjects)
             .RequireAuthorization(PolicyNames.RequireAdmin)
-            .WithTags("Projects").WithName("GetProjects")
+            .WithTags(Tag).WithName("GetProjects")
             .Produces(200).Produces(401);
 
         // Department head: projects within the caller's department.
         group.MapGet("/department", GetDepartmentProjects)
             .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
-            .WithTags("Projects").WithName("GetDepartmentProjects")
+            .WithTags(Tag).WithName("GetDepartmentProjects")
             .Produces(200).Produces(401).Produces(403);
 
         // Mentor: projects the current user supervises (for the profile supervision history).
         group.MapGet("/supervised", GetMySupervisedProjects)
-            .WithTags("Projects").WithName("GetMySupervisedProjects")
+            .WithTags(Tag).WithName("GetMySupervisedProjects")
             .Produces(200).Produces(401);
 
         // Audit logs for a project.
         group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
-            .WithTags("Projects").WithName("GetProjectAuditLogs")
+            .WithTags(Tag).WithName("GetProjectAuditLogs")
             .Produces(200).Produces(401);
     }
 

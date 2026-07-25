@@ -104,7 +104,7 @@ export interface ProjectAuditLogDto {
   performedBy: string | null;
   performedByName: string | null;
   timestamp: string;
-  metadata: any | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export interface ProjectAuditLogResponse {

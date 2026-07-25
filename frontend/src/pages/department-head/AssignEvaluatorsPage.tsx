@@ -207,6 +207,7 @@ export function AssignEvaluatorsPage() {
             />
             {search && (
               <button
+                type="button"
                 onClick={() => setSearch("")}
                 className="absolute -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600"
               >
@@ -222,6 +223,7 @@ export function AssignEvaluatorsPage() {
             <div className="flex gap-1">
               {tabs.map((tab) => (
                 <button
+                  type="button"
                   key={tab.key}
                   onClick={() => navigate(tab.key === "pending" ? "/lecturer/assign" : `/lecturer/assign/${tab.key}`)}
                   className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
@@ -306,6 +308,7 @@ export function AssignEvaluatorsPage() {
               </span>
               <div className="flex justify-center w-full gap-1 sm:w-auto sm:justify-end">
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
@@ -319,6 +322,7 @@ export function AssignEvaluatorsPage() {
                     </span>
                   ) : (
                     <button
+                      type="button"
                       key={p}
                       onClick={() => setPage(p)}
                       className={`px-3 py-1 rounded text-sm transition-colors ${
@@ -332,6 +336,7 @@ export function AssignEvaluatorsPage() {
                   ),
                 )}
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="px-3 py-1 text-sm transition-colors border rounded border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-50"
@@ -421,6 +426,7 @@ function PendingTab({
             </div>
           </div>
           <button
+            type="button"
             onClick={() => onAssign(p)}
             className="flex items-center gap-2 px-4 py-2 ml-4 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 shrink-0"
           >
@@ -527,6 +533,7 @@ function NeedsDecisionTab({
 
           <div className="flex justify-end mt-3">
             <button
+              type="button"
               onClick={() => onDecide(p)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600"
             >
@@ -691,7 +698,7 @@ function AssignEvaluatorModal({
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Phân công Evaluator</h2>
-                <button onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
+                <button type="button" onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
                   <span className="material-symbols-outlined text-slate-400">close</span>
                 </button>
               </div>
@@ -866,12 +873,14 @@ function AssignEvaluatorModal({
             {/* Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
@@ -966,7 +975,7 @@ function FinalDecisionModal({
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Quyết định cuối cùng</h2>
-                <button onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
+                <button type="button" onClick={onClose} className="p-1 transition-colors rounded-lg hover:bg-slate-100">
                   <span className="material-symbols-outlined text-slate-400">close</span>
                 </button>
               </div>
@@ -1000,6 +1009,7 @@ function FinalDecisionModal({
                 <div className="grid grid-cols-3 gap-2">
                   {decisions.map((d) => (
                     <button
+                      type="button"
                       key={d.value}
                       onClick={() => setResult(d.value)}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all ${
@@ -1030,12 +1040,14 @@ function FinalDecisionModal({
             {/* Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium transition-colors rounded-lg text-slate-600 hover:bg-slate-100"
               >
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={submitting || result === null}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50"
@@ -1076,7 +1088,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     <div className="flex flex-col items-center gap-3 py-16 text-center">
       <span className="text-4xl text-red-400 material-symbols-outlined">error</span>
       <p className="text-sm text-slate-500">{message}</p>
-      <button onClick={onRetry} className="text-sm font-medium text-primary hover:underline">
+      <button type="button" onClick={onRetry} className="text-sm font-medium text-primary hover:underline">
         Thử lại
       </button>
     </div>

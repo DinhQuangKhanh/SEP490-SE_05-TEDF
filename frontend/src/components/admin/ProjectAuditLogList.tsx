@@ -6,7 +6,7 @@ interface ProjectAuditLogListProps {
     projectId: string;
 }
 
-export function ProjectAuditLogList({ projectId }: ProjectAuditLogListProps) {
+export function ProjectAuditLogList({ projectId }: Readonly<ProjectAuditLogListProps>) {
     const [data, setData] = useState<ProjectAuditLogResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -41,12 +41,12 @@ export function ProjectAuditLogList({ projectId }: ProjectAuditLogListProps) {
             <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-700">Lịch sử (Revision: {data.revisionCount})</span>
             </div>
-            
+
             <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 pb-2">
                 {data.logs.map((log: ProjectAuditLogDto) => (
                     <div key={log.id} className="relative pl-6">
                         <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-primary flex items-center justify-center" />
-                        
+
                         <div className="flex flex-col gap-1">
                             <div className="flex items-baseline gap-2">
                                 <span className="text-sm font-bold text-slate-800">{formatAction(log.action)}</span>
@@ -54,13 +54,13 @@ export function ProjectAuditLogList({ projectId }: ProjectAuditLogListProps) {
                                     {new Date(log.timestamp).toLocaleString('vi-VN')}
                                 </span>
                             </div>
-                            
+
                             {log.performedByName && (
                                 <p className="text-sm text-slate-600">
                                     Bởi: <span className="font-medium text-slate-700">{log.performedByName}</span>
                                 </p>
                             )}
-                            
+
                             {log.metadata && (
                                 <div className="mt-2 bg-slate-50 rounded p-3 border border-slate-100 text-xs text-slate-600 overflow-x-auto">
                                     <pre className="font-mono">{JSON.stringify(log.metadata, null, 2)}</pre>
