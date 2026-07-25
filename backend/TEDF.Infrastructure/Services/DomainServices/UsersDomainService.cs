@@ -69,8 +69,7 @@ public class UsersDomainService : IUsersDomainService
         var newHead = await _userRepository.GetByIdAsync(userId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(User), userId);
 
-        var newHeadRoles = newHead.GetActiveRoles().ToList();
-        if (!newHeadRoles.Contains(DomainRoleNames.Mentor) && !newHeadRoles.Contains(DomainRoleNames.Evaluator))
+        if (!newHead.HasRole(DomainRoleIds.Mentor) && !newHead.HasRole(DomainRoleIds.Evaluator))
             throw new BusinessRuleValidationException(
                 "User must have Mentor or Evaluator role to be assigned as Department Head.");
 

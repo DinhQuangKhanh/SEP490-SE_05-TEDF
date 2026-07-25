@@ -110,7 +110,6 @@ namespace TEDF.Domain.Aggregates.UserAggregate
 
         /// <summary>
         /// Assigns a role to the user by roleId. roleName is used for the domain event only.
-        /// Requires UserRole.Role navigation to be loaded for HasRole/GetActiveRoles to work.
         /// </summary>
         public void AssignRole(int roleId, string roleName, Guid? assignedBy = null)
         {
@@ -147,18 +146,15 @@ namespace TEDF.Domain.Aggregates.UserAggregate
             Lecturer = TEDF.Domain.Entities.Lecturer.Create(Id, employeeCode, academicTitle);
         }
 
-        /// <summary>Requires UserRole.Role navigation to be eagerly loaded.</summary>
-        public bool HasRole(string roleName)
-        {
-            return _roles.Any(r => r.RoleName == roleName && r.IsActive);
-        }
-
+        /// <summary>
+        /// Checks an assigned role by id. Prefer the <see cref="DomainRoleIds"/> constants over
+        /// role-name comparisons — RoleId is the actual FK column and needs no navigation loaded.
+        /// </summary>
         public bool HasRole(int roleId)
         {
             return _roles.Any(r => r.RoleId == roleId && r.IsActive);
         }
 
-        /// <summary>Requires UserRole.Role navigation to be eagerly loaded.</summary>
         public IEnumerable<string> GetActiveRoles()
         {
             return _roles.Where(r => r.IsActive).Select(r => r.RoleName);

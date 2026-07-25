@@ -4,6 +4,7 @@ using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.SupportAggregate;
 using TEDF.Domain.Aggregates.SupportAggregate.Events;
 using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Constants;
 using TEDF.Domain.Enums.Notification;
 
 namespace TEDF.Infrastructure.EventHandlers.Support;
@@ -71,9 +72,9 @@ public class TicketMessageAddedEventHandler : INotificationHandler<TicketMessage
         else
         {
             var reporter = await _userRepository.GetByIdAsync(recipientId, cancellationToken);
-            var reporterTargetUrl = reporter is not null && reporter.HasRole("Student")
+            var reporterTargetUrl = reporter is not null && reporter.HasRole(DomainRoleIds.Student)
                 ? "/student/support"
-                : reporter is not null && reporter.HasRole("Admin")
+                : reporter is not null && reporter.HasRole(DomainRoleIds.Admin)
                     ? "/admin/support"
                     : "/lecturer/support";
 

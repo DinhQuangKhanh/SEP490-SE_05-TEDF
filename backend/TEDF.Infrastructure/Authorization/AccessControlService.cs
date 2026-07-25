@@ -32,14 +32,13 @@ public class AccessControlService : IAccessControlService
         if (user.Status == UserStatus.Inactive)
             return new AccessDecision(false, "inactive", "Tài khoản của bạn đã bị vô hiệu hóa.");
 
-        var roles = user.GetActiveRoles().ToHashSet();
-        var isStaff = roles.Contains(DomainRoleNames.Admin)
-            || roles.Contains(DomainRoleNames.DepartmentHead)
-            || roles.Contains(DomainRoleNames.Mentor)
-            || roles.Contains(DomainRoleNames.Evaluator);
+        var isStaff = user.HasRole(DomainRoleIds.Admin)
+            || user.HasRole(DomainRoleIds.DepartmentHead)
+            || user.HasRole(DomainRoleIds.Mentor)
+            || user.HasRole(DomainRoleIds.Evaluator);
 
         // Student-only accounts must be on the active/upcoming eligible list to use the system.
-        if (roles.Contains(DomainRoleNames.Student) && !isStaff)
+        if (user.HasRole(DomainRoleIds.Student) && !isStaff)
         {
             var eligible = await _semesterRepository.IsStudentEligibleNowAsync(userId, cancellationToken);
             if (!eligible)
@@ -49,9 +48,9 @@ public class AccessControlService : IAccessControlService
 
         // Pure-mentor accounts (Mentor, but not Admin/DepartmentHead) must be on the active/upcoming
         // eligible-mentor roster. A lecturer dropped from the new semester's import loses access.
-        var isPrivilegedStaff = roles.Contains(DomainRoleNames.Admin)
-            || roles.Contains(DomainRoleNames.DepartmentHead);
-        if (roles.Contains(DomainRoleNames.Mentor) && !isPrivilegedStaff)
+        var isPrivilegedStaff = user.HasRole(DomainRoleIds.Admin)
+            || user.HasRole(DomainRoleIds.DepartmentHead);
+        if (user.HasRole(DomainRoleIds.Mentor) && !isPrivilegedStaff)
         {
             var eligible = await _semesterRepository.IsMentorEligibleNowAsync(userId, cancellationToken);
             if (!eligible)
