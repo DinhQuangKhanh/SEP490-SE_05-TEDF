@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import type { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
@@ -271,6 +271,7 @@ export function ActivityLogsPage() {
 
           <div className="flex gap-1 p-1 bg-white rounded-lg border border-[#D8DDE8] shadow-sm w-fit">
             <button
+              type="button"
               onClick={() => setActiveTab("activity")}
               className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 activeTab === "activity"
@@ -278,10 +279,11 @@ export function ActivityLogsPage() {
                   : "text-[#3D4552] hover:bg-[#EEF2F8]"
               }`}
             >
-              <span className="material-symbols-outlined text-[16px]">history</span>
+              <span className="material-symbols-outlined text-[16px]">history</span>{" "}
               Nhật ký hoạt động
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("errors")}
               className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 activeTab === "errors"
@@ -289,7 +291,7 @@ export function ActivityLogsPage() {
                   : "text-[#3D4552] hover:bg-[#EEF2F8]"
               }`}
             >
-              <span className="material-symbols-outlined text-[16px]">bug_report</span>
+              <span className="material-symbols-outlined text-[16px]">bug_report</span>{" "}
               Nhật ký lỗi
             </button>
           </div>
@@ -415,17 +417,20 @@ export function ActivityLogsPage() {
 // ── Vitals Strip ──────────────────────────────────────────────────────────────
 function VitalsStrip({
   summary, errorTotal, isLive, onToggleLive,
-}: {
+}: Readonly<{
   summary: ActivityLogSummary | null;
   errorTotal?: number;
   isLive: boolean;
   onToggleLive: () => void;
-}) {
+}>) {
   const total   = summary?.total   ?? 0;
   const success = summary?.success ?? 0;
   const failure = summary?.failure ?? 0;
   const rate    = total > 0 ? ((success / total) * 100).toFixed(1) : "—";
   const errCnt  = errorTotal ?? 0;
+
+  const successRate = rate === "—" ? 0 : Number.parseFloat(rate);
+  const failureSub  = total > 0 ? `${(100 - successRate).toFixed(1)}% tỷ lệ lỗi` : "";
 
   return (
     <div className="flex items-start gap-3">
@@ -446,7 +451,7 @@ function VitalsStrip({
         <VitalCard
           label="Thất bại"
           value={failure.toLocaleString("vi-VN")}
-          sub={total > 0 ? `${(100 - parseFloat(rate === "—" ? "0" : rate)).toFixed(1)}% tỷ lệ lỗi` : ""}
+          sub={failureSub}
           stripe="#DC2626"
           valueColor={failure > 0 ? "#DC2626" : undefined}
         />
@@ -460,6 +465,7 @@ function VitalsStrip({
       </div>
 
       <button
+        type="button"
         onClick={onToggleLive}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all shrink-0 mt-1 ${
           isLive
@@ -476,9 +482,9 @@ function VitalsStrip({
   );
 }
 
-function VitalCard({ label, value, sub, stripe, valueColor }: {
+function VitalCard({ label, value, sub, stripe, valueColor }: Readonly<{
   label: string; value: string; sub: string; stripe: string; valueColor?: string;
-}) {
+}>) {
   return (
     <div className="flex bg-white rounded-md border border-[#E8EBF2] shadow-sm overflow-hidden">
       <div className="w-[3px] shrink-0" style={{ background: stripe }} />
@@ -503,7 +509,7 @@ function ActivityFilterRail({
   activeStatus, onStatus,
   fromDate, toDate, onFrom, onTo,
   roleCounts, total, successCount, failureCount,
-}: {
+}: Readonly<{
   search: string;        onSearch: (v: string) => void;
   activeRole: string;    onRole:   (v: string) => void;
   activeStatus: string;  onStatus: (v: string) => void;
@@ -511,7 +517,7 @@ function ActivityFilterRail({
   onFrom: (v: string) => void; onTo: (v: string) => void;
   roleCounts?: Record<string, number>;
   total: number; successCount: number; failureCount: number;
-}) {
+}>) {
   return (
     <div className="p-3 space-y-4">
       <div className="relative">
@@ -533,6 +539,7 @@ function ActivityFilterRail({
             return (
               <button
                 key={r.key}
+                type="button"
                 onClick={() => onRole(r.key)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] transition-all ${
                   isActive
@@ -565,6 +572,7 @@ function ActivityFilterRail({
           ].map((s) => (
             <button
               key={s.key}
+              type="button"
               onClick={() => onStatus(activeStatus === s.key ? "" : s.key)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] transition-all ${
                 activeStatus === s.key
@@ -592,12 +600,12 @@ function ActivityFilterRail({
 function ErrorFilterRail({
   search, onSearch, activeSeverity, onSeverity,
   fromDate, toDate, onFrom, onTo,
-}: {
+}: Readonly<{
   search: string;         onSearch:    (v: string) => void;
   activeSeverity: string; onSeverity:  (v: string) => void;
   fromDate: string;       toDate: string;
   onFrom: (v: string) => void; onTo: (v: string) => void;
-}) {
+}>) {
   return (
     <div className="p-3 space-y-4">
       <div className="relative">
@@ -616,6 +624,7 @@ function ErrorFilterRail({
           {SEVERITY_FILTERS.map((s) => (
             <button
               key={s.key}
+              type="button"
               onClick={() => onSeverity(s.key)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] transition-all ${
                 activeSeverity === s.key
@@ -636,16 +645,21 @@ function ErrorFilterRail({
   );
 }
 
-function DateRangeFields({ fromDate, toDate, onFrom, onTo }: {
+function DateRangeFields({ fromDate, toDate, onFrom, onTo }: Readonly<{
   fromDate: string; toDate: string;
   onFrom: (v: string) => void; onTo: (v: string) => void;
-}) {
+}>) {
+  const fieldId = useId();
+  const fromId  = `${fieldId}-from`;
+  const toId    = `${fieldId}-to`;
+
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] px-1">Thời gian</p>
       <div>
-        <label className="block text-[11px] font-medium text-[#3D4552] mb-1">Từ ngày</label>
+        <label htmlFor={fromId} className="block text-[11px] font-medium text-[#3D4552] mb-1">Từ ngày</label>
         <input
+          id={fromId}
           type="datetime-local"
           value={fromDate}
           onChange={(e) => onFrom(e.target.value)}
@@ -653,8 +667,9 @@ function DateRangeFields({ fromDate, toDate, onFrom, onTo }: {
         />
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-[#3D4552] mb-1">Đến ngày</label>
+        <label htmlFor={toId} className="block text-[11px] font-medium text-[#3D4552] mb-1">Đến ngày</label>
         <input
+          id={toId}
           type="datetime-local"
           value={toDate}
           onChange={(e) => onTo(e.target.value)}
@@ -663,6 +678,7 @@ function DateRangeFields({ fromDate, toDate, onFrom, onTo }: {
       </div>
       {(fromDate || toDate) && (
         <button
+          type="button"
           onClick={() => { onFrom(""); onTo(""); }}
           className="w-full py-1.5 text-[12px] text-[#DC2626] hover:bg-[#FEE2E2] rounded-md transition-colors"
         >
@@ -676,7 +692,7 @@ function DateRangeFields({ fromDate, toDate, onFrom, onTo }: {
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 function ActivityFeed({
   data, loading, selectedId, onSelect, page, onPageChange, onRefresh, onClear,
-}: {
+}: Readonly<{
   data: ActivityLogResponse | null;
   loading: boolean;
   selectedId: string | null;
@@ -685,7 +701,23 @@ function ActivityFeed({
   onPageChange: (p: number) => void;
   onRefresh: () => void;
   onClear: () => void;
-}) {
+}>) {
+  let feed: ReactNode;
+  if (loading && !data) {
+    feed = <FeedLoader />;
+  } else if (data && data.items.length > 0) {
+    feed = data.items.map((log) => (
+      <ActivityFeedRow
+        key={log.id}
+        log={log}
+        isSelected={selectedId === log.id}
+        onClick={() => onSelect(log)}
+      />
+    ));
+  } else {
+    feed = <FeedEmpty message="Không tìm thấy bản ghi nào" icon="search_off" />;
+  }
+
   return (
     <div className="flex flex-col flex-1 p-3 gap-2">
       <div className="flex items-center justify-between shrink-0">
@@ -694,39 +726,26 @@ function ActivityFeed({
         </span>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onRefresh}
             disabled={loading}
             className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium bg-white border border-[#D8DDE8] rounded-md text-[#3D4552] hover:bg-[#EEF2F8] transition-colors disabled:opacity-50"
           >
-            <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>
+            <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>{" "}
             Làm mới
           </button>
           <button
+            type="button"
             onClick={onClear}
             className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium bg-white border border-[#FCA5A5] rounded-md text-[#DC2626] hover:bg-[#FEE2E2] transition-colors"
           >
-            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>{" "}
             Xóa nhật ký
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-[2px]">
-        {loading && !data ? (
-          <FeedLoader />
-        ) : data && data.items.length > 0 ? (
-          data.items.map((log) => (
-            <ActivityFeedRow
-              key={log.id}
-              log={log}
-              isSelected={selectedId === log.id}
-              onClick={() => onSelect(log)}
-            />
-          ))
-        ) : (
-          <FeedEmpty message="Không tìm thấy bản ghi nào" icon="search_off" />
-        )}
-      </div>
+      <div className="flex flex-col gap-[2px]">{feed}</div>
 
       {data && data.totalCount > 0 && (
         <LogPagination
@@ -741,52 +760,53 @@ function ActivityFeed({
   );
 }
 
-function ActivityFeedRow({ log, isSelected, onClick }: {
+function ActivityFeedRow({ log, isSelected, onClick }: Readonly<{
   log: ActivityLogItem; isSelected: boolean; onClick: () => void;
-}) {
+}>) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`flex items-stretch bg-white border rounded-md overflow-hidden cursor-pointer transition-all ${
+      className={`w-full text-left flex items-stretch bg-white border rounded-md overflow-hidden cursor-pointer transition-all ${
         isSelected
           ? "border-[#0C6EDB] shadow-sm ring-1 ring-[#0C6EDB]/20"
           : "border-[#E8EBF2] hover:border-[#D8DDE8] hover:shadow-sm"
       }`}
     >
-      <div className="w-[3px] shrink-0" style={{ background: stripeColor(log.status) }} />
+      <span className="w-[3px] shrink-0" style={{ background: stripeColor(log.status) }} />
 
-      <div className="flex flex-1 items-center gap-3 px-3 py-2.5 min-w-0">
+      <span className="flex flex-1 items-center gap-3 px-3 py-2.5 min-w-0">
         <span
           className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 capitalize ${ROLE_CHIP[log.role] ?? "bg-[#EEF2F8] text-[#6B7280]"}`}
         >
           {log.role === "department-head" ? "Dept" : log.role}
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-[#0D1117] truncate">
+        <span className="block min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold text-[#0D1117] truncate">
             {log.actionName || log.actionCode}
-          </p>
-          <p className="text-[11px] text-[#6B7280] truncate">
+          </span>
+          <span className="block text-[11px] text-[#6B7280] truncate">
             {log.userEmail ?? log.userName}
-          </p>
-        </div>
-      </div>
+          </span>
+        </span>
+      </span>
 
-      <div className="flex flex-col items-end justify-center gap-0.5 px-3 py-2.5 shrink-0">
+      <span className="flex flex-col items-end justify-center gap-0.5 px-3 py-2.5 shrink-0">
         <span className="text-[11px] text-[#6B7280] font-mono tabular-nums">
           {formatTime(log.timestamp)}
         </span>
         <span className={`text-[11px] font-mono tabular-nums ${durationColor(log.durationMs)}`}>
           {log.durationMs.toLocaleString()} ms
         </span>
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }
 
 // ── Error Stream ──────────────────────────────────────────────────────────────
 function ErrorStream({
   data, loading, selectedId, onSelect, page, onPageChange, onRefresh, onClear,
-}: {
+}: Readonly<{
   data: ErrorLogResponse | null;
   loading: boolean;
   selectedId: string | null;
@@ -795,7 +815,23 @@ function ErrorStream({
   onPageChange: (p: number) => void;
   onRefresh: () => void;
   onClear: () => void;
-}) {
+}>) {
+  let stream: ReactNode;
+  if (loading && !data) {
+    stream = <FeedLoader />;
+  } else if (data && data.items.length > 0) {
+    stream = data.items.map((err) => (
+      <ErrorCard
+        key={err.id}
+        log={err}
+        isSelected={selectedId === err.id}
+        onClick={() => onSelect(err)}
+      />
+    ));
+  } else {
+    stream = <FeedEmpty message="Không có lỗi nào" icon="check_circle" />;
+  }
+
   return (
     <div className="flex flex-col flex-1 p-3 gap-2">
       <div className="flex items-center justify-between shrink-0">
@@ -804,39 +840,26 @@ function ErrorStream({
         </span>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onRefresh}
             disabled={loading}
             className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium bg-white border border-[#D8DDE8] rounded-md text-[#3D4552] hover:bg-[#EEF2F8] transition-colors disabled:opacity-50"
           >
-            <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>
+            <span className={`material-symbols-outlined text-[14px] ${loading ? "animate-spin" : ""}`}>refresh</span>{" "}
             Làm mới
           </button>
           <button
+            type="button"
             onClick={onClear}
             className="flex items-center gap-1 px-3 py-1.5 text-[12px] font-medium bg-white border border-[#FCA5A5] rounded-md text-[#DC2626] hover:bg-[#FEE2E2] transition-colors"
           >
-            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>
+            <span className="material-symbols-outlined text-[14px]">delete_sweep</span>{" "}
             Xóa nhật ký lỗi
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {loading && !data ? (
-          <FeedLoader />
-        ) : data && data.items.length > 0 ? (
-          data.items.map((err) => (
-            <ErrorCard
-              key={err.id}
-              log={err}
-              isSelected={selectedId === err.id}
-              onClick={() => onSelect(err)}
-            />
-          ))
-        ) : (
-          <FeedEmpty message="Không có lỗi nào" icon="check_circle" />
-        )}
-      </div>
+      <div className="flex flex-col gap-1.5">{stream}</div>
 
       {data && data.totalCount > 0 && (
         <LogPagination
@@ -851,44 +874,45 @@ function ErrorStream({
   );
 }
 
-function ErrorCard({ log, isSelected, onClick }: {
+function errorCardTone(isSelected: boolean, isCritical: boolean): string {
+  if (isSelected) return "border-[#0C6EDB] shadow-sm ring-1 ring-[#0C6EDB]/20 bg-white";
+  if (isCritical) return "border-[#DDD6FE] bg-[#FAF5FF] hover:border-[#C4B5FD]";
+  return "border-[#E8EBF2] bg-white hover:border-[#D8DDE8] hover:shadow-sm";
+}
+
+function ErrorCard({ log, isSelected, onClick }: Readonly<{
   log: ErrorLogItem; isSelected: boolean; onClick: () => void;
-}) {
+}>) {
   const isCritical = log.severity === "critical";
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`border rounded-md overflow-hidden cursor-pointer transition-all ${
-        isSelected
-          ? "border-[#0C6EDB] shadow-sm ring-1 ring-[#0C6EDB]/20 bg-white"
-          : isCritical
-          ? "border-[#DDD6FE] bg-[#FAF5FF] hover:border-[#C4B5FD]"
-          : "border-[#E8EBF2] bg-white hover:border-[#D8DDE8] hover:shadow-sm"
-      }`}
+      className={`block w-full text-left border rounded-md overflow-hidden cursor-pointer transition-all ${errorCardTone(isSelected, isCritical)}`}
     >
-      <div className="flex items-stretch">
-        <div className="w-[4px] shrink-0" style={{ background: severityStripe(log.severity) }} />
-        <div className="flex-1 px-3.5 py-2.5 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+      <span className="flex items-stretch">
+        <span className="w-[4px] shrink-0" style={{ background: severityStripe(log.severity) }} />
+        <span className="block flex-1 px-3.5 py-2.5 min-w-0">
+          <span className="flex items-center gap-2 mb-1">
             <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${severityBadgeClass(log.severity)}`}>
               {log.severity}
             </span>
             <span className="text-[11px] text-[#6B7280]">{log.source}</span>
-          </div>
-          <p className="text-[12px] font-semibold font-mono text-[#0D1117]">{log.errorType}</p>
-          <p className="text-[11px] text-[#3D4552] truncate mt-0.5">{log.errorMessage}</p>
-        </div>
-        <div
+          </span>
+          <span className="block text-[12px] font-semibold font-mono text-[#0D1117]">{log.errorType}</span>
+          <span className="block text-[11px] text-[#3D4552] truncate mt-0.5">{log.errorMessage}</span>
+        </span>
+        <span
           className={`flex flex-col items-end justify-center px-3 py-2.5 border-l border-[#E8EBF2] shrink-0 ${
             isCritical ? "bg-[#F3E8FF]" : "bg-[#F5F7FB]"
           }`}
         >
           <span className="text-[11px] text-[#6B7280] font-mono tabular-nums">{formatTime(log.timestamp)}</span>
           <span className="material-symbols-outlined text-[#6B7280] text-[16px] mt-1">chevron_right</span>
-        </div>
-      </div>
+        </span>
+      </span>
 
-      <div className="flex items-center gap-3 px-3.5 py-1.5 border-t border-[#E8EBF2] bg-[#F5F7FB]">
+      <span className="flex items-center gap-3 px-3.5 py-1.5 border-t border-[#E8EBF2] bg-[#F5F7FB]">
         <span className="text-[10px] font-mono text-[#6B7280]">
           <span className="font-semibold text-[#3D4552]">{log.requestMethod}</span>{" "}
           {log.requestPath}
@@ -898,17 +922,17 @@ function ErrorCard({ log, isSelected, onClick }: {
             {log.correlationId.slice(0, 16)}…
           </span>
         )}
-      </div>
-    </div>
+      </span>
+    </button>
   );
 }
 
 // ── Detail Panels ─────────────────────────────────────────────────────────────
-function ActivityDetailPanel({ log, onClose, onCrossRef }: {
+function ActivityDetailPanel({ log, onClose, onCrossRef }: Readonly<{
   log: ActivityLogItem;
   onClose: () => void;
   onCrossRef: (correlationId: string) => void;
-}) {
+}>) {
   const isFailure = log.status === "Failure";
   return (
     <div className="flex flex-col h-full">
@@ -918,6 +942,7 @@ function ActivityDetailPanel({ log, onClose, onCrossRef }: {
           <p className="text-[12px] text-[#6B7280] mt-0.5">Chi tiết hành động</p>
         </div>
         <button
+          type="button"
           onClick={onClose}
           className="w-7 h-7 flex items-center justify-center rounded-md border border-[#D8DDE8] bg-[#EEF2F8] text-[#6B7280] hover:bg-[#D8DDE8] transition-colors shrink-0"
         >
@@ -1001,6 +1026,7 @@ function ActivityDetailPanel({ log, onClose, onCrossRef }: {
 
         {isFailure && log.correlationId && (
           <button
+            type="button"
             onClick={() => onCrossRef(log.correlationId!)}
             className="w-full py-2.5 bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] rounded-md text-[12px] font-semibold hover:bg-[#FCA5A5]/30 transition-colors"
           >
@@ -1012,13 +1038,27 @@ function ActivityDetailPanel({ log, onClose, onCrossRef }: {
   );
 }
 
-function ErrorDetailPanel({ log, detail, loading, onClose, onCrossRef }: {
+function ErrorDetailPanel({ log, detail, loading, onClose, onCrossRef }: Readonly<{
   log: ErrorLogItem;
   detail: ErrorLogDetail | null;
   loading: boolean;
   onClose: () => void;
   onCrossRef: (correlationId: string) => void;
-}) {
+}>) {
+  let body: ReactNode;
+  if (loading) {
+    body = (
+      <div className="flex items-center justify-center py-16 text-[#6B7280]">
+        <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>{" "}
+        Đang tải…
+      </div>
+    );
+  } else if (detail) {
+    body = <ErrorDetailBody detail={detail} onCrossRef={onCrossRef} />;
+  } else {
+    body = <p className="text-center py-8 text-[#6B7280] text-[13px]">Không thể tải chi tiết.</p>;
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-start justify-between p-5 border-b border-[#D8DDE8] shrink-0">
@@ -1032,6 +1072,7 @@ function ErrorDetailPanel({ log, detail, loading, onClose, onCrossRef }: {
           <p className="text-[13px] font-bold font-mono text-[#0D1117] truncate">{log.errorType}</p>
         </div>
         <button
+          type="button"
           onClick={onClose}
           className="w-7 h-7 flex items-center justify-center rounded-md border border-[#D8DDE8] bg-[#EEF2F8] text-[#6B7280] hover:bg-[#D8DDE8] transition-colors shrink-0"
         >
@@ -1039,99 +1080,98 @@ function ErrorDetailPanel({ log, detail, loading, onClose, onCrossRef }: {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-[#6B7280]">
-            <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>
-            Đang tải…
-          </div>
-        ) : detail ? (
-          <div className="space-y-4">
-            <div className="p-3 bg-[#FEE2E2] border border-[#FCA5A5] rounded-md">
-              <p className="text-[12px] font-semibold text-[#DC2626] leading-relaxed">{detail.errorMessage}</p>
-              <p className="text-[11px] font-mono text-[#DC2626]/70 mt-1">{detail.errorType}</p>
-            </div>
+      <div className="flex-1 overflow-y-auto p-5">{body}</div>
+    </div>
+  );
+}
 
-            <div className="grid grid-cols-2 gap-3">
-              <PanelField label="Timestamp">
-                <span className="text-[11px] font-mono text-[#0D1117]">{formatTimestamp(detail.timestamp)}</span>
-              </PanelField>
-              <PanelField label="Request">
-                <code className="text-[10px] font-mono text-[#3D4552] break-all">
-                  {detail.requestMethod} {detail.requestPath}
-                </code>
-              </PanelField>
-              {detail.userName && (
-                <PanelField label="Người dùng">
-                  <span className="text-[12px] text-[#0D1117]">{detail.userName}</span>
-                </PanelField>
-              )}
-              {detail.activeRole && (
-                <PanelField label="Vai trò">
-                  <span className="text-[12px] capitalize text-[#0D1117]">{detail.activeRole}</span>
-                </PanelField>
-              )}
-            </div>
+function ErrorDetailBody({ detail, onCrossRef }: Readonly<{
+  detail: ErrorLogDetail;
+  onCrossRef: (correlationId: string) => void;
+}>) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-[#FEE2E2] border border-[#FCA5A5] rounded-md">
+        <p className="text-[12px] font-semibold text-[#DC2626] leading-relaxed">{detail.errorMessage}</p>
+        <p className="text-[11px] font-mono text-[#DC2626]/70 mt-1">{detail.errorType}</p>
+      </div>
 
-            {detail.correlationId && (
-              <PanelField label="Correlation ID">
-                <span className="text-[11px] font-mono text-[#3D4552] break-all">{detail.correlationId}</span>
-              </PanelField>
-            )}
-
-            <hr className="border-[#E8EBF2]" />
-
-            {detail.stackTrace && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] mb-2">Stack Trace</p>
-                <pre className="bg-[#0D1117] text-[#E2E8F0] rounded-md p-3 text-[10px] font-mono leading-relaxed overflow-x-auto max-h-56 scrollbar-hide whitespace-pre-wrap break-all">
-                  {detail.stackTrace}
-                </pre>
-              </div>
-            )}
-
-            {detail.innerExceptions.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] mb-2">
-                  Inner Exceptions ({detail.innerExceptions.length})
-                </p>
-                <div className="space-y-2">
-                  {detail.innerExceptions.map((ie, i) => (
-                    <div key={i} className="border border-[#E8EBF2] rounded-md overflow-hidden">
-                      <div className="px-3 py-2 bg-[#F5F7FB]">
-                        <p className="text-[12px] font-medium text-[#DC2626]">{ie.message}</p>
-                        <p className="text-[10px] font-mono text-[#6B7280]">{ie.type}</p>
-                      </div>
-                      {ie.stackTrace && (
-                        <pre className="bg-[#0D1117] text-[#E2E8F0] px-3 py-2 text-[10px] font-mono leading-relaxed overflow-x-auto max-h-24 scrollbar-hide whitespace-pre-wrap break-all">
-                          {ie.stackTrace}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {detail.correlationId && (
-              <button
-                onClick={() => onCrossRef(detail.correlationId!)}
-                className="w-full py-2.5 bg-[#D6E8FA] text-[#0C6EDB] border border-[#93C5FD] rounded-md text-[12px] font-semibold hover:bg-[#93C5FD]/30 transition-colors"
-              >
-                Xem Activity Log tương ứng
-              </button>
-            )}
-          </div>
-        ) : (
-          <p className="text-center py-8 text-[#6B7280] text-[13px]">Không thể tải chi tiết.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <PanelField label="Timestamp">
+          <span className="text-[11px] font-mono text-[#0D1117]">{formatTimestamp(detail.timestamp)}</span>
+        </PanelField>
+        <PanelField label="Request">
+          <code className="text-[10px] font-mono text-[#3D4552] break-all">
+            {detail.requestMethod} {detail.requestPath}
+          </code>
+        </PanelField>
+        {detail.userName && (
+          <PanelField label="Người dùng">
+            <span className="text-[12px] text-[#0D1117]">{detail.userName}</span>
+          </PanelField>
+        )}
+        {detail.activeRole && (
+          <PanelField label="Vai trò">
+            <span className="text-[12px] capitalize text-[#0D1117]">{detail.activeRole}</span>
+          </PanelField>
         )}
       </div>
+
+      {detail.correlationId && (
+        <PanelField label="Correlation ID">
+          <span className="text-[11px] font-mono text-[#3D4552] break-all">{detail.correlationId}</span>
+        </PanelField>
+      )}
+
+      <hr className="border-[#E8EBF2]" />
+
+      {detail.stackTrace && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] mb-2">Stack Trace</p>
+          <pre className="bg-[#0D1117] text-[#E2E8F0] rounded-md p-3 text-[10px] font-mono leading-relaxed overflow-x-auto max-h-56 scrollbar-hide whitespace-pre-wrap break-all">
+            {detail.stackTrace}
+          </pre>
+        </div>
+      )}
+
+      {detail.innerExceptions.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] mb-2">
+            Inner Exceptions ({detail.innerExceptions.length})
+          </p>
+          <div className="space-y-2">
+            {detail.innerExceptions.map((ie) => (
+              <div key={`${ie.type}|${ie.message}`} className="border border-[#E8EBF2] rounded-md overflow-hidden">
+                <div className="px-3 py-2 bg-[#F5F7FB]">
+                  <p className="text-[12px] font-medium text-[#DC2626]">{ie.message}</p>
+                  <p className="text-[10px] font-mono text-[#6B7280]">{ie.type}</p>
+                </div>
+                {ie.stackTrace && (
+                  <pre className="bg-[#0D1117] text-[#E2E8F0] px-3 py-2 text-[10px] font-mono leading-relaxed overflow-x-auto max-h-24 scrollbar-hide whitespace-pre-wrap break-all">
+                    {ie.stackTrace}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {detail.correlationId && (
+        <button
+          type="button"
+          onClick={() => onCrossRef(detail.correlationId!)}
+          className="w-full py-2.5 bg-[#D6E8FA] text-[#0C6EDB] border border-[#93C5FD] rounded-md text-[12px] font-semibold hover:bg-[#93C5FD]/30 transition-colors"
+        >
+          Xem Activity Log tương ứng
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Shared small components ───────────────────────────────────────────────────
-function PanelField({ label, children }: { label: string; children: ReactNode }) {
+function PanelField({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] mb-1">{label}</p>
@@ -1143,25 +1183,25 @@ function PanelField({ label, children }: { label: string; children: ReactNode })
 function FeedLoader() {
   return (
     <div className="flex items-center justify-center py-20 text-[#6B7280]">
-      <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>
+      <span className="material-symbols-outlined animate-spin text-[24px] mr-2">progress_activity</span>{" "}
       Đang tải…
     </div>
   );
 }
 
-function FeedEmpty({ message, icon }: { message: string; icon: string }) {
+function FeedEmpty({ message, icon }: Readonly<{ message: string; icon: string }>) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-[#6B7280]">
-      <span className="material-symbols-outlined text-[40px] mb-2 text-[#D8DDE8]">{icon}</span>
+      <span className="material-symbols-outlined text-[40px] mb-2 text-[#D8DDE8]">{icon}</span>{" "}
       {message}
     </div>
   );
 }
 
-function LogPagination({ page, totalPages, totalCount, label, onPageChange }: {
+function LogPagination({ page, totalPages, totalCount, label, onPageChange }: Readonly<{
   page: number; totalPages: number; totalCount: number; label: string;
   onPageChange: (p: number) => void;
-}) {
+}>) {
   return (
     <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E8EBF2] shrink-0">
       <span className="text-[12px] text-[#6B7280] tabular-nums">
@@ -1169,19 +1209,21 @@ function LogPagination({ page, totalPages, totalCount, label, onPageChange }: {
       </span>
       <div className="flex gap-1">
         <button
+          type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
           className="h-7 px-2 text-[12px] border border-[#D8DDE8] rounded bg-white text-[#3D4552] hover:bg-[#EEF2F8] disabled:opacity-40 transition-colors"
         >
           ‹
         </button>
-        {getPageNumbers(page, totalPages).map((p, i) =>
-          p === "..." ? (
-            <span key={`dot-${i}`} className="h-7 px-1 flex items-center text-[#6B7280] text-[12px]">…</span>
+        {getPageNumbers(page, totalPages).map((p) =>
+          typeof p === "string" ? (
+            <span key={p} className="h-7 px-1 flex items-center text-[#6B7280] text-[12px]">…</span>
           ) : (
             <button
               key={p}
-              onClick={() => onPageChange(p as number)}
+              type="button"
+              onClick={() => onPageChange(p)}
               className={`h-7 min-w-[28px] px-2 rounded text-[12px] tabular-nums transition-colors ${
                 page === p
                   ? "bg-[#0C6EDB] text-white font-semibold"
@@ -1193,6 +1235,7 @@ function LogPagination({ page, totalPages, totalCount, label, onPageChange }: {
           )
         )}
         <button
+          type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
           className="h-7 px-2 text-[12px] border border-[#D8DDE8] rounded bg-white text-[#3D4552] hover:bg-[#EEF2F8] disabled:opacity-40 transition-colors"
@@ -1205,14 +1248,24 @@ function LogPagination({ page, totalPages, totalCount, label, onPageChange }: {
 }
 
 // ── Clear Confirm Modal ───────────────────────────────────────────────────────
-function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onClose }: {
+function clearOptionTone(isSelected: boolean, isAll: boolean): string {
+  if (!isSelected) return "border-[#E8EBF2] hover:border-[#D8DDE8] hover:bg-[#F5F7FB]";
+  return isAll ? "border-[#DC2626] bg-[#FEE2E2]" : "border-[#0C6EDB] bg-[#D6E8FA]";
+}
+
+function clearOptionTextTone(isSelected: boolean, isAll: boolean): string {
+  if (!isSelected) return "text-[#0D1117]";
+  return isAll ? "text-[#DC2626]" : "text-[#0C6EDB]";
+}
+
+function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onClose }: Readonly<{
   tab: "activity" | "errors";
   range: number | null;
   onRangeChange: (v: number) => void;
   clearing: boolean;
   onConfirm: () => void;
   onClose: () => void;
-}) {
+}>) {
   const title = tab === "activity" ? "Xóa nhật ký hoạt động" : "Xóa nhật ký lỗi";
 
   return (
@@ -1243,6 +1296,7 @@ function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onC
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="ml-auto w-7 h-7 flex items-center justify-center rounded-md border border-[#D8DDE8] bg-[#EEF2F8] text-[#6B7280] hover:bg-[#D8DDE8] transition-colors shrink-0"
           >
@@ -1258,13 +1312,7 @@ function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onC
             return (
               <label
                 key={r.value}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
-                  isSelected
-                    ? isAll
-                      ? "border-[#DC2626] bg-[#FEE2E2]"
-                      : "border-[#0C6EDB] bg-[#D6E8FA]"
-                    : "border-[#E8EBF2] hover:border-[#D8DDE8] hover:bg-[#F5F7FB]"
-                }`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${clearOptionTone(isSelected, isAll)}`}
               >
                 <input
                   type="radio"
@@ -1274,11 +1322,7 @@ function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onC
                   onChange={() => onRangeChange(r.value)}
                   className="accent-[#0C6EDB]"
                 />
-                <span className={`text-[13px] font-medium ${
-                  isSelected
-                    ? isAll ? "text-[#DC2626]" : "text-[#0C6EDB]"
-                    : "text-[#0D1117]"
-                }`}>
+                <span className={`text-[13px] font-medium ${clearOptionTextTone(isSelected, isAll)}`}>
                   {r.label}
                 </span>
                 {isAll && (
@@ -1294,6 +1338,7 @@ function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onC
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[#E8EBF2] bg-[#F5F7FB] rounded-b-xl">
           <button
+            type="button"
             onClick={onClose}
             disabled={clearing}
             className="px-4 py-2 text-[13px] font-medium border border-[#D8DDE8] rounded-lg text-[#3D4552] bg-white hover:bg-[#EEF2F8] transition-colors disabled:opacity-50"
@@ -1301,6 +1346,7 @@ function ClearConfirmModal({ tab, range, onRangeChange, clearing, onConfirm, onC
             Hủy bỏ
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={range === null || clearing}
             className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold rounded-lg bg-[#DC2626] text-white hover:bg-[#B91C1C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1338,12 +1384,16 @@ function formatTimestamp(iso: string): string {
   );
 }
 
-function getPageNumbers(current: number, total: number): (number | "...")[] {
+/** A page button, or one of the two (at most one each) ellipsis gaps — the string
+ *  variants double as stable React keys. */
+type PageToken = number | "gap-left" | "gap-right";
+
+function getPageNumbers(current: number, total: number): PageToken[] {
   if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | "...")[] = [1];
-  if (current > 3) pages.push("...");
+  const pages: PageToken[] = [1];
+  if (current > 3) pages.push("gap-left");
   for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
-  if (current < total - 2) pages.push("...");
+  if (current < total - 2) pages.push("gap-right");
   pages.push(total);
   return pages;
 }
