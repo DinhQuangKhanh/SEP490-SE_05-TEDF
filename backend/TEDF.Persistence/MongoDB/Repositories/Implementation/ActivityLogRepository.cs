@@ -18,38 +18,31 @@ public class ActivityLogRepository : IActivityLogRepository
         => await _collection.InsertOneAsync(log, cancellationToken: ct);
 
     public async Task<(IEnumerable<ActivityLogDocument> Items, long TotalCount)> GetPagedAsync(
-        string? role = null,
-        string? featureCategory = null,
-        string? status = null,
-        string? searchTerm = null,
-        DateTime? from = null,
-        DateTime? to = null,
-        int page = 1,
-        int pageSize = 20,
+        ActivityLogFilter filter,
         CancellationToken ct = default)
     {
         var builder = Builders<ActivityLogDocument>.Filter;
-        var filter = builder.Empty;
+        var mongoFilter = builder.Empty;
 
-        if (!string.IsNullOrEmpty(role))
-            filter &= builder.Regex(l => l.Role, new BsonRegularExpression(role, "i"));
+        if (!string.IsNullOrEmpty(filter.Role))
+            mongoFilter &= builder.Regex(l => l.Role, new BsonRegularExpression(filter.Role, "i"));
 
-        if (!string.IsNullOrEmpty(featureCategory))
-            filter &= builder.Eq(l => l.FeatureCategory, featureCategory);
+        if (!string.IsNullOrEmpty(filter.FeatureCategory))
+            mongoFilter &= builder.Eq(l => l.FeatureCategory, filter.FeatureCategory);
 
-        if (!string.IsNullOrEmpty(status))
-            filter &= builder.Eq(l => l.Status, status);
+        if (!string.IsNullOrEmpty(filter.Status))
+            mongoFilter &= builder.Eq(l => l.Status, filter.Status);
 
-        if (from.HasValue)
-            filter &= builder.Gte(l => l.Timestamp, from.Value);
+        if (filter.From.HasValue)
+            mongoFilter &= builder.Gte(l => l.Timestamp, filter.From.Value);
 
-        if (to.HasValue)
-            filter &= builder.Lte(l => l.Timestamp, to.Value);
+        if (filter.To.HasValue)
+            mongoFilter &= builder.Lte(l => l.Timestamp, filter.To.Value);
 
-        if (!string.IsNullOrEmpty(searchTerm))
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
-            var regex = new BsonRegularExpression(searchTerm, "i");
-            filter &= builder.Or(
+            var regex = new BsonRegularExpression(filter.SearchTerm, "i");
+            mongoFilter &= builder.Or(
                 builder.Regex(l => l.UserName, regex),
                 builder.Regex(l => l.UserEmail, regex),
                 builder.Regex(l => l.ActionName, regex),
@@ -58,13 +51,13 @@ public class ActivityLogRepository : IActivityLogRepository
             );
         }
 
-        var totalCount = await _collection.CountDocumentsAsync(filter, cancellationToken: ct);
+        var totalCount = await _collection.CountDocumentsAsync(mongoFilter, cancellationToken: ct);
 
         var items = await _collection
-            .Find(filter)
+            .Find(mongoFilter)
             .SortByDescending(l => l.Timestamp)
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Limit(filter.PageSize)
             .ToListAsync(ct);
 
         return (items, totalCount);

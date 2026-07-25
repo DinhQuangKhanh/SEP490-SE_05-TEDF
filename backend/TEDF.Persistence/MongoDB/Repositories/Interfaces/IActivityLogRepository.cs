@@ -7,14 +7,7 @@ public interface IActivityLogRepository
     Task AddAsync(ActivityLogDocument log, CancellationToken ct = default);
 
     Task<(IEnumerable<ActivityLogDocument> Items, long TotalCount)> GetPagedAsync(
-        string? role = null,
-        string? featureCategory = null,
-        string? status = null,
-        string? searchTerm = null,
-        DateTime? from = null,
-        DateTime? to = null,
-        int page = 1,
-        int pageSize = 20,
+        ActivityLogFilter filter,
         CancellationToken ct = default);
 
     /// <summary>Count of activity logs grouped by role — used for stat cards in admin dashboard.</summary>
@@ -33,3 +26,14 @@ public interface IActivityLogRepository
     /// <summary>Delete logs older than <paramref name="cutoff"/>. Pass null to delete all.</summary>
     Task<long> DeleteOlderThanAsync(DateTime? cutoff, CancellationToken ct = default);
 }
+
+/// <summary>Filter and paging options for <see cref="IActivityLogRepository.GetPagedAsync"/>.</summary>
+public sealed record ActivityLogFilter(
+    string? Role = null,
+    string? FeatureCategory = null,
+    string? Status = null,
+    string? SearchTerm = null,
+    DateTime? From = null,
+    DateTime? To = null,
+    int Page = 1,
+    int PageSize = 20);

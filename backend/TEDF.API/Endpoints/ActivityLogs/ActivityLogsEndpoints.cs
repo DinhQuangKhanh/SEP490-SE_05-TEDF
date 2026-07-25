@@ -1,3 +1,4 @@
+using TEDF.API.Endpoints.ActivityLogs.Requests;
 using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
@@ -42,16 +43,22 @@ public sealed class ActivityLogsEndpoints : IEndpoint
             .Produces(200).Produces(401);
     }
 
+    /// <summary>Clamp incoming paging values; unbound query params arrive as 0.</summary>
+    private static (int Page, int PageSize) NormalizePaging(int page, int pageSize)
+        => (page < 1 ? 1 : page, pageSize is < 1 or > 100 ? 20 : pageSize);
+
     private static async Task<IResult> GetActivityLogs(
         IActivityLogRepository repository,
-        string? role, string? featureCategory, string? status, string? search,
-        DateTime? from, DateTime? to,
-        int page = 1, int pageSize = 20, CancellationToken ct = default)
+        [AsParameters] GetActivityLogsRequest request,
+        CancellationToken ct)
     {
-        if (page < 1) page = 1;
-        if (pageSize is < 1 or > 100) pageSize = 20;
+        var (page, pageSize) = NormalizePaging(request.Page, request.PageSize);
 
-        var (items, totalCount) = await repository.GetPagedAsync(role, featureCategory, status, search, from, to, page, pageSize, ct);
+        var filter = new ActivityLogFilter(
+            request.Role, request.FeatureCategory, request.Status, request.Search,
+            request.From, request.To, page, pageSize);
+
+        var (items, totalCount) = await repository.GetPagedAsync(filter, ct);
         return Ok(new
         {
             Items = items.Select(i => new
@@ -98,14 +105,16 @@ public sealed class ActivityLogsEndpoints : IEndpoint
 
     private static async Task<IResult> GetErrorLogs(
         IErrorLogRepository repository,
-        string? severity, string? source, string? search,
-        DateTime? from, DateTime? to,
-        int page = 1, int pageSize = 20, CancellationToken ct = default)
+        [AsParameters] GetErrorLogsRequest request,
+        CancellationToken ct)
     {
-        if (page < 1) page = 1;
-        if (pageSize is < 1 or > 100) pageSize = 20;
+        var (page, pageSize) = NormalizePaging(request.Page, request.PageSize);
 
-        var (items, totalCount) = await repository.GetPagedAsync(severity, source, search, from, to, page, pageSize, ct);
+        var filter = new ErrorLogFilter(
+            request.Severity, request.Source, request.Search,
+            request.From, request.To, page, pageSize);
+
+        var (items, totalCount) = await repository.GetPagedAsync(filter, ct);
         return Ok(new
         {
             Items = items.Select(i => new
