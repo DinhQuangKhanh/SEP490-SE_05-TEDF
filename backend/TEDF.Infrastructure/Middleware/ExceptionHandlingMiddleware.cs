@@ -61,7 +61,7 @@ namespace TEDF.Infrastructure.Middleware
             context.Response.StatusCode = (int)statusCode;
 
             var json = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            await context.Response.WriteAsync(json);
+            await context.Response.WriteAsync(json, context.RequestAborted);
         }
 
         private async Task LogExceptionAsync(HttpContext context, Exception exception)
@@ -120,7 +120,10 @@ namespace TEDF.Infrastructure.Middleware
                         RequestParameters: null,
                         CorrelationId: correlationId,
                         Timestamp: DateTime.UtcNow
-                    ));
+                    ),
+                    // Deliberately not tied to context.RequestAborted: the error must still be
+                    // persisted when the client disconnects mid-request.
+                    CancellationToken.None);
                 }
             }
             catch (Exception ex)
