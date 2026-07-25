@@ -392,6 +392,16 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  STUDENTS (populate Students table for all student users)
     // ════════════════════════════════════════════════
+
+    // One row per statement against a const query string. The previous version batched
+    // BatchSize rows by building the VALUES list at runtime; values were already passed as
+    // parameters, but a runtime-built query string trips Sonar's SQL-injection rule (S2077),
+    // which cannot see that only "@pN" placeholders are ever concatenated. A const string
+    // removes the ambiguity at the cost of one round trip per row — acceptable for a
+    // dev-only load-test seeder (~510 students, ~500 lecturers).
+    private const string InsertStudentSql =
+        "INSERT INTO Students (Id, StudentCode, ProgramId, ComboId) VALUES (@p0, @p1, NULL, NULL);";
+
     private static async Task SeedStudentsAsync(AppDbContext context, ILogger? logger)
     {
         var students = new List<(Guid Id, string StudentCode)>();
@@ -408,28 +418,8 @@ public static class LoadTestDataSeeder
                 students.Add((RealStudentId(nextIdx), roll));
             }
 
-        for (var batch = 0; batch < students.Count; batch += BatchSize)
-        {
-            var chunk = students.Skip(batch).Take(BatchSize).ToList();
-            var valueClauses = new List<string>();
-            var parameters = new List<object>();
-            var paramIndex = 0;
-
-            foreach (var s in chunk)
-            {
-                var pId = $"@p{paramIndex++}";
-                var pCode = $"@p{paramIndex++}";
-                valueClauses.Add($"({pId}, {pCode}, NULL, NULL)");
-                parameters.Add(s.Id);
-                parameters.Add(s.StudentCode);
-            }
-
-            var sql = $@"
-                INSERT INTO Students (Id, StudentCode, ProgramId, ComboId)
-                VALUES {string.Join(",\n                       ", valueClauses)};";
-
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
-        }
+        foreach (var s in students)
+            await context.Database.ExecuteSqlRawAsync(InsertStudentSql, s.Id, s.StudentCode);
 
         logger?.LogInformation("Seeded {Count} students.", students.Count);
     }
@@ -437,6 +427,11 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  LECTURERS (populate Lecturers table for admin and mentor users)
     // ════════════════════════════════════════════════
+
+    /// <summary>Const query string, same rationale as <see cref="InsertStudentSql"/>.</summary>
+    private const string InsertLecturerSql =
+        "INSERT INTO Lecturers (Id, EmployeeCode, AcademicTitle) VALUES (@p0, @p1, @p2);";
+
     private static async Task SeedLecturersAsync(AppDbContext context, ILogger? logger)
     {
         var lecturers = new List<(Guid Id, string EmployeeCode, string? AcademicTitle)>();
@@ -447,30 +442,9 @@ public static class LoadTestDataSeeder
         for (var i = 1; i <= DualRoleCount; i++)
             lecturers.Add((DualRoleId(i), $"LT-EMP-L{i:D4}", LecturerTitles[i % LecturerTitles.Length]));
 
-        for (var batch = 0; batch < lecturers.Count; batch += BatchSize)
-        {
-            var chunk = lecturers.Skip(batch).Take(BatchSize).ToList();
-            var valueClauses = new List<string>();
-            var parameters = new List<object?>();
-            var paramIndex = 0;
-
-            foreach (var l in chunk)
-            {
-                var pId = $"@p{paramIndex++}";
-                var pCode = $"@p{paramIndex++}";
-                var pTitle = $"@p{paramIndex++}";
-                valueClauses.Add($"({pId}, {pCode}, {pTitle})");
-                parameters.Add(l.Id);
-                parameters.Add(l.EmployeeCode);
-                parameters.Add(l.AcademicTitle);
-            }
-
-            var sql = $@"
-                INSERT INTO Lecturers (Id, EmployeeCode, AcademicTitle)
-                VALUES {string.Join(",\n                       ", valueClauses)};";
-
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray()!);
-        }
+        foreach (var l in lecturers)
+            await context.Database.ExecuteSqlRawAsync(
+                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle ?? DBNull.Value);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
