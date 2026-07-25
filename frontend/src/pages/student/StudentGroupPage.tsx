@@ -101,7 +101,8 @@ function MyGroupContent() {
   const [inviteData, setInviteData] = useState({ studentCode: "", message: "" });
   const [inviting, setInviting] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
-  const [groupName, setGroupName] = useState("");
+  // Biệt danh sinh viên tự đặt — không phải Name (Name luôn là SE_NN do backend cấp).
+  const [groupDisplayName, setGroupDisplayName] = useState("");
   const [pendingJoinRequest, setPendingJoinRequest] = useState<PendingJoinRequestDto | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -192,10 +193,10 @@ function MyGroupContent() {
     }
     try {
       setCreatingGroup(true);
-      const result = await studentGroupService.createGroup(groupName || undefined);
+      const result = await studentGroupService.createGroup(groupDisplayName || undefined);
       if (result.id) {
         fetchGroupData();
-        setGroupName("");
+        setGroupDisplayName("");
       }
     } catch (err) {
       showError(err instanceof Error ? err.message : "Không thể tạo nhóm");
@@ -324,15 +325,21 @@ function MyGroupContent() {
 
             <div className="mb-6 space-y-4">
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700">Tên nhóm (tùy chọn)</label>
+                <label htmlFor="group-display-name" className="block mb-2 text-sm font-medium text-gray-700">
+                  Biệt danh nhóm (tùy chọn)
+                </label>
                 <input
+                  id="group-display-name"
                   type="text"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
+                  value={groupDisplayName}
+                  onChange={(e) => setGroupDisplayName(e.target.value)}
                   placeholder="VD: Team TEDF..."
                   maxLength={100}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Tên và mã nhóm được hệ thống tự cấp theo học kỳ (VD: SE_01 · SUMMER2026-SE_01).
+                </p>
               </div>
             </div>
 
@@ -356,7 +363,13 @@ function MyGroupContent() {
         <div className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="mb-1 text-2xl font-bold text-gray-800">{myGroup.groupName || myGroup.groupCode}</h2>
+              {/* SE_NN là định danh chính thức; biệt danh chỉ là phụ đề. */}
+              <h2 className="mb-1 text-2xl font-bold text-gray-800">
+                {myGroup.groupName || myGroup.groupCode}
+                {myGroup.groupDisplayName && (
+                  <span className="ml-2 text-base font-normal text-gray-500">— {myGroup.groupDisplayName}</span>
+                )}
+              </h2>
               <p className="text-sm text-gray-500">Mã nhóm: {myGroup.groupCode}</p>
               {myGroup.projectName && (
                 <p className="mt-1 text-sm text-gray-600">

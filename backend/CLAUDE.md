@@ -81,7 +81,11 @@ Each bounded context exists as a sibling folder in three layers — `Application
 | Caching | `TEDF.Infrastructure/Caching/` |
 | Middleware (exception, correlation, logging, perf) | `TEDF.Infrastructure/Middleware/` |
 
-Feature folders (present across `Application/Features` and `API/Endpoints`): `Authentications`, `Users`, `Departments`, `Semesters`, `TopicPools`, `Topics`, `StudentGroups`, `Projects`, `DirectRegistration`, `Mentor`, `Evaluations`, `Meetings`, `Chats`, `Notifications`, `Reports`, `Supports`, `Dashboard`/`Admin`, `DepartmentHead`.
+**`Application/Features/`** (15): `Archives`, `Authentications`, `Dashboard`, `DirectTopics`, `EvaluationChecklists`, `Evaluations`, `Notifications`, `Projects`, `Semesters`, `Settings`, `StudentGroups`, `Supports`, `TopicPools`, `Topics`, `Users`.
+
+**`API/Endpoints/`** (15): `ActivityLogs`, `Archives`, `Authentications`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics`, `Users`.
+
+> The two lists do **not** line up one-to-one — `EvaluationChecklists` commands/queries are exposed by `Endpoints/Evaluations/ChecklistEndpoints.cs`, `ActivityLogs`/`Majors` endpoints read repositories directly with no Application feature, and `StudentGroups` is served by `Endpoints/Groups/`. Check both trees before assuming a feature is missing.
 
 ### Error Code Prefix
 
@@ -97,7 +101,7 @@ Errors carry a string `Code`. `ExceptionHandlingMiddleware` (`TEDF.Infrastructur
 | `ConcurrencyException` | `CONCURRENCY_CONFLICT` | 409 |
 | `DomainException` (base/default) | `DOMAIN_ERROR` | 400 |
 | `UnauthorizedAccessException` | — | 403 |
-| *(any unhandled)* | — | 500 (logged to Mongo `error_logs` + `user_activity_logs`) |
+| *(any unhandled)* | — | 500 (logged to Mongo `error_logs`; the request itself is recorded in `activity_logs` with `Status = Failure` and the same `CorrelationId`) |
 
 > `NotFoundException` is **deprecated** — use `EntityNotFoundException`.
 

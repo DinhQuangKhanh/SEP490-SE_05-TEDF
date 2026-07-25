@@ -62,12 +62,12 @@ npm run preview  # preview the production build
 | Pages (by role) | `src/pages/{admin,department-head,lecturer,student}/`; also `auth/`, `errors/` (Mentor + Evaluator are unified under `lecturer/`) |
 | Role layouts + sidebars + header | `src/components/layout/` |
 | Route guard | `src/components/auth/ProtectedRoute.tsx` |
-| Other components | `src/components/{admin,lecturer,student,support,common,shared}/` |
+| Other components | `src/components/{admin,auth,common,layout,lecturer,mentor,shared,student,support}/` |
 | API clients (one per domain) | `src/lib/<domain>/<domain>Service.ts` over `src/lib/common/apiClient.ts`; barrel `src/lib/index.ts` (`@/lib`) |
 | API route registry (single source of truth) | `src/lib/common/routes.ts` — services build URLs from `routes.*`, never raw strings |
 | File upload helpers | `src/lib/common/fileUploadUtils.ts` |
-| Global state | `src/contexts/` — `AuthContext`, `MaintenanceContext`, `SystemErrorContext` |
-| Hooks | `src/hooks/` — `useSignalR`, `useUnreadSupportCount`, `useWishlist` |
+| Global state | `src/contexts/` — `AuthContext`, `MaintenanceContext`, `SettingsContext` (server-side branding), `SystemErrorContext` |
+| Hooks | `src/hooks/` — `useSignalR`, `signalREvents`, `useNotificationTargetRefresh`, `useUnreadSupportCount`, `useWishlist` |
 | Firebase setup | `src/config/firebase.ts` |
 | Shared types | `src/types/<domain>/<domain>.types.ts`; barrel `src/types/index.ts` (`@/types`) |
 | Static assets | `src/assets/` (e.g. `logo/`) |

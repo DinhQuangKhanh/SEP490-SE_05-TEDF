@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TEDF.Domain.Aggregates.GroupAggregate.ValueObjects;
 using TEDF.Persistence.ValueConverters;
 
 namespace TEDF.Persistence.SqlServer.Configurations.Group
@@ -18,10 +19,16 @@ namespace TEDF.Persistence.SqlServer.Configurations.Group
             // Value Object conversions
             builder.Property(g => g.Code)
                 .HasConversion<GroupCodeConverter>()
+                .HasMaxLength(GroupCode.MaxLength)
+                .IsRequired();
+
+            // Always the SE_NN tail of Code, so it is short and never null.
+            builder.Property(g => g.Name)
                 .HasMaxLength(20)
                 .IsRequired();
 
-            builder.Property(g => g.Name)
+            // Free-text nickname chosen by the students.
+            builder.Property(g => g.DisplayName)
                 .HasMaxLength(200);
 
             builder.Property(g => g.Status)

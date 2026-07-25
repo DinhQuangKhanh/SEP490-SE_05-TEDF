@@ -57,7 +57,7 @@ npm run lint     # ESLint
 ## Infrastructure & services
 
 - **SQL Server** (EF Core) — transactional data (Users, Projects, Groups, Semesters, Evaluations...).
-- **MongoDB** (`TEDFLogs`) — chat, notifications, audit/activity logs (write-heavy). Two logging collections: `activity_logs` (all user-action audit via `IActivityLogRepository`) and `error_logs`. The former five legacy log collections were consolidated in 2026-07-19.
+- **MongoDB** (`TEDFLogs`) — chat, notifications, audit/activity logs (write-heavy). Three logging collections: `activity_logs` (request-scoped user-action audit via `IActivityLogRepository`), `error_logs`, and `system_audit_logs` (per-entity audit trail via `ISystemAuditLogWriteService`, powering the project audit-log page). Four legacy collections were consolidated into the first two on 2026-07-19.
 - **Firebase Auth + JWT Bearer** — login via Firebase, the API issues a JWT (60 min) + refresh token (7 days). Five authorization handlers (Permission, ProjectOwner, GroupMember, MentorOfProject, SameDepartment).
 - **SignalR** — 2 hubs: `/hubs/chat`, `/hubs/notifications` (auth via `?access_token=`).
 - **Hangfire** — 7 recurring jobs (stored in SQL Server).

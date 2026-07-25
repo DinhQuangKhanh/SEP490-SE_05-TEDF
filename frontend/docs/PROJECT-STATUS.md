@@ -2,7 +2,7 @@
 
 Snapshot of what is implemented in the TEDF SPA (`frontend/`), per page and per feature. Status is inferred from the source — whether a page is wired to the API layer (a `lib/<domain>/<domain>Service.ts` over `apiClient`) or still renders static/mock data.
 
-**Last updated:** 2026-07-05
+**Last updated:** 2026-07-25
 
 > This is a living document. When a page moves from mock to live data (or a new feature lands), update its row here.
 
@@ -23,6 +23,9 @@ Snapshot of what is implemented in the TEDF SPA (`frontend/`), per page and per 
 - **Admin home redirects to Semesters** (`/admin → /admin/semesters`): the old DashboardPage and ProjectsPage for admin have been removed; their content is accessible through dedicated pages.
 - **Account access gate** is enforced: locked or ineligible accounts are redirected to `AccountBlockedPage` or `IneligiblePage` at login.
 - **Real-time notifications** work (SignalR `NotificationHub` + `NotificationDropdown` + click-to-navigate).
+- **Evaluation checklist is live** (2026-07-20 → 07-23): dept-head configures criteria (`ChecklistConfigPage`, incl. Excel import), evaluators score per criterion in the review page, and the dept-head can open another evaluator's checklist. Real-time refresh on save.
+- **Department-head gained three pages** (2026-07-14 → 07-24): `DepartmentHeadStatisticsPage` (`/lecturer/statistics`), `ChecklistConfigPage` (`/lecturer/checklist-config`), `ProjectAuditLogsPage` (`/lecturer/audit-logs`). `LecturerHistoryPage` swaps in `DepartmentEvaluationHistory` when the user is a dept-head.
+- **Admin system-log page rebuilt** (2026-07-19): tabbed activity/error view with role, feature, status and date filters, pagination, cross-reference by correlation ID, and a clear-logs action.
 - **`lib/` + `types/` are feature-based**, mirroring the backend `TEDF.API/Endpoints/` folders (camelCase) with barrels (`@/lib`, `@/types`); URLs centralized in `lib/common/routes.ts`. Pages/components go through services only — no direct `apiClient` calls. (See [`PROJECT-RULES.md`](PROJECT-RULES.md) §5.)
 
 ---
@@ -38,7 +41,7 @@ Snapshot of what is implemented in the TEDF SPA (`frontend/`), per page and per 
 | SemesterRosterPage | `/admin/semesters/:id/roster` | ✅ | Import eligible students/mentors, assign major programs, bulk-delete, publish |
 | UsersPage | `/admin/users` | ✅ | `userService` — list, lock/unlock, assign department head |
 | ~~ProjectsPage~~ | ~~`/admin/projects`~~ | **Removed** | Project oversight moved to dept-head flow |
-| ActivityLogsPage | `/admin/activity-logs` | ✅ | `activityLogService` |
+| ActivityLogsPage | `/admin/activity-logs` | ✅ | `activityLogService` — tabbed activity/error view, filters (role, feature, status, date range), pagination, correlation-ID cross-reference, clear-logs |
 | SettingsPage | `/admin/settings` | ✅ | `settingsService` — system config, branding (color/logo/header), test email; theme color persisted in `localStorage` |
 | SupportPage | `/admin/support` | ✅ | `supportService` |
 | ProfilePage | `/admin/profile` | ✅ | Shared `ProfilePage`: view/edit profile, privacy toggle, supervised-projects list |
@@ -51,17 +54,21 @@ Rendered inside the Lecturer layout; routed at `/lecturer/*` for accounts grante
 |------|-------|--------|-------|
 | DepartmentHeadDashboardPage | `/lecturer/dashboard` | ✅ | overview + alerts (DepartmentHead only) |
 | AssignEvaluatorsPage | `/lecturer/assign` `/lecturer/assign/:tab` | ✅ | evaluator assignment + final decision, tabbed |
+| DepartmentHeadStatisticsPage | `/lecturer/statistics` | ✅ | department statistics |
+| ChecklistConfigPage | `/lecturer/checklist-config` | ✅ | checklist criteria CRUD, Excel import + preview, copy, activate/deactivate |
+| ProjectAuditLogsPage | `/lecturer/audit-logs` | ✅ | per-project audit trail (`GET /api/projects/{id}/audit-logs`) |
+| DepartmentEvaluationHistory | — | ✅ | not routed directly; `LecturerHistoryPage` renders it instead of the mentor view when the user is a dept-head |
 
 ### Lecturer (`pages/lecturer/`) — Mentor + Evaluator, unified
 
 | Page | Route | Status | Notes |
 |------|-------|--------|-------|
-| LecturerRepositoryPage | `/lecturer` `/lecturer/registrations` | ✅ | Own topics + "My topics" tab for dept-head; pool-topic registration status (real-time via SignalR) |
+| LecturerRepositoryPage | `/lecturer` `/lecturer/registrations` | ✅ | Own topics + "My topics" tab for dept-head; pool-topic registration status (real-time via SignalR). Tab switching no longer remounts the page (2026-07-11) |
 | LecturerGroupsPage | `/lecturer/groups` | ✅ | assigned groups |
 | LecturerGroupDetailPage | `/lecturer/groups/:id` | 📋 | group/topic detail — hardcoded sample data |
 | TopicCreatePage | `/lecturer/create` | ✅ | Multi-step wizard modal (`proposeTopic`); separate description field |
 | LecturerModerationPage | `/lecturer/moderate` | ✅ | evaluation queue (`evaluatorService`) |
-| LecturerReviewPage | `/lecturer/moderate/:id` | ✅ | review / submit result |
+| LecturerReviewPage | `/lecturer/moderate/:id` | ✅ | review / submit result + per-criterion checklist scoring |
 | LecturerHistoryPage | `/lecturer/history` | ✅ | evaluation history |
 | SupervisedProjectsPage | `/lecturer/supervised-projects` | ✅ | mentor's supervised project list/detail (`projectService.supervisedProjects`) |
 | LecturerSupportPage | `/lecturer/support` | ✅ | support tickets |
@@ -74,7 +81,7 @@ Rendered inside the Lecturer layout; routed at `/lecturer/*` for accounts grante
 | Page | Route | Status | Notes |
 |------|-------|--------|-------|
 | StudentDashboardPage | `/student` | ✅ | dashboard |
-| StudentGroupPage | `/student/groups` `/student/groups/:tab` | ✅ | `studentGroupService` (create/invite/join); bulk approve/reject join requests |
+| StudentGroupPage | `/student/groups` `/student/groups/:tab` | ✅ | `studentGroupService` (create/invite/join); bulk approve/reject join requests. Create form asks for a **nickname** — the group's code/name are server-assigned (`SUMMER2026-SE_01` / `SE_01`) and shown read-only |
 | StudentMyTopicPage | `/student/my-topic` | ✅ | direct topic + pool registration detail view + in-place file preview; pending/rejected views unified |
 | StudentTopicsPage | `/student/topics` | ✅ | browse/register from pool; rich-text note + file viewer; one pending registration per group enforced |
 | StudentSupportPage | `/student/support` | ✅ | support tickets |
@@ -115,6 +122,10 @@ Rendered inside the Lecturer layout; routed at `/lecturer/*` for accounts grante
 | Topic pool registration (student) | ✅ | Rich-text note, file viewer, mentor/dept-head request tab (real-time); cancel registration |
 | Propose topic — multi-step wizard | ✅ | `TopicCreatePage` rebuilt as wizard modal; separate description field |
 | Bulk join-request approve/reject | ✅ | `StudentGroupPage` — group leader bulk-manages join requests |
+| Evaluation checklist | ✅ | Dept-head config (+ Excel import/preview) → evaluator scores per criterion → dept-head reviews another evaluator's checklist; real-time refresh on save |
+| Project audit trail | ✅ | `ProjectAuditLogsPage` (dept-head) over `GET /api/projects/{id}/audit-logs` |
+| Topic proposal as modal portal | ✅ | Propose-topic wizard renders through a portal so it is not clipped by the page layout (2026-07-14) |
+| Group identity display | ✅ | `groupName` is always `SE_NN` and `groupCode` `{SemesterCode}-SE_NN`; `groupDisplayName` (nickname) is optional and only exposed on `StudentGroupDto`. Other group lists intentionally show `SE_NN` |
 | Schedules / meetings | 🚧 | Calendar UI exists but is static across roles; not wired to a meetings API |
 | Similarity detection | 📋 | Evaluator UI renders mock data only |
 | Report export (PDF/Excel) | ❌ | No frontend; backend reporting still in development |
@@ -133,7 +144,8 @@ Wired API services in `src/lib/<feature>/` (barrel `@/lib`), mirroring the backe
 | `authService` | session check | auth flow |
 | `dashboardService` | admin/mentor/departmentHead/evaluator dashboards | all four role dashboards |
 | `proposedTopicService` | directRegistration CRUD, submit-to-mentor, available-mentors | student direct-registration flow |
-| `evaluatorService` | evaluator self-service + dept-head evaluator management | |
+| `evaluatorService` | evaluator self-service + dept-head evaluator management | `lib/evaluations/` |
+| `checklistService` | checklist config CRUD, Excel import + preview, copy, activate/deactivate, per-project checklist read/save | `lib/evaluations/` — sibling of `evaluatorService` |
 | `studentGroupService` | create/invite/join + bulk approve/reject + invitable-students picker | |
 | `majorService` | major list | |
 | `notificationService` | list, unread count, mark read/all-read | |

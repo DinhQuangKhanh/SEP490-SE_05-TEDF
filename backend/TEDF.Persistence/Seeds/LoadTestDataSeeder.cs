@@ -49,6 +49,11 @@ public static class LoadTestDataSeeder
     private const int Spring2026Id = 101;
     private const int Summer2026Id = 102;
 
+    // Must stay identical to Semesters.Code below — group codes are {SemesterCode}-SE_NN.
+    private const string Fall2025Code = "FALL2025";
+    private const string Spring2026Code = "SPRING2026";
+    private const string Summer2026Code = "SUMMER2026";
+
     private const int Fall25GroupCount = 50;
     private const int Spring26GroupCount = 40;
     private const int Summer26GroupCount = 15;
@@ -444,6 +449,8 @@ public static class LoadTestDataSeeder
 
         foreach (var l in lecturers)
             await context.Database.ExecuteSqlRawAsync(
+                // DBNull, not null: the params array is object[], so a null element would be a
+                // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
                 InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle ?? DBNull.Value);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
@@ -739,6 +746,27 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  GROUPS (50 Fall25 + 40 Spring26 + 15 Summer26 = 105 groups)
     // ════════════════════════════════════════════════
+
+    /// <summary>
+    /// Column list shared by both Groups inserts (bulk load-test groups and the real Summer 2026
+    /// groups). Kept in one place so the two cannot drift — adding DisplayName previously required
+    /// editing two separate statements.
+    /// </summary>
+    private const string GroupsInsertColumns =
+        "Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt";
+
+    [SuppressMessage("Security Hotspot", "S2077:Formatting SQL queries is security-sensitive",
+        Justification = "Internal load-test seeder. Only the static column list and @p parameter " +
+            "placeholders built by the callers are interpolated; every value is supplied through " +
+            "the parameters array. No user input is involved, so it is not injectable.")]
+    private static Task InsertGroupsAsync(AppDbContext context, List<string> valueClauses, List<object> parameters)
+    {
+        var sql = $@"
+            INSERT INTO Groups ({GroupsInsertColumns})
+            VALUES {string.Join(",\n                   ", valueClauses)};";
+
+        return context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+    }
     private static async Task SeedGroupsAsync(AppDbContext context, ILogger? logger)
     {
         var totalGroups = Fall25GroupCount + Spring26GroupCount + Summer26GroupCount;
@@ -765,16 +793,16 @@ public static class LoadTestDataSeeder
                 {
                     semesterId = Fall2025Id;
                     groupStatus = 2; // Disbaned
-                    code = $"FA25-G-{i:D3}";
                     name = $"SE_{i:D2}";
+                    code = $"{Fall2025Code}-{name}";
                 }
                 else
                 {
                     var springIdx = i - Fall25GroupCount;
                     semesterId = Spring2026Id;
                     groupStatus = 2; // Disbaned
-                    code = $"SP26-G-{springIdx:D3}";
                     name = $"SE_{springIdx:D2}";
+                    code = $"{Spring2026Code}-{name}";
                 }
 
                 var leaderId = StudentId(StudentStartIndex(i));
@@ -788,7 +816,8 @@ public static class LoadTestDataSeeder
                 var pDate = $"@p{paramIndex++}";
                 var pIsOpen = $"@p{paramIndex++}";
 
-                valueClauses.Add($"({pId}, {pCode}, {pName}, NULL, {pSemester}, {pLeader}, {pStatus}, 5, {pIsOpen}, {pDate}, NULL)");
+                // DisplayName NULL: seeded load-test groups have no student-chosen nickname.
+                valueClauses.Add($"({pId}, {pCode}, {pName}, NULL, NULL, {pSemester}, {pLeader}, {pStatus}, 5, {pIsOpen}, {pDate}, NULL)");
                 parameters.Add(GroupId(i));
                 parameters.Add(code);
                 parameters.Add(name);
@@ -799,11 +828,7 @@ public static class LoadTestDataSeeder
                 parameters.Add(!isFall && !isSpring); // Only Summer groups are open for requests
             }
 
-            var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
-                VALUES {string.Join(",\n                       ", valueClauses)};";
-
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+            await InsertGroupsAsync(context, valueClauses, parameters);
         }
 
         logger?.LogInformation("Seeded {Count} load-test groups.", totalGroups);
@@ -1042,20 +1067,22 @@ public static class LoadTestDataSeeder
             {
                 var leaderIdx = groupMembers[g][0];
                 var pId = $"@p{pi++}"; var pCode = $"@p{pi++}"; var pName = $"@p{pi++}";
+                var pDisplay = $"@p{pi++}";
                 var pSemester = $"@p{pi++}"; var pLeader = $"@p{pi++}"; var pDate = $"@p{pi++}";
-                values.Add($"({pId}, {pCode}, {pName}, NULL, {pSemester}, {pLeader}, 0, 5, 0, {pDate}, NULL)");
+                values.Add($"({pId}, {pCode}, {pName}, {pDisplay}, NULL, {pSemester}, {pLeader}, 0, 5, 0, {pDate}, NULL)");
+
+                // The real group's own name is kept as the nickname; Name/Code follow the SE_NN scheme.
+                var groupName = $"SE_{g + 1:D2}";
                 parameters.Add(RealGroupId(g + 1));
-                parameters.Add($"SU26-R-{g + 1:D3}");
+                parameters.Add($"{Summer2026Code}-{groupName}");
+                parameters.Add(groupName);
                 parameters.Add(Summer26RealGroups[g].Name);
                 parameters.Add(Summer2026Id);
                 parameters.Add(RealStudentId(leaderIdx));
                 parameters.Add(SeedDate);
             }
 
-            var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
-                VALUES {string.Join(",\n                       ", values)};";
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+            await InsertGroupsAsync(context, values, parameters);
         }
 
         // 4) Group members (Role: 0 = Leader for the first, 1 = Member otherwise)
@@ -1754,6 +1781,24 @@ public static class LoadTestDataSeeder
         // Order matters: delete children before parents to respect FK constraints.
         var tables = new[]
         {
+            // Evaluation checklist tree. Every FK out of it — ProjectEvaluationChecklists to
+            // Projects/Users/ChecklistConfigs, ChecklistConfigs to Semesters — is Restrict, so
+            // these have to go before Projects, Users and Semesters below.
+            "ChecklistResultItems",
+            "ProjectEvaluationChecklists",
+            "ChecklistCriteria",
+            "ChecklistConfigs",
+
+            // Support ticket tree: children before SupportTickets.
+            "TicketMessageAttachments",
+            "TicketMessages",
+            "SupportTicketAttachments",
+
+            // Group child tables. These cascade from Groups, but are deleted explicitly so the
+            // reset does not silently break if that cascade is ever changed to Restrict.
+            "GroupInvitations",
+            "GroupJoinRequests",
+
             // Leaf tables (no dependents)
             "EligibleStudents",
             "EligibleMentors",
@@ -1807,7 +1852,7 @@ public static class LoadTestDataSeeder
             var identityTables = new[]
             {
                 "SemesterPhases", "GroupMembers", "UserRoles", "ProjectMentors",
-                "Departments", "Majors"
+                "Departments", "Majors", "GroupInvitations", "GroupJoinRequests"
             };
 
             foreach (var table in identityTables)

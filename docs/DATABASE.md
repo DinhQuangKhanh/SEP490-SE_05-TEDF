@@ -33,6 +33,7 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 | **Group** | `Groups`, `GroupMembers`, `GroupInvitations`, `GroupJoinRequests` |
 | **Semester** | `Semesters`, `SemesterPhases`, `EligibleStudents` |
 | **Evaluation** | `EvaluationSubmissions`, `ProjectEvaluatorAssignments` |
+| **EvaluationChecklist** | `ChecklistConfigs`, `ChecklistCriteria`, `ProjectEvaluationChecklists`, `ChecklistResultItems` |
 | **Support** | `SupportTickets`, `TicketMessages`, `SupportTicketAttachments`, `TicketMessageAttachments` |
 | **Standalone / reference** | `Departments`, `Majors`, `SystemConfigurations`, `ProjectArchives`, `Roles`, `Programs`, `Combos` |
 
@@ -60,10 +61,34 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 
 #### Group aggregate
 
-- **`Groups`** — student group. `Code` (`GroupCode`, **unique**), `Status`, `SemesterId` (restrict), `LeaderId` (set-null), `ProjectId?` (set-null). Indexed on `Status`, `SemesterId`, `LeaderId`, `ProjectId`.
-- **`GroupMembers`** — membership (FK `GroupId` cascade, `StudentId` restrict), `IsActive`, role (leader/member).
+- **`Groups`** — student group. `Code` (`GroupCode`, **unique**, `nvarchar(30)`), `Name nvarchar(20) NOT NULL`, `DisplayName nvarchar(200)?`, `Status`, `SemesterId` (restrict), `LeaderId` (set-null), `ProjectId?` (set-null). Indexed on `Status`, `SemesterId`, `LeaderId`, `ProjectId`.
+
+  **Code / Name format (enforced since `EnforceGroupCodeFormat`, 2026-07-25):**
+
+  | Column | Format | Example |
+  |---|---|---|
+  | `Code` | `{SemesterCode}-SE_{NN}` | `SUMMER2026-SE_01` |
+  | `Name` | `SE_{NN}` — the tail of `Code` | `SE_01` |
+  | `DisplayName` | free text, optional | `Team TEDF` |
+
+  - The sequence is **at least two digits** and **restarts at 01 in every semester** (`IGroupRepository.GetNextSequenceAsync(semesterId)` takes `MAX(sequence)` within the semester, and counts soft-deleted rows so a code is never reused). Past 99 it simply grows: `SE_100`.
+  - `Name` is **derived** from `Code` in `Group.Create` (`code.NamePart`) — it is not settable, so the two cannot drift apart. `DisplayName` is the students' own nickname and is the only part they choose (`Group.SetDisplayName`).
+  - The format is validated by a regex inside `GroupCode.Create`, and `GroupCodeConverter` routes through that same method — so **an out-of-format code throws on read as well as on write**. Any row written outside the app (seeders, manual SQL) must follow the scheme or EF will fail to materialise the group.
+  - `MaxLength` is 30 = longest `SemesterCode` (20) + `-SE_` + a 4-digit sequence.
+- **`GroupMembers`** — membership (FK `GroupId` cascade, `StudentId` restrict), `IsActive`, role (leader/member). Filtered unique index **`UX_GroupMembers_GroupId_StudentId_Active`** on `(GroupId, StudentId)` with filter `[Status] = 0` (= `Active`), added 2026-07-23 — a student cannot hold two active memberships in the same group, while historical left/removed rows are still allowed.
 - **`GroupInvitations`** — leader-issued invitations (`InviterId`/`InviteeId` restrict). Indexed on `(GroupId, InviteeId, Status)`.
 - **`GroupJoinRequests`** — student-initiated join requests; indexed on `(Status, ExpiresAt)` and `(GroupId, StudentId, Status)`. Expired by a Hangfire job.
+
+#### EvaluationChecklist aggregate
+
+Added by the `AddEvaluationChecklist` migration (2026-07-14), scoring columns by `AddChecklistScoring` (2026-07-20).
+
+- **`ChecklistConfigs`** — a reusable set of grading criteria, scoped to a semester (`SemesterId` FK → `Semesters`, **restrict**) with an active/inactive flag. Populated by hand or via Excel import.
+- **`ChecklistCriteria`** — the criteria rows of a config (`ChecklistConfigId` FK → **cascade**). Carry `MaxScore` / `PassScore`.
+- **`ProjectEvaluationChecklists`** — one evaluator's filled-in checklist for one project. FKs to `Projects`, `Users` (the evaluator) and `ChecklistConfigs` are all **restrict**, so those rows cannot be deleted while a checklist references them.
+- **`ChecklistResultItems`** — per-criterion result (`Score`, `Comment`) belonging to a `ProjectEvaluationChecklists` row (**cascade**).
+
+> The restrict-FKs matter for any teardown routine: delete `ChecklistResultItems` → `ProjectEvaluationChecklists` → `ChecklistCriteria` → `ChecklistConfigs` *before* touching `Projects`, `Users` or `Semesters`.
 
 #### Semester aggregate
 
@@ -73,8 +98,10 @@ Data model reference for the TEDF Thesis Management System. TEDF uses **polyglot
 
 #### Evaluation aggregate
 
-- **`EvaluationSubmissions`** — an evaluation round for a project. Unique index on `(ProjectId, SubmissionNumber)`; indexed on `AssignedEvaluatorId`, `SubmittedBy`, `Status`, `Result`, `SubmittedAt`. FK `ProjectId` (no-action).
-- **`ProjectEvaluatorAssignments`** — the (2) evaluators assigned to a project per round; `EvaluatorOrder`, `IndividualResult`, `IsActive`. Indexed on `(ProjectId, EvaluatorId)` and `(ProjectId, EvaluatorOrder)`.
+- **`EvaluationSubmissions`** — an evaluation round for a project. Unique index on `(ProjectId, SubmissionNumber)`; indexed on `AssignedEvaluatorId`, `SubmittedBy`, `Status`, `Result`, `SubmittedAt`. FK `ProjectId` (no-action). `PhaseId int NOT NULL` (added 2026-07-20) records which semester phase the evaluation belongs to.
+- **`ProjectEvaluatorAssignments`** — the (2) evaluators assigned to a project per round; `EvaluatorOrder`, `IndividualResult`, `IsActive`, `PhaseId int NOT NULL`. Indexed on `(ProjectId, EvaluatorId)` and `(ProjectId, EvaluatorOrder)`.
+
+> `PhaseId` on both evaluation tables is a **plain int with no FK to `SemesterPhases`** and was backfilled with `0` for existing rows — treat `0` as "recorded before phase tracking existed", not as a valid phase.
 
 #### Support aggregate
 
@@ -119,13 +146,16 @@ Document store for high-write, append-mostly, and flexible-schema data. Collecti
 | `conversations` | `ConversationDocument` | Chat conversations (participants, type) |
 | `messages` | `MessageDocument` | Chat messages (conversation, sender, content, sentAt) |
 | `notifications` | `NotificationDocument` | User notifications (category, isRead) — paired with SignalR |
-| `activity_logs` | `ActivityLogDocument` | Consolidated user-action audit: `ActionCode` (command class name), `ActionName` (human-readable), `FeatureCategory`, `Role`, `RequestPath`, `EntityType/EntityId`, `Status`, `DurationMs`, `CorrelationId`, `IpAddress`. Replaces the former `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, and `request_logs` collections. |
+| `activity_logs` | `ActivityLogDocument` | Consolidated **request-scoped** user-action audit: `ActionCode` (command class name), `ActionName` (human-readable), `FeatureCategory`, `Role`, `RequestPath`, `EntityType/EntityId`, `Status`, `DurationMs`, `CorrelationId`, `IpAddress`. Replaces the former `user_activity_logs`, `evaluation_logs`, `project_modifications`, and `request_logs` collections. |
 | `error_logs` | `ErrorLogDocument` | Full unhandled-exception detail (stack trace, inner chain, correlation id). Linked to an `activity_logs` entry via `CorrelationId` for drill-down from the admin log view. |
+| `system_audit_logs` | `SystemAuditLogDocument` | **Per-entity** audit trail: `EntityType` + `EntityId`, `Action`, `PerformedBy`, `OldValuesJson`/`NewValuesJson`, free-form `Metadata`. Written through `ISystemAuditLogWriteService`; read by `GET /api/projects/{id}/audit-logs`. |
 | `quarantined_attachments` | `QuarantinedAttachmentDocument` | Uploaded files quarantined by the ClamAV malware scan |
 
-Collection-name constants live in `MongoDbContext.Collections` (`ActivityLogs`, `ErrorLogs`, `Notifications`, `Conversations`, `Messages`).
+Collection-name constants live in `MongoDbContext.Collections` (`ActivityLogs`, `ErrorLogs`, `SystemAuditLogs`, `Notifications`, `Conversations`, `Messages`).
 
-> **Removed collections (2026-07-19 logging refactor):** `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs` were all replaced by the single `activity_logs` collection. The `IActivityLogRepository` + `ActivityLogService` pair now handles all write paths previously spread across five separate repositories.
+> **Removed collections (2026-07-19 logging refactor):** `user_activity_logs`, `evaluation_logs`, `project_modifications`, `request_logs` were replaced by `activity_logs`. The `IActivityLogRepository` + `ActivityLogService` pair now handles all write paths previously spread across four separate repositories.
+>
+> **`system_audit_logs` was removed in that refactor and restored on 2026-07-25**, once the project audit-log feature (PR #96) was built on it. The two are not interchangeable: `activity_logs` answers *"what requests did this user make"*, `system_audit_logs` answers *"who changed this specific entity"*. Keep both.
 
 ### Logging linkage
 
@@ -155,6 +185,20 @@ On an unhandled exception, `ExceptionHandlingMiddleware` writes the full detail 
 - **Startup init** (`InitializeDatabaseAsync`, Development only): applies pending migrations, runs `DevelopmentDataSeeder` (idempotent), and ensures MongoDB indexes. When the Firebase emulator is enabled, it also runs `LoadTestDataSeeder` (≈1000 users + relationships) and `FirebaseEmulatorSeeder`.
 
 - **Connection strings** (`appsettings`): `DefaultConnection` (SQL Server), `HangfireConnection` (Hangfire job storage — separate SQL DB), and `MongoDbSettings:{ConnectionString, DatabaseName}` (`TEDFLogs`).
+
+- **Migrations added in July 2026** (newest last):
+
+  | Migration | What it did |
+  |---|---|
+  | `AddProjectMentorFeedback` (07-13) | `Projects.MentorFeedback` for DirectRegistration review notes |
+  | `AddEvaluationChecklist` (07-14) | The four `Checklist*` tables |
+  | `AddPhaseIdToEvaluations` (07-20) | `PhaseId` on `EvaluationSubmissions` + `ProjectEvaluatorAssignments` |
+  | `AddChecklistScoring` (07-20) | `Score`/`MaxScore`/`PassScore`/`Comment` on the checklist tables |
+  | `RefactorUserSchema` (07-20) | Split `Students`/`Lecturers`/`Roles`/`Combos` out of `Users`; `Programs` replaces `MajorPrograms` |
+  | `AddGroupMemberUniqueActiveIndex` (07-23) | Filtered unique index for one active membership per (group, student) |
+  | `EnforceGroupCodeFormat` (07-25) | `Groups.Code` → `nvarchar(30)`, new `DisplayName`, `Name` → `nvarchar(20) NOT NULL`; **backfills every row** to `{SemesterCode}-SE_NN` / `SE_NN` |
+
+  > `EnforceGroupCodeFormat` is not a pure schema migration — its `Up()` renumbers all existing groups (`ROW_NUMBER()` per semester, ordered by `CreatedAt`) and moves the old free-text `Name` into `DisplayName`. It must run before the app starts, otherwise `GroupCodeConverter` rejects the legacy codes on read. The step order inside `Up()` is deliberate; do not reorder it.
 
 ---
 

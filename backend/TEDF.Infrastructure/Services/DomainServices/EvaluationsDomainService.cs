@@ -156,7 +156,7 @@ public class EvaluationsDomainService : IEvaluationsDomainService
         var evaluator = await _userRepository.GetByIdAsync(evaluatorId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(User), evaluatorId);
 
-        if (!evaluator.GetActiveRoles().Contains(DomainRoleNames.Evaluator))
+        if (!evaluator.HasRole(DomainRoleIds.Evaluator))
             throw new BusinessRuleValidationException("The specified user does not have the Evaluator role.");
 
         // The evaluator must be on the eligible-lecturer roster of the active/upcoming semester

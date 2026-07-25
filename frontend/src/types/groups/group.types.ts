@@ -25,7 +25,10 @@ export interface MentorGroupDto {
 export interface StudentGroupDto {
   groupId: string;
   groupCode: string;
+  /** Luôn có dạng SE_NN — phần đuôi của groupCode. */
   groupName?: string;
+  /** Biệt danh sinh viên tự đặt; null nếu chưa đặt. */
+  groupDisplayName?: string;
   groupStatus: string;
   maxMembers: number;
   isOpenForRequests: boolean;

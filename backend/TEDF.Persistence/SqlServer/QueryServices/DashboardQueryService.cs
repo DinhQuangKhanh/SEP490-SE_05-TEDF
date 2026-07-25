@@ -31,11 +31,13 @@ public class DashboardQueryService : IDashboardQueryService
 
     public async Task<AdminDashboardDto> GetAdminDashboardAsync(CancellationToken cancellationToken = default)
     {
+        // Filter on RoleId, not RoleName: RoleName is a computed property over the Role
+        // navigation and is Ignore()d in UserRoleConfiguration, so EF cannot translate it.
         var totalStudents = await _context.UserRoles.AsNoTracking()
-            .CountAsync(r => r.RoleName == "Student" && r.IsActive, cancellationToken);
+            .CountAsync(r => r.RoleId == DomainRoleIds.Student && r.IsActive, cancellationToken);
 
         var totalMentors = await _context.UserRoles.AsNoTracking()
-            .CountAsync(r => r.RoleName == "Mentor" && r.IsActive, cancellationToken);
+            .CountAsync(r => r.RoleId == DomainRoleIds.Mentor && r.IsActive, cancellationToken);
 
         var now = DateTime.UtcNow;
         var activeSemester = await _context.Semesters.AsNoTracking()
@@ -283,10 +285,10 @@ public class DashboardQueryService : IDashboardQueryService
             Completed = projectStats.Count(p => p.Status != ProjectStatus.PendingEvaluation),
             TotalEvaluators = await _context.Users.AsNoTracking()
                 .CountAsync(u => u.DepartmentId == departmentId &&
-                                 u.Roles.Any(r => r.RoleName == DomainRoleNames.Evaluator && r.IsActive), cancellationToken),
+                                 u.Roles.Any(r => r.RoleId == DomainRoleIds.Evaluator && r.IsActive), cancellationToken),
             TotalMentors = await _context.Users.AsNoTracking()
                 .CountAsync(u => u.DepartmentId == departmentId &&
-                                 u.Roles.Any(r => r.RoleName == DomainRoleNames.Mentor && r.IsActive), cancellationToken),
+                                 u.Roles.Any(r => r.RoleId == DomainRoleIds.Mentor && r.IsActive), cancellationToken),
         };
 
         var evalProgress = new EvaluationProgressDto

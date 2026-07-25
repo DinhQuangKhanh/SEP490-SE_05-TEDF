@@ -11,7 +11,11 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
         Task<IEnumerable<Group>> GetByStudentIdAsync(Guid studentId, CancellationToken cancellationToken = default);
         Task<Group?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default);
         Task<bool> ExistsCodeAsync(GroupCode code, CancellationToken cancellationToken = default);
-        Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Next free <c>SE_NN</c> sequence within a semester. Group numbering restarts at 1 each
+        /// semester because the code is scoped by semester code.
+        /// </summary>
+        Task<int> GetNextSequenceAsync(int semesterId, CancellationToken cancellationToken = default);
         Task<bool> IsStudentInActiveGroupAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
         Task<bool> HasPendingJoinRequestAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
         Task<bool> IsLeaderOfGroupAsync(Guid leaderId, Guid groupId, CancellationToken cancellationToken = default);

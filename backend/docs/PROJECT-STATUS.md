@@ -2,7 +2,7 @@
 
 Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context and by cross-cutting concern. Status is inferred from the source — whether an Application feature has handlers, whether endpoints are mapped, and whether jobs/handlers contain real logic vs. `TODO` stubs.
 
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-25
 
 > Living document. Update a row when a feature gains endpoints, a job is implemented, or a stub is filled in.
 
@@ -25,9 +25,14 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 - **Pool-topic registration flow is fully wired:** registration request → mentor confirm/reject → notifications (SignalR + MongoDB) + real-time status updates to the student SPA. Cancel-registration endpoint live.
 - **DirectRegistration flow extended (PR #88):** `MentorFeedback` field added to `Projects`; mentor now attaches a review note when approving or requesting modification. Semester eligibility check wired into `EvaluationsDomainService` and `StudentGroupsDomainService`; `ISemesterRepository` extended with an eligibility lookup.
 - **AccountAccessGate middleware** is live: returns 403 with `ACCOUNT_LOCKED` or `NOT_ELIGIBLE` codes for locked/ineligible accounts on non-public routes.
-- **MongoDB logging consolidated (2026-07-19):** five legacy collections (`user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs`) replaced by two: `activity_logs` (`ActivityLogDocument` — unified command audit with `ActionCode`, `ActionName`, `FeatureCategory`, `CorrelationId`) and `error_logs`. `IActivityLogRepository` + `ActivityLogService` are the single write path.
+- **MongoDB logging consolidated (2026-07-19):** four legacy collections (`user_activity_logs`, `evaluation_logs`, `project_modifications`, `request_logs`) replaced by `activity_logs` (`ActivityLogDocument` — unified command audit with `ActionCode`, `ActionName`, `FeatureCategory`, `CorrelationId`) and `error_logs`. `IActivityLogRepository` + `ActivityLogService` are the single write path.
+- **`system_audit_logs` kept (2026-07-25):** the per-entity audit trail was restored after PR #96 built the project audit-log feature on it. It answers "who changed what on *this* project/group", which `activity_logs` (a request-scoped log) does not. Three collections total: `activity_logs`, `error_logs`, `system_audit_logs`.
+- **Evaluation checklist is live (merged 2026-07-23):** `EvaluationChecklists` Application feature (7 commands / 6 queries), `ChecklistEndpoints` — evaluator per-project checklist (`GET`/`PUT /api/evaluations/…/checklist`), dept-head review of another evaluator's checklist, and `/api/checklist-configs` CRUD with Excel import + preview, copy, activate/deactivate. Four new tables: `ChecklistConfigs`, `ChecklistCriteria`, `ProjectEvaluationChecklists`, `ChecklistResultItems`.
+- **Project audit logs (2026-07-24):** `GET /api/projects/{id}/audit-logs` backed by `ISystemAuditLogWriteService` → `system_audit_logs`; surfaced in the dept-head SPA.
+- **Evaluation phase tracking (2026-07-24):** `PhaseId` added to evaluations (`AddPhaseIdToEvaluations`), tying a submission to the semester phase it belongs to.
+- **Group identity standardised (2026-07-25):** `Groups.Code` is now `{SemesterCode}-SE_NN` (e.g. `SUMMER2026-SE_01`) and `Groups.Name` is the `SE_NN` tail, derived from the code rather than typed by the student. The nickname students used to enter moved to a new `DisplayName` column. Sequence numbering restarts per semester. Enforced by a regex in `GroupCode.Create` — which `GroupCodeConverter` also uses, so the rule holds on read as well as on write. Migration `EnforceGroupCodeFormat` backfills existing rows.
 - **Auth, caching (L1/L2), domain events, SignalR, and Hangfire scheduling** are wired.
-- **Endpoint structure:** `Endpoints/` is feature-based — `ActivityLogs`, `Archives`, `Authentications`, `Dashboard`, `DirectTopics`, `Evaluations`, `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (`TopicCatalogEndpoints` + `TopicPoolsEndpoints`), `Users`.
+- **Endpoint structure:** `Endpoints/` is feature-based — `ActivityLogs`, `Archives`, `Authentications`, `Dashboard`, `DirectTopics`, `Evaluations` (`EvaluationsEndpoints` + `ChecklistEndpoints`), `Groups`, `Majors`, `Notifications`, `Projects`, `Semesters`, `Settings`, `SupportTickets`, `Topics` (`TopicCatalogEndpoints` + `TopicPoolsEndpoints`), `Users`. Note `EvaluationChecklists` is an Application feature folder but its endpoints live under `Endpoints/Evaluations/`.
 - **Not built / in progress:** Reports (PDF/Excel), real-time Chat feature, and Meetings — their folders are scaffolded but empty.
 
 ---
@@ -37,15 +42,16 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | Context            | App files | Endpoints                | Status | Notes                                                                                                 |
 | ------------------ | --------- | ------------------------ | ------ | ----------------------------------------------------------------------------------------------------- |
 | TopicPools         | 19        | 11 (`Topics`)            | ✅     | Pool CRUD, registration lifecycle (request/confirm/reject/cancel + note-attachment), mentor topic update/resubmit; registration notifications & real-time |
-| Evaluations        | 19+       | 9 (`Evaluations`)        | ✅     | Evaluator self-service (submit, history, filter-options, projects, review, similarity) + dept-head management (evaluators, assign-evaluator, final-decision). Checklist scoring (`Score`, `MaxScore`, `PassScore`, `Comment` on `ChecklistResultItems`/`ChecklistCriteria`) and Excel import for checklist config are on `feature/evaluation-checklist` (not yet merged). |
-| StudentGroups      | 37        | 13 (`Groups`)            | ✅     | Create/invite/join + bulk-approve/reject join requests + invitable-students picker (`/api/groups`) |
+| Evaluations        | 19+       | 12 (`Evaluations`)       | ✅     | Evaluator self-service (submit, history, filter-options, projects, review, similarity) + dept-head management (evaluators, assign-evaluator, final-decision) + 3 checklist routes (`ChecklistEndpoints`). Submissions carry `PhaseId`. |
+| EvaluationChecklists | 13      | 8 (`/api/checklist-configs`) | ✅ | Checklist config CRUD + Excel import/preview + copy + activate/deactivate; per-project checklist scoring (`Score`, `MaxScore`, `PassScore`, `Comment`). Merged 2026-07-23. |
+| StudentGroups      | 37        | 13 (`Groups`)            | ✅     | Create/invite/join + bulk-approve/reject join requests + invitable-students picker (`/api/groups`). Code/Name are server-generated (`{SemesterCode}-SE_NN` / `SE_NN`); the create payload's `name` is stored as the optional `DisplayName` nickname |
 | Supports           | 20        | 6 (`SupportTickets`)     | ✅     | Support tickets (stats, list, detail, create, reply, status) — full event-handler coverage for all ticket lifecycle events |
 | Semesters          | 15+       | 16 (`Semesters`)         | ✅     | Semester + phase lifecycle + full roster: `eligible-students`, `eligible-mentors`, `import`, `bulk-delete`, `major-update`, `roster/publish`; roster-published event handlers live |
 | DirectTopics       | 14        | 5 (`DirectTopics`)       | ✅     | Student-initiated topic flow + mentor review/modification-request — all three event handlers wired (`Submitted`, `MentorApproved`, `MentorRequestedModification`) |
 | Dashboard          | 9         | 4 (`Dashboard`)          | ✅     | Per-role dashboards unified: `/api/dashboard/{admin,mentor,department-head,evaluator}` |
 | Notifications      | 9         | 5 (`Notifications`)      | ✅     | Notification management (list, unread-count, mark-read, mark-all-read) + SignalR |
 | Topics             | 7         | 4 (`Topics`)             | ✅     | Topic catalog: list, mentor topics (`/api/topics/mentor`), detail, documents |
-| Projects           | 3+        | 3 (`Projects`)           | ✅     | Admin project list, dept-head department projects, **mentor supervised projects** (`/api/projects/supervised`) |
+| Projects           | 3+        | 4 (`Projects`)           | ✅     | Admin project list, dept-head department projects, **mentor supervised projects** (`/api/projects/supervised`), **per-project audit trail** (`GET /api/projects/{id}/audit-logs`) |
 | Users              | 7+        | 6 (`Users`)              | ✅     | List + lock/unlock + assign-department-head + **`GET /api/users/me`** (GetMyProfile) + **`PUT /api/users/me`** (UpdateMyProfile) |
 | ActivityLogs       | —         | 5 (`ActivityLogs`)       | ✅     | Activity/error logs (`/api/activity-logs`). Admin SPA page has tabbed view (activity / error), filters by role/feature/status, pagination, and clear-log action. |
 | Settings           | 13        | 5 (`Settings`)           | ✅     | `SystemConfiguration` store + cache; admin GET/PUT settings, public branding, logo upload, test email |
@@ -74,14 +80,15 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | Email (SMTP)                     | ✅     | `SmtpEmailService` (MailKit) + HTML templates (`EmailTemplateService`) + email settings toggle (`EmailOnEvaluationResult`) |
 | Batch email (roster publish)     | ✅     | `SendEligibleStudentEmailsJob` enqueued by `EnqueueStudentEmailsOnRosterPublishedHandler` |
 | File storage                     | ✅     | `FirebaseStorageService`                                                                                    |
-| Excel export                     | 🚧     | `ExcelService` registered; no Reports feature/endpoints consuming it yet                                    |
+| Excel import/export              | 🚧     | `ExcelService` consumed by semester roster import and checklist-config import/preview. No Reports feature/endpoints yet |
 | PDF reports                      | ❌     | Not implemented                                                                                             |
 | Attachment malware scan (ClamAV) | ✅     | Scan workflow + quarantine; degrades gracefully to "unavailable" if ClamAV unreachable                      |
 | Upload hardening                 | ✅     | 25 MB limit, request timeout, sliding-window rate limiter on propose-topic upload                           |
 | System settings store            | ✅     | `SystemConfiguration` + `ISystemSettingsService` (cached); admin CRUD + anonymous public-settings endpoint  |
 | Branding (system-wide)           | ✅     | Primary color / header name / logo stored server-side and applied for all users at startup                  |
 | Maintenance mode                 | ✅     | `MaintenanceModeMiddleware` returns 503 to non-admins when enabled (allowlists auth/public-settings/health) |
-| Logging / audit (MongoDB)        | ✅     | Consolidated into two collections: `activity_logs` (all command/action audit via `IActivityLogRepository`) + `error_logs`. Former `user_activity_logs`, `system_audit_logs`, `evaluation_logs`, `project_modifications`, `request_logs` removed. |
+| Logging / audit (MongoDB)        | ✅     | Three collections: `activity_logs` (request-scoped command audit via `IActivityLogRepository`), `error_logs`, and `system_audit_logs` (per-entity audit trail via `ISystemAuditLogWriteService`). Former `user_activity_logs`, `evaluation_logs`, `project_modifications`, `request_logs` removed. |
+| Group member uniqueness          | ✅     | Filtered unique index on `GroupMembers (GroupId, StudentId) WHERE Status = Active` — a student cannot hold two active memberships in the same group (`AddGroupMemberUniqueActiveIndex`) |
 | Health checks                    | 🚧     | `sqlserver` + `mongodb` registered; **Redis health check is a `TODO` stub**                                 |
 | User profile endpoints           | ✅     | `GET /api/users/me` + `PUT /api/users/me`; fields: PhoneNumber, BirthDate, PrivacySettings                 |
 | Students / Lecturers tables      | ✅     | Schema refactored: `Students (Id PK+FK, StudentCode, ProgramId, ComboId)` và `Lecturers (Id PK+FK, EmployeeCode, AcademicTitle)` tách khỏi `Users`; navigation props `User.Student?` / `User.Lecturer?` loaded via EF LEFT JOIN |
@@ -114,7 +121,7 @@ Job scheduling is centralized in `Infrastructure/BackgroundJobs/Scheduling/Recur
 
 | Subfolder | Handlers |
 |---|---|
-| `Project/` | `ProjectCreatedEventHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier`, `ProjectChecklistSavedRealtimeHandler` (on `feature/evaluation-checklist`) |
+| `Project/` | `ProjectCreatedEventHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier`, `ProjectChecklistSavedRealtimeHandler` |
 | `Group/` | `GroupCreatedEventHandler`, `MemberInvitedEventHandler`, `InvitationAcceptedEventHandler`, `InvitationRejectedEventHandler`, `JoinRequestedEventHandler`, `JoinRequestApprovedEventHandler`, `JoinRequestRejectedEventHandler`, `MemberAddedEventHandler`, `MemberRemovedEventHandler` |
 | `Evaluation/` | `EvaluationAssignedEventHandler`, `EvaluatorAssignedToProjectEventHandler`, `EvaluatorSubmittedResultEventHandler`, `EvaluationCompletedEventHandler`, `EvaluationCancelledEventHandler`, `DepartmentHeadFinalDecisionEventHandler` |
 | `DirectTopic/` | `ProjectSubmittedToMentorEventHandler`, `ProjectMentorApprovedEventHandler`, `ProjectMentorRequestedModificationEventHandler` |
@@ -141,7 +148,6 @@ These handlers are wired into the event pipeline but currently no-op on the noti
 - **Real-time chat** — hub, repositories, and Mongo documents exist, but no `Chats` Application feature or endpoints to expose conversations/messages.
 - **Meetings** — feature and endpoint folders are empty; `MeetingReminderJob` is stubbed pending this.
 - **Defense schedule** — no aggregate/feature wired; `DefenseScheduleReminderJob` is stubbed.
-- **Evaluation checklist scoring** — `feature/evaluation-checklist` branch adds score columns to `ChecklistResultItems`/`ChecklistCriteria`, Excel import for checklist config, per-evaluator checklist view endpoint, and `ProjectChecklistSavedRealtimeHandler`. Not yet merged to dev.
 - **Reminder jobs** (`EvaluationReminderJob`, `DataCleanupJob`) are scheduled but empty — they run on cron but do nothing yet.
 - **TopicPool notification stubs** (2 above) need their notification bodies implemented.
 - **Redis health check** is a `TODO`; only SQL Server and MongoDB are health-checked.
