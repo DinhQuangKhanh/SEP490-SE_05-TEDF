@@ -54,30 +54,32 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         => await _groupRepository.GetActiveGroupIdsWithoutProjectAsync(semesterId, ct);
 
     // ── Write operations ──
-    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken ct = default)
+    // Parameter is spelled out to match IStudentGroupsDomainService; the rest of this file still
+    // uses the shorter `ct`, which predates that convention.
+    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default)
     {
-        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, ct)
+        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, cancellationToken)
             ?? throw new BusinessRuleValidationException("No next semester found.");
 
-        if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, ct))
+        if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student is already in an active group next semester.");
 
-        if (await _groupRepository.HasPendingJoinRequestAsync(studentId, nextSemester.Id, ct))
+        if (await _groupRepository.HasPendingJoinRequestAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student has a pending join request and cannot create a new group yet.");
 
         // Numbering is per semester, so the code prefix and the sequence must come from the same
         // semester the group is being created in — not from the calendar year.
-        var seq = await _groupRepository.GetNextSequenceAsync(nextSemester.Id, ct);
+        var seq = await _groupRepository.GetNextSequenceAsync(nextSemester.Id, cancellationToken);
         var code = GroupCode.Generate(nextSemester.Code.Value, seq);
 
-        var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, ct);
+        var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, cancellationToken);
         var group = Group.Create(code, nextSemester.Id, studentId, displayName, maxMembers);
 
-        await _groupRepository.AddAsync(group, ct);
+        await _groupRepository.AddAsync(group, cancellationToken);
 
         try
         {
-            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex, "IX_Groups_Code"))
         {

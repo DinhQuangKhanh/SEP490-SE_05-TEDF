@@ -449,7 +449,9 @@ public static class LoadTestDataSeeder
 
         foreach (var l in lecturers)
             await context.Database.ExecuteSqlRawAsync(
-                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle);
+                // DBNull, not null: the params array is object[], so a null element would be a
+                // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
+                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle ?? DBNull.Value);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -744,6 +746,27 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  GROUPS (50 Fall25 + 40 Spring26 + 15 Summer26 = 105 groups)
     // ════════════════════════════════════════════════
+
+    /// <summary>
+    /// Column list shared by both Groups inserts (bulk load-test groups and the real Summer 2026
+    /// groups). Kept in one place so the two cannot drift — adding DisplayName previously required
+    /// editing two separate statements.
+    /// </summary>
+    private const string GroupsInsertColumns =
+        "Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt";
+
+    [SuppressMessage("Security Hotspot", "S2077:Formatting SQL queries is security-sensitive",
+        Justification = "Internal load-test seeder. Only the static column list and @p parameter " +
+            "placeholders built by the callers are interpolated; every value is supplied through " +
+            "the parameters array. No user input is involved, so it is not injectable.")]
+    private static Task InsertGroupsAsync(AppDbContext context, List<string> valueClauses, List<object> parameters)
+    {
+        var sql = $@"
+            INSERT INTO Groups ({GroupsInsertColumns})
+            VALUES {string.Join(",\n                   ", valueClauses)};";
+
+        return context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+    }
     private static async Task SeedGroupsAsync(AppDbContext context, ILogger? logger)
     {
         var totalGroups = Fall25GroupCount + Spring26GroupCount + Summer26GroupCount;
@@ -805,11 +828,7 @@ public static class LoadTestDataSeeder
                 parameters.Add(!isFall && !isSpring); // Only Summer groups are open for requests
             }
 
-            var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
-                VALUES {string.Join(",\n                       ", valueClauses)};";
-
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+            await InsertGroupsAsync(context, valueClauses, parameters);
         }
 
         logger?.LogInformation("Seeded {Count} load-test groups.", totalGroups);
@@ -1063,10 +1082,7 @@ public static class LoadTestDataSeeder
                 parameters.Add(SeedDate);
             }
 
-            var sql = $@"
-                INSERT INTO Groups (Id, Code, Name, DisplayName, ProjectId, SemesterId, LeaderId, Status, MaxMembers, IsOpenForRequests, CreatedAt, UpdatedAt)
-                VALUES {string.Join(",\n                       ", values)};";
-            await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
+            await InsertGroupsAsync(context, values, parameters);
         }
 
         // 4) Group members (Role: 0 = Leader for the first, 1 = Member otherwise)

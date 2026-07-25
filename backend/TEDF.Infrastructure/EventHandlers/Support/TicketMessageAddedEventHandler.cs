@@ -72,11 +72,7 @@ public class TicketMessageAddedEventHandler : INotificationHandler<TicketMessage
         else
         {
             var reporter = await _userRepository.GetByIdAsync(recipientId, cancellationToken);
-            var reporterTargetUrl = reporter is not null && reporter.HasRole(DomainRoleIds.Student)
-                ? "/student/support"
-                : reporter is not null && reporter.HasRole(DomainRoleIds.Admin)
-                    ? "/admin/support"
-                    : "/lecturer/support";
+            var reporterTargetUrl = ResolveSupportUrl(reporter);
 
             await _notificationService.SendAsync(
                 recipientId,
@@ -87,5 +83,18 @@ public class TicketMessageAddedEventHandler : INotificationHandler<TicketMessage
                 reporterTargetUrl,
                 cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Support page the ticket reporter should land on. Falls back to the lecturer page, which is
+    /// where mentors and evaluators live and is also the safest default for an unknown reporter.
+    /// </summary>
+    // Fully qualified: the sibling EventHandlers.User namespace shadows the aggregate name here.
+    private static string ResolveSupportUrl(TEDF.Domain.Aggregates.UserAggregate.User? reporter)
+    {
+        if (reporter is null) return "/lecturer/support";
+        if (reporter.HasRole(DomainRoleIds.Student)) return "/student/support";
+        if (reporter.HasRole(DomainRoleIds.Admin)) return "/admin/support";
+        return "/lecturer/support";
     }
 }
