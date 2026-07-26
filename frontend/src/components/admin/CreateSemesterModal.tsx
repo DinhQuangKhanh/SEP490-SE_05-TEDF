@@ -44,12 +44,18 @@ function loadDraft() {
 
 type SemesterTerm = "Spring" | "Summer" | "Fall";
 
+/** Lowercase keyword → canonical term; the keys mirror the alternatives in the parser's regex. */
+const TERM_BY_KEYWORD: Record<string, SemesterTerm> = {
+  spring: "Spring",
+  summer: "Summer",
+  fall: "Fall",
+};
+
 /** Parses a semester name into a term + year, e.g. "Summer 2027" → { Summer, 2027 }. */
 function parseSemesterTerm(raw: string): { term: SemesterTerm; year: number; key: string } | null {
   const m = /\b(spring|summer|fall)\b\s*'?(\d{4})/i.exec(raw.trim());
   if (!m) return null;
-  const lower = m[1].toLowerCase();
-  const term: SemesterTerm = lower === "spring" ? "Spring" : lower === "summer" ? "Summer" : "Fall";
+  const term = TERM_BY_KEYWORD[m[1].toLowerCase()];
   const year = Number(m[2]);
   if (year < 2000 || year > 2100) return null;
   return { term, year, key: `${term}-${year}` };
@@ -408,6 +414,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
               <div className="flex items-center gap-2">
                 {hasDraft && !success && (
                   <button
+                    type="button"
                     onClick={handleClearDraft}
                     className="px-2 py-1 text-xs text-red-500 transition-colors rounded hover:text-red-700 hover:bg-red-50"
                     title="Xóa toàn bộ dữ liệu đã nhập"
@@ -416,6 +423,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={handleDismiss}
                   className="p-1 transition-colors rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                 >
@@ -471,7 +479,9 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     {autoFilledKey && parseSemesterTerm(name)?.key === autoFilledKey ? (
                       <p className="mt-1.5 flex items-start gap-1 text-[11px] text-emerald-600">
                         <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                        Đã tự động điền lịch theo <span className="font-semibold">{name.trim()}</span>. Bạn có thể chỉnh lại bên dưới.
+                        <span>
+                          Đã tự động điền lịch theo <span className="font-semibold">{name.trim()}</span>. Bạn có thể chỉnh lại bên dưới.
+                        </span>
                       </p>
                     ) : (
                       <p className="mt-1.5 text-[11px] text-slate-400">
@@ -594,12 +604,14 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
               {success && createdId != null ? (
                 <>
                   <button
+                    type="button"
                     onClick={handleDismiss}
                     className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800"
                   >
                     Đóng
                   </button>
                   <button
+                    type="button"
                     onClick={goToRoster}
                     className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90"
                   >
@@ -610,6 +622,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
               ) : (
                 <>
                   <button
+                    type="button"
                     onClick={handleDismiss}
                     disabled={isSubmitting}
                     className="px-4 py-2 text-sm font-semibold transition-colors text-slate-600 hover:text-slate-800 disabled:opacity-50"
@@ -617,6 +630,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     Hủy bỏ
                   </button>
                   <button
+                    type="button"
                     onClick={handleSubmit}
                     disabled={isSubmitting}
                     className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white transition-all rounded-md shadow-lg bg-primary shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"

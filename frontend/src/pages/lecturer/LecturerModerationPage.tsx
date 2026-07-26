@@ -223,6 +223,7 @@ export function LecturerModerationPage() {
               </div>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={handleDownload}
                   className="p-2 rounded-lg hover:bg-gray-100 text-slate-500 transition-colors"
                   title="Tải xuống CSV"
@@ -230,6 +231,7 @@ export function LecturerModerationPage() {
                   <span className="material-symbols-outlined text-[20px]">download</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handlePrint}
                   className="p-2 rounded-lg hover:bg-gray-100 text-slate-500 transition-colors"
                   title="In"
@@ -340,6 +342,7 @@ export function LecturerModerationPage() {
                           </td>
                           <td className="px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-blue-50/30 transition-colors shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.05)]">
                             <button
+                              type="button"
                               onClick={() => handleRowAction(project)}
                               className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors whitespace-nowrap"
                             >

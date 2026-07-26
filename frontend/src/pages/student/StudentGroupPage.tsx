@@ -48,6 +48,7 @@ export function StudentGroupPage() {
         <div className="flex gap-1">
           {tabs.map((tab) => (
             <button
+              type="button"
               key={tab.key}
               onClick={() => navigate(tab.key === "my-group" ? "/student/groups" : `/student/groups/${tab.key}`)}
               className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
@@ -344,6 +345,7 @@ function MyGroupContent() {
             </div>
 
             <button
+              type="button"
               onClick={handleCreateGroup}
               disabled={creatingGroup || !!pendingJoinRequest}
               className="w-full px-6 py-3 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
@@ -401,6 +403,7 @@ function MyGroupContent() {
           </div>
 
           <button
+            type="button"
             onClick={() => setShowInviteModal(true)}
             className="w-full px-4 py-3 font-semibold text-blue-700 transition rounded-lg bg-blue-50 hover:bg-blue-100"
           >
@@ -456,6 +459,7 @@ function MyGroupContent() {
               {selectedJoinRequests.size > 0 && (
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     disabled={bulkProcessing}
                     onClick={handleBulkRejectRequests}
                     className="px-3 py-1.5 text-sm font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100 disabled:opacity-50"
@@ -463,6 +467,7 @@ function MyGroupContent() {
                     Từ chối đã chọn ({selectedJoinRequests.size})
                   </button>
                   <button
+                    type="button"
                     disabled={bulkProcessing}
                     onClick={handleBulkApproveRequests}
                     className="px-3 py-1.5 text-sm font-semibold text-green-700 transition rounded-lg bg-green-50 hover:bg-green-100 disabled:opacity-50"
@@ -497,12 +502,14 @@ function MyGroupContent() {
                     </div>
                     <div className="flex justify-end gap-2">
                     <button
+                      type="button"
                       onClick={() => handleRejectRequest(request.id)}
                       className="px-4 py-2 text-sm font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100"
                     >
                       Từ chối
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleApproveRequest(request.id)}
                       className="px-4 py-2 text-sm font-semibold text-green-700 transition rounded-lg bg-green-50 hover:bg-green-100"
                     >
@@ -578,12 +585,14 @@ function MyGroupContent() {
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={closeInviteModal}
                 className="flex-1 px-4 py-2 font-semibold text-gray-700 transition bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleInviteMember}
                 disabled={!inviteData.studentCode || inviting}
                 className="flex-1 px-4 py-2 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
@@ -762,6 +771,7 @@ function OpenGroupsContent() {
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
               className="absolute text-gray-400 -translate-y-1/2 right-3 top-1/2 hover:text-gray-600"
             >
@@ -853,6 +863,7 @@ function OpenGroupsContent() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-8">
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="px-3 py-2 text-sm font-medium transition border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -861,6 +872,7 @@ function OpenGroupsContent() {
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
+                  type="button"
                   key={page}
                   onClick={() => setCurrentPage(page)}
                   className={`w-10 h-10 rounded-lg text-sm font-medium transition ${
@@ -871,6 +883,7 @@ function OpenGroupsContent() {
                 </button>
               ))}
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="px-3 py-2 text-sm font-medium transition border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -896,7 +909,7 @@ function OpenGroupsContent() {
                 </h3>
                 <p className="text-sm text-gray-500">Mã nhóm: {selectedGroup.groupCode}</p>
               </div>
-              <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-gray-600">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -949,6 +962,7 @@ function OpenGroupsContent() {
                     </div>
                     <div className="flex gap-3">
                       <button
+                        type="button"
                         onClick={() => handleRespondInvitation(selectedGroup.groupId, invitation.id, false)}
                         disabled={respondingInvite}
                         className="flex-1 px-4 py-3 font-semibold text-red-700 transition border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
@@ -956,6 +970,7 @@ function OpenGroupsContent() {
                         {respondingInvite ? "Đang xử lý..." : "Từ chối"}
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleRespondInvitation(selectedGroup.groupId, invitation.id, true)}
                         disabled={respondingInvite}
                         className="flex-1 px-4 py-3 font-semibold text-white transition bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
@@ -968,6 +983,7 @@ function OpenGroupsContent() {
               }
               return (
                 <button
+                  type="button"
                   onClick={() => {
                     setShowDetailModal(false);
                     if (!pendingJoinRequest && !hasGroupInCurrentSemester) {
@@ -1011,6 +1027,7 @@ function OpenGroupsContent() {
 
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setShowRequestModal(false);
                   setRequestMessage("");
@@ -1021,6 +1038,7 @@ function OpenGroupsContent() {
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleRequestJoin}
                 disabled={requesting}
                 className="flex-1 px-4 py-2 font-semibold text-white transition rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50"
@@ -1193,6 +1211,7 @@ function InvitationsContent() {
                     {!isExpired(invitation) ? (
                       <div className="flex gap-3">
                         <button
+                          type="button"
                           onClick={() => handleReject(invitation.groupId, invitation.id)}
                           disabled={acting === invitation.id}
                           className="flex-1 px-4 py-2 font-semibold text-red-700 transition border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
@@ -1200,6 +1219,7 @@ function InvitationsContent() {
                           {acting === invitation.id ? "Đang xử lý..." : "Từ chối"}
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleAccept(invitation.groupId, invitation.id)}
                           disabled={acting === invitation.id}
                           className="flex-1 px-4 py-2 font-semibold text-white transition bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"

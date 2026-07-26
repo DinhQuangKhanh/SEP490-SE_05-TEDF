@@ -358,6 +358,7 @@ function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
             {props.variant === "pending"
               ? isLeader && (
                   <button
+                    type="button"
                     onClick={props.onCancel}
                     disabled={props.cancelling}
                     className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
@@ -373,6 +374,7 @@ function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
               : (
                 <div className="flex flex-col gap-2 shrink-0">
                   <button
+                    type="button"
                     onClick={props.onBrowsePool}
                     className="px-4 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
                   >
@@ -380,6 +382,7 @@ function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
                   </button>
                   {isLeader && (
                     <button
+                      type="button"
                       onClick={props.onProposeNew}
                       className="px-4 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
                     >
@@ -555,7 +558,7 @@ export function StudentMyTopicPage() {
     // The status badge, action buttons and feedback banner read from myGroup.projectStatus —
     // update it live from the payload so the page reflects the mentor's decision without a reload.
     setMyGroup((prev) =>
-      prev && prev.projectId === payload.projectId ? { ...prev, projectStatus: payload.newStatus } : prev,
+      prev?.projectId === payload.projectId ? { ...prev, projectStatus: payload.newStatus } : prev,
     );
     // Refetch detail so the mentor's modification note (and any edited content) shows immediately.
     topicService
@@ -732,6 +735,7 @@ export function StudentMyTopicPage() {
             <p className="text-[#101319] font-bold text-lg">Bạn chưa tham gia nhóm nào</p>
             <p className="text-[#58698d] text-sm">Tham gia hoặc tạo nhóm để được gán đề tài.</p>
             <button
+              type="button"
               onClick={() => navigate("/student/groups")}
               className="px-5 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
             >
@@ -776,6 +780,7 @@ export function StudentMyTopicPage() {
               </p>
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => navigate("/student/topics")}
                   className="px-5 py-2 text-sm font-bold text-white transition-colors rounded-lg bg-primary hover:bg-primary-light"
                 >
@@ -783,6 +788,7 @@ export function StudentMyTopicPage() {
                 </button>
                 {isLeader && (
                   <button
+                    type="button"
                     onClick={() => setShowCreateForm(true)}
                     className="px-5 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-1.5"
                   >
@@ -854,6 +860,7 @@ export function StudentMyTopicPage() {
                         (myGroup.projectStatus === "Draft" || myGroup.projectStatus === "NeedsModification") && (
                           <>
                             <button
+                              type="button"
                               onClick={async () => {
                                 if (!myGroup.projectId) return;
                                 setSubmittingToMentor(true);
@@ -884,6 +891,7 @@ export function StudentMyTopicPage() {
                             </button>
                             {myGroup.projectStatus === "NeedsModification" && (
                               <button
+                                type="button"
                                 onClick={() => setShowEditForm(true)}
                                 className="ml-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-bold hover:bg-amber-600 transition-colors flex items-center gap-1.5"
                               >
@@ -1127,6 +1135,7 @@ export function StudentMyTopicPage() {
                                 <p className="text-[10px] text-[#58698d]">{formatFileSize(file.size)}</p>
                               </div>
                               <button
+                                type="button"
                                 onClick={() => removePendingFile(idx)}
                                 className="text-gray-400 transition-colors hover:text-red-500 shrink-0"
                               >
@@ -1183,6 +1192,7 @@ export function StudentMyTopicPage() {
                     {/* Upload button */}
                     {pendingFiles.length > 0 && (
                       <button
+                        type="button"
                         onClick={handleUpload}
                         disabled={uploading}
                         className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"

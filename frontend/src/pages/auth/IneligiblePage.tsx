@@ -36,6 +36,7 @@ export function IneligiblePage() {
           Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ quản trị viên hoặc giáo vụ.
         </p>
         <button
+          type="button"
           onClick={logout}
           className="flex items-center justify-center w-full gap-2 px-4 py-2.5 mt-6 text-sm font-bold text-white transition-colors rounded-md bg-primary hover:bg-primary/90"
         >

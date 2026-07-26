@@ -8,10 +8,11 @@ import { dashboardService, projectService } from "@/lib";
 import type {
   DepartmentHeadDashboardData,
   DepartmentHeadStats,
+  DepartmentProject,
+  DepartmentProjectsResponse,
   EvaluationProgress,
   SemesterProgressInfo,
 } from "@/types";
-import type { DepartmentProject, DepartmentProjectsResponse } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,12 +53,12 @@ function DonutChart({
   total,
   centerLabel,
   size = 160,
-}: {
+}: Readonly<{
   segments: { label: string; value: number; color: string }[];
   total: number;
   centerLabel?: string;
   size?: number;
-}) {
+}>) {
   const gradient = (() => {
     if (total === 0) return "conic-gradient(#e2e8f0 0deg 360deg)";
     let cumulative = 0;
@@ -105,9 +106,9 @@ function DonutChart({
 
 function HorizontalBar({
   items,
-}: {
+}: Readonly<{
   items: { label: string; value: number; color: string }[];
-}) {
+}>) {
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
     <div className="space-y-3">
@@ -140,13 +141,13 @@ function StatCard({
   icon,
   gradient,
   subtitle,
-}: {
+}: Readonly<{
   label: string;
   value: number | string;
   icon: string;
   gradient: string;
   subtitle?: string;
-}) {
+}>) {
   return (
     <motion.div
       variants={item}
@@ -176,11 +177,11 @@ function ProgressRing({
   percentage,
   label,
   color = "var(--color-primary)",
-}: {
+}: Readonly<{
   percentage: number;
   label: string;
   color?: string;
-}) {
+}>) {
   const r = 52;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - percentage / 100);
@@ -228,11 +229,11 @@ function TopicStatistics({
   stats,
   evalProgress,
   projects,
-}: {
+}: Readonly<{
   stats: DepartmentHeadStats | undefined;
   evalProgress: EvaluationProgress | undefined;
   projects: DepartmentProject[];
-}) {
+}>) {
   const statusSegments = [
     { label: "Đã duyệt", value: evalProgress?.approved ?? 0, color: "#10b981" },
     { label: "Từ chối", value: evalProgress?.rejected ?? 0, color: "#f43f5e" },
@@ -329,7 +330,7 @@ function TopicStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               pie_chart
-            </span>
+            </span>{" "}
             Phân bổ trạng thái đề tài
           </h3>
           <DonutChart
@@ -347,7 +348,7 @@ function TopicStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               category
-            </span>
+            </span>{" "}
             Phân bổ theo nguồn đề tài
           </h3>
           <DonutChart
@@ -368,7 +369,7 @@ function TopicStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               school
-            </span>
+            </span>{" "}
             Phân bổ đề tài theo chuyên ngành
           </h3>
           <HorizontalBar items={byMajor} />
@@ -382,11 +383,11 @@ function EvaluationStatistics({
   stats,
   evalProgress,
   projects,
-}: {
+}: Readonly<{
   stats: DepartmentHeadStats | undefined;
   evalProgress: EvaluationProgress | undefined;
   projects: DepartmentProject[];
-}) {
+}>) {
   const totalEval =
     (evalProgress?.approved ?? 0) +
     (evalProgress?.rejected ?? 0) +
@@ -413,7 +414,7 @@ function EvaluationStatistics({
 
   // Evaluator workload from project data
   const evaluatorWorkload = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; submitted: number }>();
+    const map = new Map<string, { id: string; name: string; count: number; submitted: number }>();
     projects.forEach((p) => {
       p.evaluators.forEach((ev) => {
         const existing = map.get(ev.evaluatorId);
@@ -422,6 +423,7 @@ function EvaluationStatistics({
           if (ev.hasSubmitted) existing.submitted++;
         } else {
           map.set(ev.evaluatorId, {
+            id: ev.evaluatorId,
             name: ev.evaluatorName,
             count: 1,
             submitted: ev.hasSubmitted ? 1 : 0,
@@ -489,7 +491,7 @@ function EvaluationStatistics({
           <h3 className="flex items-center gap-2 mb-6 text-lg font-bold text-slate-800 self-start">
             <span className="material-symbols-outlined text-primary">
               donut_large
-            </span>
+            </span>{" "}
             Tiến độ hoàn thành
           </h3>
           <ProgressRing percentage={completionPct} label="Đề tài đã thẩm định" />
@@ -506,7 +508,7 @@ function EvaluationStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               analytics
-            </span>
+            </span>{" "}
             Kết quả thẩm định
           </h3>
           <DonutChart
@@ -527,12 +529,12 @@ function EvaluationStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               leaderboard
-            </span>
+            </span>{" "}
             Khối lượng công việc thẩm định viên
           </h3>
           <div className="space-y-3">
             {evaluatorWorkload.map((ev, idx) => (
-              <div key={idx} className="flex items-center gap-3">
+              <div key={ev.id} className="flex items-center gap-3">
                 <div className="flex items-center gap-2 w-44 shrink-0">
                   <div
                     className="flex items-center justify-center text-white rounded-lg size-8 text-xs font-bold shrink-0"
@@ -599,11 +601,11 @@ function SemesterStatistics({
   stats,
   semester,
   projects,
-}: {
+}: Readonly<{
   stats: DepartmentHeadStats | undefined;
   semester: SemesterProgressInfo | null | undefined;
   projects: DepartmentProject[];
-}) {
+}>) {
   // Group projects by semester
   const bySemester = useMemo(() => {
     const map = new Map<string, number>();
@@ -691,7 +693,7 @@ function SemesterStatistics({
           <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
             <span className="material-symbols-outlined text-primary">
               bar_chart
-            </span>
+            </span>{" "}
             Số lượng đề tài theo học kỳ
           </h3>
           <HorizontalBar items={bySemester} />
@@ -706,7 +708,7 @@ function SemesterStatistics({
         <h3 className="flex items-center gap-2 mb-5 text-lg font-bold text-slate-800">
           <span className="material-symbols-outlined text-primary">
             equalizer
-          </span>
+          </span>{" "}
           Tỷ lệ nguồn lực
         </h3>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -821,6 +823,7 @@ export function DepartmentHeadStatisticsPage() {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
+                type="button"
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   activeTab === tab.key

@@ -156,6 +156,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
               Đề tài đã được tạo. Hãy gửi cho giảng viên hướng dẫn để được xem xét và duyệt.
             </p>
             <button
+              type="button"
               onClick={() => onCreated()}
               className="px-8 py-3 text-sm font-semibold text-white transition-all shadow-lg rounded-xl bg-primary hover:bg-primary/90"
             >
@@ -171,6 +172,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
                 <p className="text-xs text-slate-500 mt-0.5">Điền thông tin để đề xuất đề tài cho nhóm</p>
               </div>
               <button
+                type="button"
                 onClick={() => onCancel()}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg"
               >
@@ -468,6 +470,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
               <div>
                 {step > 0 && (
                   <button
+                    type="button"
                     onClick={goPrev}
                     className="px-4 py-2.5 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all flex items-center gap-1"
                   >
@@ -478,6 +481,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
               </div>
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => onCancel()}
                   className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
                 >
@@ -485,6 +489,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
                 </button>
                 {step < STEPS.length - 1 ? (
                   <button
+                    type="button"
                     onClick={goNext}
                     disabled={loading || !canProceed()}
                     className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -494,6 +499,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleSubmit}
                     disabled={submitting}
                     className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
