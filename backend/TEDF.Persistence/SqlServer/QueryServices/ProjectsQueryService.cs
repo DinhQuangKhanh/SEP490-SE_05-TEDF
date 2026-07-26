@@ -360,12 +360,10 @@ public class ProjectsQueryService : IProjectsQueryService
 
     /// <inheritdoc />
     public async Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
-        Guid currentUserId, string? search, string? actions,
-        int? semesterId, DateTime? from, DateTime? to,
-        int page, int pageSize, CancellationToken cancellationToken = default)
+        Guid currentUserId, DepartmentAuditLogFilter filter, CancellationToken cancellationToken = default)
     {
-        page = page < 1 ? 1 : page;
-        pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var pageSize = filter.PageSize is < 1 or > 100 ? 10 : filter.PageSize;
 
         var departmentId = await _context.Users.AsNoTracking()
             .Where(u => u.Id == currentUserId)
@@ -386,14 +384,14 @@ public class ProjectsQueryService : IProjectsQueryService
                      where majorIds.Contains(project.MajorId)
                      select new { Log = log, Project = project };
 
-        if (semesterId.HasValue)
-            scoped = scoped.Where(x => x.Project.SemesterId == semesterId.Value);
+        if (filter.SemesterId.HasValue)
+            scoped = scoped.Where(x => x.Project.SemesterId == filter.SemesterId.Value);
 
-        if (from.HasValue)
-            scoped = scoped.Where(x => x.Log.Timestamp >= from.Value);
+        if (filter.From.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp >= filter.From.Value);
 
-        if (to.HasValue)
-            scoped = scoped.Where(x => x.Log.Timestamp <= to.Value);
+        if (filter.To.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp <= filter.To.Value);
 
         // Stats cover the semester/date scope but ignore the action and search filters, so the
         // cards stay stable while the action tabs drill into them.
@@ -416,13 +414,13 @@ public class ProjectsQueryService : IProjectsQueryService
             })
             .FirstOrDefaultAsync(cancellationToken) ?? new DepartmentAuditLogStatsDto();
 
-        var parsedActions = ParseActions(actions);
+        var parsedActions = ParseActions(filter.Actions);
         if (parsedActions.Count > 0)
             scoped = scoped.Where(x => parsedActions.Contains(x.Log.Action));
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var term = search.Trim();
+            var term = filter.Search.Trim();
             scoped = scoped.Where(x =>
                 x.Project.Code.Value.Contains(term) ||
                 x.Project.NameVi.Value.Contains(term) ||
@@ -494,8 +492,8 @@ public class ProjectsQueryService : IProjectsQueryService
     }
 
     // ── Audit metadata rendering ────────────────────────────────────────────────
-    // The interceptor writes raw ids (MentorId, EvaluatorId, ...) because they are stable;
-    // the reader needs names. Resolving happens here, in one batched lookup per query.
+    // The audit interceptor stores raw user ids because an id is stable while a name is not.
+    // The reader needs names, so they are resolved here in one batched lookup per query.
 
     /// <summary>Metadata keys holding a user id, mapped to the key their resolved name is written to.</summary>
     private static readonly Dictionary<string, string> UserIdMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -558,8 +556,8 @@ public class ProjectsQueryService : IProjectsQueryService
     /// Renders raw metadata for display: user ids become names, opaque ids are dropped and the
     /// remaining keys are camelCased so the client sees one naming convention.
     /// </summary>
-    private static IReadOnlyDictionary<string, object?>? RenderMetadata(
-        Dictionary<string, JsonElement>? metadata, IReadOnlyDictionary<Guid, string> userNames)
+    private static Dictionary<string, object?>? RenderMetadata(
+        Dictionary<string, JsonElement>? metadata, Dictionary<Guid, string> userNames)
     {
         if (metadata is null || metadata.Count == 0) return null;
 

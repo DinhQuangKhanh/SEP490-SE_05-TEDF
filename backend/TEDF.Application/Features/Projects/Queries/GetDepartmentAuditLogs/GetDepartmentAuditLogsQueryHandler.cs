@@ -22,9 +22,10 @@ public class GetDepartmentAuditLogsQueryHandler
         if (!_currentUser.IsAuthenticated || _currentUser.UserId is null)
             throw new UnauthorizedAccessException("User is not authenticated.");
 
-        return _projects.GetDepartmentAuditLogsAsync(
-            _currentUser.UserId.Value, request.Search, request.Actions,
-            request.SemesterId, request.From, request.To,
-            request.Page, request.PageSize, cancellationToken);
+        var filter = new DepartmentAuditLogFilter(
+            request.Search, request.Actions, request.SemesterId,
+            request.From, request.To, request.Page, request.PageSize);
+
+        return _projects.GetDepartmentAuditLogsAsync(_currentUser.UserId.Value, filter, cancellationToken);
     }
 }

@@ -427,7 +427,7 @@ export function ProjectAuditLogsPage() {
                   className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                  Xóa bộ lọc
+                  <span>Xóa bộ lọc</span>
                 </button>
               )}
 

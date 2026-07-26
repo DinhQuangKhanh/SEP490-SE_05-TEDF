@@ -1,4 +1,5 @@
 using MediatR;
+using TEDF.API.Endpoints.Projects.Requests;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentAuditLogs;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
@@ -71,9 +72,11 @@ public sealed class ProjectsEndpoints : IEndpoint
         => Ok(await sender.Send(new GetProjectAuditLogsQuery(id), ct));
 
     private static async Task<IResult> GetDepartmentAuditLogs(
-        ISender sender, string? search, string? actions,
-        int? semesterId, DateTime? from, DateTime? to,
-        int page = 1, int pageSize = 10, CancellationToken ct = default)
+        [AsParameters] GetDepartmentAuditLogsRequest request,
+        ISender sender,
+        CancellationToken ct = default)
         => Ok(await sender.Send(
-            new GetDepartmentAuditLogsQuery(search, actions, semesterId, from, to, page, pageSize), ct));
+            new GetDepartmentAuditLogsQuery(
+                request.Search, request.Actions, request.SemesterId,
+                request.From, request.To, request.Page, request.PageSize), ct));
 }
