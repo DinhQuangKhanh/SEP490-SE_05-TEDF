@@ -11,5 +11,19 @@ namespace TEDF.Domain.Constants
         public const string Student = "Student";
         public const string Evaluator = "Evaluator";
         public const string DepartmentHead = "DepartmentHead";
+
+        /// <summary>
+        /// Reverse of <see cref="DomainRoleIds.FromName"/>. Returns null for an id outside the five
+        /// seeded roles, so callers can fall back to the Roles table instead of guessing.
+        /// </summary>
+        public static string? FromId(int roleId) => roleId switch
+        {
+            DomainRoleIds.Admin => Admin,
+            DomainRoleIds.Mentor => Mentor,
+            DomainRoleIds.Student => Student,
+            DomainRoleIds.Evaluator => Evaluator,
+            DomainRoleIds.DepartmentHead => DepartmentHead,
+            _ => null
+        };
     }
 }

@@ -1,4 +1,4 @@
-﻿using TEDF.Domain.Aggregates.ProjectAggregate.Entities;
+using TEDF.Domain.Aggregates.ProjectAggregate.Entities;
 using TEDF.Domain.Aggregates.ProjectAggregate.Events;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
@@ -42,6 +42,8 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public DateTime? Deadline { get; private set; }
         public int EvaluationCount { get; private set; }
         public EvaluationResult? LastEvaluationResult { get; private set; }
+        /// <summary>The mentor's most recent modification request note, shown to the student. Cleared on resubmit/approve.</summary>
+        public string? MentorFeedback { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }
         public PoolTopicStatus? PoolStatus { get; private set; }
@@ -271,6 +273,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             Status = ProjectStatus.PendingMentorReview;
             SubmittedAt = DateTime.UtcNow;
             SubmittedBy = submittedBy;
+            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
         }
@@ -289,6 +292,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             Status = ProjectStatus.PendingMentorReview;
             SubmittedAt = DateTime.UtcNow;
             SubmittedBy = submittedBy;
+            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
         }
@@ -304,6 +308,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
 
             Status = ProjectStatus.PendingEvaluation;
             EvaluationCount++;
+            MentorFeedback = null; // approved; the modification note no longer applies
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectMentorApprovedEvent(Id, mentorId));
         }
@@ -319,6 +324,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
 
             Status = ProjectStatus.NeedsModification;
             LastEvaluationResult = EvaluationResult.NeedsModification;
+            MentorFeedback = feedback; // surfaced to the student on the my-topic page
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectMentorRequestedModificationEvent(Id, feedback));
         }
@@ -405,12 +411,13 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             return document;
         }
 
-        public void RemoveDocument(Guid documentId)
+        public void RemoveDocument(Guid documentId, Guid deletedBy)
         {
             var document = _documents.FirstOrDefault(d => d.Id == documentId && !d.IsDeleted)
                 ?? throw new EntityNotFoundException(nameof(Document), documentId);
             document.Delete();
             UpdatedAt = DateTime.UtcNow;
+            RaiseDomainEvent(new DocumentDeletedEvent(Id, documentId, deletedBy));
         }
 
         #endregion

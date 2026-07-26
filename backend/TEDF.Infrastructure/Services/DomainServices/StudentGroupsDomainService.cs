@@ -42,12 +42,6 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
     }
 
     // ── Helper queries ──
-    public async Task<string> GenerateGroupCodeAsync(int year, CancellationToken ct = default)
-    {
-        var sequence = await _groupRepository.GetNextSequenceAsync(year, ct);
-        return $"G-{year}-{sequence:D4}";
-    }
-
     public async Task<(bool CanJoin, string? Reason)> CanStudentJoinGroupAsync(Guid studentId, int semesterId, CancellationToken ct = default)
     {
         var isInActiveGroup = await _groupRepository.IsStudentInActiveGroupAsync(studentId, semesterId, ct);
@@ -60,29 +54,32 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         => await _groupRepository.GetActiveGroupIdsWithoutProjectAsync(semesterId, ct);
 
     // ── Write operations ──
-    public async Task<Guid> CreateGroupAsync(Guid studentId, string? name, CancellationToken ct = default)
+    // Parameter is spelled out to match IStudentGroupsDomainService; the rest of this file still
+    // uses the shorter `ct`, which predates that convention.
+    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default)
     {
-        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, ct)
+        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, cancellationToken)
             ?? throw new BusinessRuleValidationException("No next semester found.");
 
-        if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, ct))
+        if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student is already in an active group next semester.");
 
-        if (await _groupRepository.HasPendingJoinRequestAsync(studentId, nextSemester.Id, ct))
+        if (await _groupRepository.HasPendingJoinRequestAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student has a pending join request and cannot create a new group yet.");
 
-        var year = DateTime.UtcNow.Year;
-        var seq = await _groupRepository.GetNextSequenceAsync(year, ct);
-        var code = GroupCode.Generate(year, seq);
+        // Numbering is per semester, so the code prefix and the sequence must come from the same
+        // semester the group is being created in — not from the calendar year.
+        var seq = await _groupRepository.GetNextSequenceAsync(nextSemester.Id, cancellationToken);
+        var code = GroupCode.Generate(nextSemester.Code.Value, seq);
 
-        var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, ct);
-        var group = Group.Create(code, nextSemester.Id, studentId, name, maxMembers);
+        var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, cancellationToken);
+        var group = Group.Create(code, nextSemester.Id, studentId, displayName, maxMembers);
 
-        await _groupRepository.AddAsync(group, ct);
+        await _groupRepository.AddAsync(group, cancellationToken);
 
         try
         {
-            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex, "IX_Groups_Code"))
         {
@@ -99,6 +96,9 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
         var invitee = await _userRepository.GetByStudentCodeAsync(studentCode, ct)
             ?? throw new EntityNotFoundException("User", studentCode);
+
+        if (!await _semesterRepository.IsStudentEligibleAsync(invitee.Id, group.SemesterId, ct))
+            throw new BusinessRuleValidationException("Sinh viên này không đủ điều kiện làm đồ án trong học kỳ này.");
 
         if (await _groupRepository.IsStudentInActiveGroupAsync(invitee.Id, group.SemesterId, ct))
             throw new BusinessRuleValidationException("Sinh viên này đã có nhóm hoạt động trong học kỳ này.");
@@ -123,8 +123,14 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
 
     public async Task<int> RequestJoinAsync(Guid groupId, Guid studentId, string? message, CancellationToken ct = default)
     {
-        var group = await _groupRepository.GetWithJoinRequestsAsync(groupId, ct)
+        var group = await _groupRepository.GetWithJoinRequestsAndInvitationsAsync(groupId, ct)
             ?? throw new EntityNotFoundException(nameof(Group), groupId);
+
+        // If the group already invited this student, they should respond to the invitation, not
+        // send a competing join request.
+        if (group.Invitations.Any(i => i.IsPending && i.InviteeId == studentId))
+            throw new BusinessRuleValidationException(
+                "Nhóm này đã gửi lời mời cho bạn. Vui lòng phản hồi lời mời thay vì gửi yêu cầu tham gia.");
 
         if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, group.SemesterId, ct))
             throw new BusinessRuleValidationException("Bạn đã có nhóm hoạt động trong học kỳ này.");

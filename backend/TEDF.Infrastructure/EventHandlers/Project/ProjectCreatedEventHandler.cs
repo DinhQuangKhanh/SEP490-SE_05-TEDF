@@ -71,7 +71,7 @@ namespace TEDF.Infrastructure.EventHandlers.Project
                     $"Giảng viên {mentorName} đã đề xuất một đề tài mới: {project.NameVi.Value}.",
                     NotificationType.Info,
                     NotificationCategory.TopicPool,
-                    "/lecturer",
+                    "/lecturer/assign",
                     cancellationToken);
 
                 _logger.LogInformation(

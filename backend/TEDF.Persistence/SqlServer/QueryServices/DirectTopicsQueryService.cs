@@ -73,7 +73,7 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
                 mentor.Id,
                 mentor.FullName,
                 mentor.Email?.Value ?? "",
-                mentor.AcademicTitle,
+                mentor.Lecturer?.AcademicTitle,
                 activeCount + pendingPoolCount,
                 MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester));
         }

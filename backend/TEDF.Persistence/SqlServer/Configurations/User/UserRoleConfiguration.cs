@@ -1,12 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TEDF.Domain.Aggregates.UserAggregate.Entities;
+using TEDF.Domain.Entities;
 
 namespace TEDF.Persistence.SqlServer.Configurations.User
 {
-    /// <summary>
-    /// EF Core configuration for UserRole entity.
-    /// </summary>
     public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     {
         public void Configure(EntityTypeBuilder<UserRole> builder)
@@ -21,8 +19,7 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
             builder.Property(r => r.UserId)
                 .IsRequired();
 
-            builder.Property(r => r.RoleName)
-                .HasMaxLength(50)
+            builder.Property(r => r.RoleId)
                 .IsRequired();
 
             builder.Property(r => r.AssignedAt)
@@ -32,15 +29,18 @@ namespace TEDF.Persistence.SqlServer.Configurations.User
                 .IsRequired()
                 .HasDefaultValue(true);
 
-            // Indexes
+            // RoleName is a computed property, not stored in DB
+            builder.Ignore(r => r.RoleName);
+
             builder.HasIndex(r => r.UserId);
-
-            builder.HasIndex(r => new { r.UserId, r.RoleName })
-                .IsUnique();
-
-            builder.HasIndex(r => r.RoleName);
-
+            builder.HasIndex(r => new { r.UserId, r.RoleId }).IsUnique();
+            builder.HasIndex(r => r.RoleId);
             builder.HasIndex(r => r.IsActive);
+
+            builder.HasOne(r => r.Role)
+                .WithMany()
+                .HasForeignKey(r => r.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

@@ -14,5 +14,8 @@ namespace TEDF.Infrastructure.RealTime
         public const string NotificationRead = "NotificationRead";
         public const string NewMessage = "NewMessage";
         public const string UserTyping = "UserTyping";
+
+        /// <summary>An evaluator saved their topic-evaluation checklist for a project (payload: { projectId }).</summary>
+        public const string ChecklistUpdated = "ChecklistUpdated";
     }
 }

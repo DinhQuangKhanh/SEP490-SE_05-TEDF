@@ -9,8 +9,6 @@ using TEDF.Domain.Enums.Evaluation;
 using TEDF.Domain.Enums.Notification;
 using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
-using TEDF.Persistence.MongoDB.Documents;
-using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Infrastructure.EventHandlers.Evaluation
 {
@@ -21,7 +19,6 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
         private readonly IProjectEvaluatorAssignmentRepository _assignmentRepository;
         private readonly IUserRepository _userRepository;
         private readonly IDepartmentRepository _departmentRepository;
-        private readonly IEvaluationLogRepository _evaluationLogRepository;
         private readonly ISystemSettingsService _settings;
         private readonly ILogger<EvaluatorSubmittedResultEventHandler> _logger;
 
@@ -31,7 +28,6 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
             IProjectEvaluatorAssignmentRepository assignmentRepository,
             IUserRepository userRepository,
             IDepartmentRepository departmentRepository,
-            IEvaluationLogRepository evaluationLogRepository,
             ISystemSettingsService settings,
             ILogger<EvaluatorSubmittedResultEventHandler> logger)
         {
@@ -40,7 +36,6 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
             _assignmentRepository = assignmentRepository;
             _userRepository = userRepository;
             _departmentRepository = departmentRepository;
-            _evaluationLogRepository = evaluationLogRepository;
             _settings = settings;
             _logger = logger;
         }
@@ -49,16 +44,6 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
         {
             try
             {
-                // Log the evaluation submission
-                await _evaluationLogRepository.AddAsync(new EvaluationLogDocument
-                {
-                    ProjectId = notification.ProjectId,
-                    Action = EvaluationAction.Completed,
-                    Result = notification.Result,
-                    PerformedBy = notification.EvaluatorId,
-                    PerformedAt = DateTime.UtcNow
-                }, cancellationToken);
-
                 // Load project and assignments
                 var project = await _projectRepository.GetWithMentorsAsync(notification.ProjectId, cancellationToken);
                 if (project is null) return;
@@ -99,7 +84,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 {
                     // Evaluators disagree — CNBM must decide
                     await HandleConflictingResultsAsync(
-                        projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
+                        notification.ProjectId, projectName, mentorIds, evaluatorIds, departmentHeadId, cancellationToken);
                 }
 
                 _logger.LogInformation("Evaluation result submitted for project {ProjectId} by {EvaluatorId}: {Result}",
@@ -162,10 +147,9 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
         }
 
         private async Task HandleConflictingResultsAsync(
-            string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
+            Guid projectId, string projectName, List<Guid> mentorIds, List<Guid> evaluatorIds, Guid? departmentHeadId,
             CancellationToken ct)
         {
-            // Notify CNBM — they need to make a final decision
             if (departmentHeadId.HasValue)
             {
                 await _notificationService.SendAsync(
@@ -178,7 +162,6 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                     ct);
             }
 
-            // Notify evaluators and mentor
             var otherRecipients = new List<Guid>();
             otherRecipients.AddRange(mentorIds);
             otherRecipients.AddRange(evaluatorIds);
@@ -190,7 +173,7 @@ namespace TEDF.Infrastructure.EventHandlers.Evaluation
                 $"Kết quả thẩm định đề tài '{projectName}' đang chờ chủ nhiệm bộ môn quyết định.",
                 NotificationType.Info,
                 NotificationCategory.Evaluation,
-                "/lecturer/moderate",
+                $"/lecturer/moderate/{projectId}",
                 ct);
         }
 

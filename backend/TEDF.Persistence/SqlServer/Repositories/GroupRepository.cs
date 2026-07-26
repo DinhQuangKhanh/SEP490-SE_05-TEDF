@@ -51,24 +51,19 @@ namespace TEDF.Persistence.SqlServer.Repositories
             return await _dbSet.AnyAsync(g => g.Code == code, cancellationToken);
         }
 
-        public async Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default)
+        public async Task<int> GetNextSequenceAsync(int semesterId, CancellationToken cancellationToken = default)
         {
+            // IgnoreQueryFilters: a soft-deleted group still owns its code (the unique index does
+            // not filter), so its sequence must not be handed out twice.
             var codes = await _dbSet
-                .Where(g => g.CreatedAt.Year == year)
+                .IgnoreQueryFilters()
+                .Where(g => g.SemesterId == semesterId)
                 .Select(g => g.Code)
                 .ToListAsync(cancellationToken);
 
-            var prefix = $"G-{year}-";
-
-            var lastCode = codes
-                .Where(c => c.Value.StartsWith(prefix))
-                .OrderByDescending(c => c.Value)
-                .FirstOrDefault();
-
-            if (lastCode == null) return 1;
-
-            var sequencePart = lastCode.Value.Replace(prefix, "");
-            return int.TryParse(sequencePart, out var seq) ? seq + 1 : 1;
+            // Max, not last-by-string: "SE_100" sorts before "SE_99" lexicographically.
+            var maxSequence = codes.Count == 0 ? 0 : codes.Max(c => c.Sequence);
+            return maxSequence + 1;
         }
 
         public async Task<bool> IsStudentInActiveGroupAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)

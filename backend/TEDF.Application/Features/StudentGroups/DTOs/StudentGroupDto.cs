@@ -4,7 +4,12 @@ public record StudentGroupDto
 {
     public Guid GroupId { get; init; }
     public string GroupCode { get; init; } = null!;
+
+    /// <summary>Always SE_NN — the tail of <see cref="GroupCode"/>.</summary>
     public string? GroupName { get; init; }
+
+    /// <summary>Optional nickname the students chose; null when they never set one.</summary>
+    public string? GroupDisplayName { get; init; }
     public string GroupStatus { get; init; } = null!;
     public int MaxMembers { get; init; }
     public bool IsOpenForRequests { get; init; }

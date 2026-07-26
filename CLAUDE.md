@@ -57,7 +57,7 @@ npm run lint     # ESLint
 ## Infrastructure & services
 
 - **SQL Server** (EF Core) — transactional data (Users, Projects, Groups, Semesters, Evaluations...).
-- **MongoDB** (`TEDFLogs`) — chat, notifications, audit/activity logs (write-heavy).
+- **MongoDB** (`TEDFLogs`) — chat, notifications, audit/activity logs (write-heavy). Three logging collections: `activity_logs` (request-scoped user-action audit via `IActivityLogRepository`), `error_logs`, and `system_audit_logs` (per-entity audit trail via `ISystemAuditLogWriteService`, powering the project audit-log page). Four legacy collections were consolidated into the first two on 2026-07-19.
 - **Firebase Auth + JWT Bearer** — login via Firebase, the API issues a JWT (60 min) + refresh token (7 days). Five authorization handlers (Permission, ProjectOwner, GroupMember, MentorOfProject, SameDepartment).
 - **SignalR** — 2 hubs: `/hubs/chat`, `/hubs/notifications` (auth via `?access_token=`).
 - **Hangfire** — 7 recurring jobs (stored in SQL Server).
@@ -97,4 +97,5 @@ Branches: `main` (production), `dev` (integration), `feature/*`, `<developer-nam
 - **Windows + PowerShell**: use PowerShell syntax (`$env:VAR`, `$null`, backtick for line continuation), not bash.
 - The structure diagrams in `README.md`/`ARCHITECTURE.md` show the projects at the root, but in **reality** they live under `backend/` and `frontend/` — follow the actual layout when locating files.
 - Respect Clean Architecture boundaries: do not make the Domain depend on outer layers; do not call DbContext directly from the API.
-- Some features are still `// đang phát triển` (in development) — Reports PDF/Excel, Email, real-time Chat — verify status before assuming they are complete.
+- Some features are still `// đang phát triển` (in development) — Reports PDF/Excel, real-time Chat — verify status before assuming they are complete. Email (SMTP) is **implemented**.
+- **User schema (post-refactor):** Student-specific data lives in `Students` table (`StudentCode`, `ProgramId→Programs`, `ComboId→Combos`); lecturer-specific data in `Lecturers` (`EmployeeCode`, `AcademicTitle`). Both share PK with `Users`. Roles stored in normalized `Roles` lookup table; `UserRoles.RoleId int FK` replaces the old string `RoleName`. Use `User.Student?.StudentCode` / `User.Lecturer?.EmployeeCode` — never access flat columns that no longer exist on `User`.

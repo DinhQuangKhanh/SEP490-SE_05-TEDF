@@ -55,6 +55,9 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<int>("PhaseId")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -106,6 +109,9 @@ namespace TEDF.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int>("PhaseId")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -147,6 +153,207 @@ namespace TEDF.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EvaluationSubmissions", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RequiredPassCount")
+                        .HasColumnType("int")
+                        .HasColumnName("PassThreshold");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ChecklistConfigs_Active_Semester")
+                        .HasFilter("[Status] = 'Active'");
+
+                    b.HasIndex("SemesterId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ChecklistConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ChecklistConfigId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PassScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("TitleVi")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChecklistConfigId");
+
+                    b.ToTable("ChecklistCriteria", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChecklistCriteria_MaxScore", "[MaxScore] > 0");
+
+                            t.HasCheckConstraint("CK_ChecklistCriteria_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+                        });
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistResultItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("CriterionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsPassed")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PassScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid>("ProjectEvaluationChecklistId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("Score")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TitleVi")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectEvaluationChecklistId");
+
+                    b.ToTable("ChecklistResultItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChecklistResultItems_MaxScore", "[MaxScore] > 0");
+
+                            t.HasCheckConstraint("CK_ChecklistResultItems_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
+
+                            t.HasCheckConstraint("CK_ChecklistResultItems_Score", "[Score] IS NULL OR ([Score] >= 0 AND [Score] <= [MaxScore])");
+                        });
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ChecklistConfigId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EvaluatorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EvaluatorNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("PassedCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("RequiredPassCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SubmissionNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChecklistConfigId");
+
+                    b.HasIndex("EvaluatorId");
+
+                    b.HasIndex("ProjectId", "EvaluatorId", "SubmissionNumber")
+                        .IsUnique();
+
+                    b.ToTable("ProjectEvaluationChecklists", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.GroupAggregate.Entities.GroupInvitation", b =>
@@ -280,6 +487,11 @@ namespace TEDF.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
+                    b.HasIndex("GroupId", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_GroupMembers_GroupId_StudentId_Active")
+                        .HasFilter("[Status] = 0");
+
                     b.HasIndex("GroupId", "StudentId", "Status");
 
                     b.ToTable("GroupMembers", (string)null);
@@ -293,11 +505,15 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("IsOpenForRequests")
                         .HasColumnType("bit");
@@ -309,8 +525,9 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Name")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uniqueidentifier");
@@ -496,6 +713,9 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<int>("MaxStudents")
                         .HasColumnType("int");
+
+                    b.Property<string>("MentorFeedback")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NameAbbr")
                         .IsRequired()
@@ -1035,10 +1255,8 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
-                    b.Property<string>("RoleName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<int>("RoleId")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -1047,11 +1265,11 @@ namespace TEDF.Persistence.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("RoleName");
+                    b.HasIndex("RoleId");
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("UserId", "RoleName")
+                    b.HasIndex("UserId", "RoleId")
                         .IsUnique();
 
                     b.ToTable("UserRoles", (string)null);
@@ -1062,10 +1280,6 @@ namespace TEDF.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AcademicTitle")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(500)
@@ -1080,18 +1294,10 @@ namespace TEDF.Persistence.Migrations
                     b.Property<int?>("DepartmentId")
                         .HasColumnType("int");
 
-                    b.Property<string>("Division")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("EmployeeCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("FirebaseUid")
                         .IsRequired()
@@ -1106,12 +1312,6 @@ namespace TEDF.Persistence.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("MajorId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("MajorProgramId")
-                        .HasColumnType("int");
-
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -1121,10 +1321,6 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
-
-                    b.Property<string>("StudentCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1136,26 +1332,96 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("EmployeeCode")
-                        .IsUnique()
-                        .HasFilter("[EmployeeCode] IS NOT NULL");
-
                     b.HasIndex("FirebaseUid")
                         .IsUnique();
 
                     b.HasIndex("FullName");
 
-                    b.HasIndex("MajorId");
-
-                    b.HasIndex("MajorProgramId");
-
                     b.HasIndex("Status");
 
-                    b.HasIndex("StudentCode")
-                        .IsUnique()
-                        .HasFilter("[StudentCode] IS NOT NULL");
-
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.Combo", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Abbr")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Combos", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 340,
+                            Abbr = "JBE",
+                            Name = "SE_COM5.2: Topic on Japanese Bridge Engineer_Chủ đề Kỹ sư cầu nối Nhật Bản (Định hướng Tiếng Nhật nâng cao cho kỹ sư CNTT) BIT_SE_K15A"
+                        },
+                        new
+                        {
+                            Id = 402,
+                            Abbr = "KOR",
+                            Name = "SE_COM6: Topic on Information Technology - Korean Language_Chủ đề Công nghệ thông tin - tiếng Hàn BIT_SE_K15C"
+                        },
+                        new
+                        {
+                            Id = 1469,
+                            Abbr = "JFE",
+                            Name = "SE_COM5.1.1:Topic on Japanese Bridge Engineer_Chủ đề Kỹ sư cầu nối Nhật Bản (Định hướng Tiếng Nhật CNTT: Lựa chọn JFE301 và 1 trong 2 học phần JIS401, JIT401 để triển khai ở kỳ 8) BIT_SE_K15C"
+                        },
+                        new
+                        {
+                            Id = 2497,
+                            Abbr = "React",
+                            Name = "SE_COM4.1: Topic on React/NodeJS_Chủ đề React/NodeJS"
+                        },
+                        new
+                        {
+                            Id = 2566,
+                            Abbr = "AI",
+                            Name = "SE_COM7.1:Topic on AI_Chủ đề AI"
+                        },
+                        new
+                        {
+                            Id = 2605,
+                            Abbr = "IC",
+                            Name = "SE_COM11: Topic on IC design_Chủ đề Thiết kế vi mạch"
+                        },
+                        new
+                        {
+                            Id = 2628,
+                            Abbr = "Game",
+                            Name = "SE_COM12: Topic on Game Development_Phát triển game"
+                        },
+                        new
+                        {
+                            Id = 2640,
+                            Abbr = "Java",
+                            Name = "SE_COM10.2: Topic on Intensive Java_Chủ đề Java chuyên sâu_K19A"
+                        },
+                        new
+                        {
+                            Id = 2675,
+                            Abbr = "DS",
+                            Name = "SE_COM14: Topic on Applied Data Science_Chủ đề Khoa học dữ liệu (KHDL) ứng dụng_K19B"
+                        },
+                        new
+                        {
+                            Id = 2686,
+                            Abbr = ".NET",
+                            Name = "SE_COM3.3: Topic on .NET Programming_Chủ đề lập trình .NET BIT_SE_From_K18C"
+                        });
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.Department", b =>
@@ -1202,6 +1468,28 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("Departments", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.Lecturer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AcademicTitle")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeCode")
+                        .IsUnique();
+
+                    b.ToTable("Lecturers", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.Major", b =>
@@ -1258,37 +1546,223 @@ namespace TEDF.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("MajorId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ProgramCode")
+                    b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("ProgramDescription")
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                    b.Property<int>("TotalCredit")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("MajorId");
-
-                    b.HasIndex("ProgramCode")
+                    b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("MajorPrograms", (string)null);
+                    b.ToTable("Programs", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "BIT_SE_K20B",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "BIT_SE_K20C",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "BIT_SE_K20D_K21A",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "BIT_SE_K21B",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Code = "BIT_SE_K21C",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Code = "BIT_SE_K19D_K20A",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "The Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Code = "BIT_SE_K19B",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "The Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Code = "BIT_SE_K19C",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "The Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Code = "BIT_SE_K18D_19A",
+                            Description = "Đào tạo cử nhân ngành CNTT chuyên ngành Kỹ thuật phần mềm (KTPM) có nhân cách và năng lực đáp ứng nhu cầu thực tế của xã hội; nắm vững kiến thức chuyên môn và thực hành, có khả năng tổ chức, thiết kế và phát triển các hệ thống phần mềm.",
+                            Name = "The Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Code = "BIT_SE_K18C",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "BIT_SE_K18B",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Code = "BIT_SE_K17D_18A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Code = "BIT_SE_K17C",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Code = "BIT_SE_K17B",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Code = "BIT_SE_K16D_K17A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Code = "BIT_SE_K16C",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Code = "BIT_SE_K16B",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Code = "BIT_SE_K16D,K17A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Code = "BIT_SE_K15C",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Code = "BIT_SE_K15D,K16A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Code = "BIT_SE_K17D,K18A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Code = "BIT_SE_K15A",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Code = "BIT_SE_K15B",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Code = "BIT_SE_tuK16B",
+                            Description = "Training Information Technology/Software Engineering specialty graduates with personality and capacity to meet the needs of society, mastering professional knowledge and practice, capable of organizing, designing and developing software systems.",
+                            Name = "Bachelor Program of Information Technology, Software Engineering Major (Chương trình cử nhân ngành CNTT, chuyên ngành Kỹ thuật phần mềm)",
+                            TotalCredit = 145
+                        });
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.ProjectArchive", b =>
@@ -1346,6 +1820,124 @@ namespace TEDF.Persistence.Migrations
                     b.HasIndex("MajorId");
 
                     b.ToTable("ProjectArchives", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.ProjectAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("NewStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OldStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("PerformedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PerformedByName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("SubmissionNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PerformedBy")
+                        .HasDatabaseName("IX_ProjectAuditLogs_PerformedBy");
+
+                    b.HasIndex("ProjectId", "Timestamp")
+                        .HasDatabaseName("IX_ProjectAuditLogs_ProjectId_Timestamp");
+
+                    b.ToTable("ProjectAuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.Role", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Admin"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Mentor"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Student"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Evaluator"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "DepartmentHead"
+                        });
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.Student", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("ComboId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProgramId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StudentCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComboId");
+
+                    b.HasIndex("ProgramId");
+
+                    b.HasIndex("StudentCode")
+                        .IsUnique();
+
+                    b.ToTable("Students", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Entities.SystemConfiguration", b =>
@@ -1577,6 +2169,54 @@ namespace TEDF.Persistence.Migrations
                     b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
                         .WithMany()
                         .HasForeignKey("SubmittedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.SemesterAggregate.Semester", null)
+                        .WithMany()
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistCriterion", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", null)
+                        .WithMany("Criteria")
+                        .HasForeignKey("ChecklistConfigId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistResultItem", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", null)
+                        .WithMany("Items")
+                        .HasForeignKey("ProjectEvaluationChecklistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", null)
+                        .WithMany()
+                        .HasForeignKey("ChecklistConfigId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("EvaluatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Aggregates.ProjectAggregate.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -1896,11 +2536,19 @@ namespace TEDF.Persistence.Migrations
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.UserAggregate.Entities.UserRole", b =>
                 {
+                    b.HasOne("TEDF.Domain.Entities.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
                         .WithMany("Roles")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.UserAggregate.User", b =>
@@ -1908,16 +2556,6 @@ namespace TEDF.Persistence.Migrations
                     b.HasOne("TEDF.Domain.Entities.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("TEDF.Domain.Entities.Major", null)
-                        .WithMany()
-                        .HasForeignKey("MajorId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("TEDF.Domain.Entities.MajorProgram", null)
-                        .WithMany()
-                        .HasForeignKey("MajorProgramId")
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
@@ -1929,20 +2567,20 @@ namespace TEDF.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Entities.Lecturer", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithOne("Lecturer")
+                        .HasForeignKey("TEDF.Domain.Entities.Lecturer", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TEDF.Domain.Entities.Major", b =>
                 {
                     b.HasOne("TEDF.Domain.Entities.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TEDF.Domain.Entities.MajorProgram", b =>
-                {
-                    b.HasOne("TEDF.Domain.Entities.Major", null)
-                        .WithMany()
-                        .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -1954,6 +2592,53 @@ namespace TEDF.Persistence.Migrations
                         .HasForeignKey("MajorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.ProjectAuditLog", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("PerformedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TEDF.Domain.Aggregates.ProjectAggregate.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Entities.Student", b =>
+                {
+                    b.HasOne("TEDF.Domain.Entities.Combo", "Combo")
+                        .WithMany()
+                        .HasForeignKey("ComboId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithOne("Student")
+                        .HasForeignKey("TEDF.Domain.Entities.Student", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Entities.MajorProgram", "Program")
+                        .WithMany()
+                        .HasForeignKey("ProgramId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Combo");
+
+                    b.Navigation("Program");
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ChecklistConfig", b =>
+                {
+                    b.Navigation("Criteria");
+                });
+
+            modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.GroupAggregate.Group", b =>
@@ -1988,7 +2673,11 @@ namespace TEDF.Persistence.Migrations
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.UserAggregate.User", b =>
                 {
+                    b.Navigation("Lecturer");
+
                     b.Navigation("Roles");
+
+                    b.Navigation("Student");
                 });
 #pragma warning restore 612, 618
         }

@@ -13,6 +13,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate.Entities
     public class ProjectEvaluatorAssignment : Entity<Guid>
     {
         public Guid ProjectId { get; private set; }
+        public int PhaseId { get; private set; }
         public Guid EvaluatorId { get; private set; }
         public int EvaluatorOrder { get; private set; } // 1, 2, or 3
         public DateTime AssignedAt { get; private set; }
@@ -39,6 +40,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate.Entities
         /// <exception cref="BusinessRuleValidationException">Thrown when business rules are violated.</exception>
         public static ProjectEvaluatorAssignment Create(
             Guid projectId,
+            int phaseId,
             Guid evaluatorId,
             int order,
             Guid assignedBy,
@@ -56,6 +58,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate.Entities
             {
                 Id = Guid.NewGuid(),
                 ProjectId = projectId,
+                PhaseId = phaseId,
                 EvaluatorId = evaluatorId,
                 EvaluatorOrder = order,
                 AssignedAt = DateTime.UtcNow,

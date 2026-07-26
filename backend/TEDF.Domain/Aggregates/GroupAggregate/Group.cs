@@ -18,7 +18,15 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
         public const int MinMembers = 4;
 
         public GroupCode Code { get; private set; } = null!;
-        public string? Name { get; private set; }
+
+        /// <summary>
+        /// Always the <c>SE_NN</c> tail of <see cref="Code"/> — never free text. Set only through
+        /// <see cref="Create"/>, so it cannot drift away from the code.
+        /// </summary>
+        public string Name { get; private set; } = string.Empty;
+
+        /// <summary>Optional nickname the students pick for themselves. Purely cosmetic.</summary>
+        public string? DisplayName { get; private set; }
         public Guid? ProjectId { get; private set; }
         public int SemesterId { get; private set; }
         public Guid? LeaderId { get; private set; }
@@ -40,13 +48,15 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
 
         private Group() { }
 
-        public static Group Create(GroupCode code, int semesterId, Guid leaderId, string? name = null, int maxMembers = DefaultMaxMembers)
+        public static Group Create(GroupCode code, int semesterId, Guid leaderId, string? displayName = null, int maxMembers = DefaultMaxMembers)
         {
             var group = new Group
             {
                 Id = Guid.NewGuid(),
                 Code = code,
-                Name = name,
+                // Derived, never supplied: guarantees Name == the SE_NN tail of Code.
+                Name = code.NamePart,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
                 SemesterId = semesterId,
                 LeaderId = leaderId,
                 Status = GroupStatus.Active,
@@ -128,7 +138,16 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
             RaiseDomainEvent(new GroupCompletedEvent(Id));
         }
 
-        public void SetName(string? name) { Name = name; UpdatedAt = DateTime.UtcNow; }
+        /// <summary>
+        /// Renames the students' nickname only. <see cref="Name"/> is derived from
+        /// <see cref="Code"/> and is intentionally not settable.
+        /// </summary>
+        public void SetDisplayName(string? displayName)
+        {
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         public void SetMaxMembers(int maxMembers)
         {
             var activeCount = ActiveMemberCount;

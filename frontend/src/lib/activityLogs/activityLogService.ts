@@ -3,68 +3,71 @@ import { routes } from "../common/routes";
 import type {
   ActivityLogFilters,
   ActivityLogResponse,
-  ErrorDetailsResponse,
+  ActivityLogSummary,
   ErrorLogDetail,
-  GroupedActivityLogResponse,
-  SeveritySummary,
+  ErrorLogFilters,
+  ErrorLogResponse,
 } from "@/types/activityLogs/activityLog.types";
 
 export const activityLogService = {
-  /**
-   * Fetches a paginated, filtered list of user activity logs (flat list).
-   */
   getLogs: (filters: ActivityLogFilters = {}): Promise<ActivityLogResponse> => {
-    const params = buildParams(filters);
+    const params = buildActivityParams(filters);
     return apiClient.get<ActivityLogResponse>(`${routes.admin.activityLogs}?${params.toString()}`);
   },
 
-  /**
-   * Fetches grouped activity logs (one row per user+action) with severity counts and role totals.
-   */
-  getGroupedLogs: (filters: ActivityLogFilters = {}): Promise<GroupedActivityLogResponse> => {
-    const params = buildParams(filters);
-    return apiClient.get<GroupedActivityLogResponse>(`${routes.admin.groupedActivityLogs}?${params.toString()}`);
-  },
-
-  /**
-   * Fetches aggregate severity counts (info, warning, error, critical + total).
-   */
-  getSeveritySummary: (role?: string, from?: string, to?: string): Promise<SeveritySummary> => {
+  getSummary: (role?: string, from?: string, to?: string): Promise<ActivityLogSummary> => {
     const params = new URLSearchParams();
     if (role) params.set("role", role);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
-
-    return apiClient.get<SeveritySummary>(`${routes.admin.severitySummary}?${params.toString()}`);
+    return apiClient.get<ActivityLogSummary>(`${routes.admin.activityLogsSummary}?${params.toString()}`);
   },
 
-  /**
-   * Fetches error details for a specific (userId, action) pair.
-   */
-  getErrorDetails: (userId: string, action: string, from?: string, to?: string): Promise<ErrorDetailsResponse> => {
-    const params = new URLSearchParams();
-    params.set("userId", userId);
-    params.set("action", action);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-
-    return apiClient.get<ErrorDetailsResponse>(`${routes.admin.errorDetails}?${params.toString()}`);
+  getErrorLogs: (filters: ErrorLogFilters = {}): Promise<ErrorLogResponse> => {
+    const params = buildErrorParams(filters);
+    return apiClient.get<ErrorLogResponse>(`${routes.admin.errorLogs}?${params.toString()}`);
   },
 
-  /**
-   * Fetches full error log detail by ID (stack trace, inner exceptions, request params).
-   */
   getErrorLogDetail: (id: string): Promise<ErrorLogDetail> => {
     return apiClient.get<ErrorLogDetail>(routes.admin.errorLogDetail(id));
   },
+
+  clearActivityLogs: (olderThanDays?: number): Promise<{ deletedCount: number }> => {
+    const params = new URLSearchParams();
+    if (olderThanDays && olderThanDays > 0) params.set("olderThanDays", String(olderThanDays));
+    const qs = params.toString();
+    return apiClient.delete<{ deletedCount: number }>(
+      qs ? `${routes.admin.activityLogs}?${qs}` : routes.admin.activityLogs,
+    );
+  },
+
+  clearErrorLogs: (olderThanDays?: number): Promise<{ deletedCount: number }> => {
+    const params = new URLSearchParams();
+    if (olderThanDays && olderThanDays > 0) params.set("olderThanDays", String(olderThanDays));
+    const qs = params.toString();
+    return apiClient.delete<{ deletedCount: number }>(
+      qs ? `${routes.admin.errorLogs}?${qs}` : routes.admin.errorLogs,
+    );
+  },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function buildParams(filters: ActivityLogFilters): URLSearchParams {
+function buildActivityParams(filters: ActivityLogFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.role) params.set("role", filters.role);
-  if (filters.category) params.set("category", filters.category);
+  if (filters.featureCategory) params.set("featureCategory", filters.featureCategory);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  params.set("page", String(filters.page ?? 1));
+  params.set("pageSize", String(filters.pageSize ?? 20));
+  return params;
+}
+
+function buildErrorParams(filters: ErrorLogFilters): URLSearchParams {
+  const params = new URLSearchParams();
   if (filters.severity) params.set("severity", filters.severity);
+  if (filters.source) params.set("source", filters.source);
   if (filters.search) params.set("search", filters.search);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);

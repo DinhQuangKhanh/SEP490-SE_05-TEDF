@@ -8,6 +8,7 @@ namespace TEDF.Domain.Aggregates.EvaluationAggregate.Events
     public sealed record EvaluatorAssignedToProjectEvent(
         Guid AssignmentId,
         Guid ProjectId,
+        int PhaseId,
         Guid EvaluatorId,
         int EvaluatorOrder,
         Guid AssignedBy

@@ -1,6 +1,34 @@
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 
+interface BlockedDisplay {
+    icon: string
+    title: string
+    fallback: string
+}
+
+/** Per-gate-reason icon, heading and default message. */
+const BLOCKED_DISPLAY: Record<string, BlockedDisplay> = {
+    locked: { icon: 'lock', title: 'Tài khoản đã bị khóa', fallback: 'Tài khoản của bạn đã bị khóa.' },
+    inactive: { icon: 'person_off', title: 'Tài khoản đã bị vô hiệu hóa', fallback: 'Tài khoản của bạn đã bị vô hiệu hóa.' },
+    student_not_eligible: {
+        icon: 'school',
+        title: 'Chưa đủ điều kiện',
+        fallback: 'Bạn không thuộc danh sách sinh viên đủ điều kiện làm đồ án trong học kỳ hiện tại hoặc sắp tới.',
+    },
+    mentor_not_eligible: {
+        icon: 'school',
+        title: 'Chưa được phân công',
+        fallback: 'Bạn không thuộc danh sách giảng viên được phân công trong học kỳ hiện tại hoặc sắp tới.',
+    },
+}
+
+const DEFAULT_BLOCKED_DISPLAY: BlockedDisplay = {
+    icon: 'block',
+    title: 'Không thể truy cập',
+    fallback: 'Tài khoản của bạn hiện không thể truy cập hệ thống.',
+}
+
 /**
  * Shown by ProtectedRoute when the server access gate denies the account
  * (locked / inactive / student-not-eligible). The user is authenticated with
@@ -12,14 +40,7 @@ export function AccountBlockedPage() {
     const kind = access?.kind ?? null
     const reason = access?.reason
 
-    const config =
-        kind === 'locked'
-            ? { icon: 'lock', title: 'Tài khoản đã bị khóa', fallback: 'Tài khoản của bạn đã bị khóa.' }
-            : kind === 'inactive'
-                ? { icon: 'person_off', title: 'Tài khoản đã bị vô hiệu hóa', fallback: 'Tài khoản của bạn đã bị vô hiệu hóa.' }
-                : kind === 'student_not_eligible'
-                    ? { icon: 'school', title: 'Chưa đủ điều kiện', fallback: 'Bạn không thuộc danh sách sinh viên đủ điều kiện làm đồ án trong học kỳ hiện tại hoặc sắp tới.' }
-                    : { icon: 'block', title: 'Không thể truy cập', fallback: 'Tài khoản của bạn hiện không thể truy cập hệ thống.' }
+    const config = (kind && BLOCKED_DISPLAY[kind]) || DEFAULT_BLOCKED_DISPLAY
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-red-50/30 flex items-center justify-center p-6 relative overflow-hidden">
@@ -50,6 +71,7 @@ export function AccountBlockedPage() {
                 </p>
 
                 <button
+                    type="button"
                     onClick={() => logout()}
                     className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white rounded-xl transition-all shadow-sm"
                     style={{ backgroundColor: 'var(--color-primary)' }}

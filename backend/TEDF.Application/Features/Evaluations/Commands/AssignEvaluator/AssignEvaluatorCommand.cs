@@ -13,6 +13,7 @@ namespace TEDF.Application.Features.Evaluations.Commands.AssignEvaluator;
 [ActionLog("Assign Evaluator", "Department")]
 public record AssignEvaluatorCommand(
     Guid ProjectId,
+    int PhaseId,
     Guid EvaluatorId,
     int EvaluatorOrder
 ) : ICacheInvalidatingCommand

@@ -37,6 +37,10 @@ export interface ProjectStatusUpdatedPayload {
   updatedAt: string;
 }
 
+export interface ChecklistUpdatedPayload {
+  projectId: string;
+}
+
 export interface RegistrationUpdatePayload {
   // Bạn có thể đổi type này thành chính xác hơn nếu backend đã cố định schema.
   [key: string]: unknown;
@@ -46,12 +50,14 @@ type ReceiveNotificationListener = (notification: unknown) => void;
 type RegistrationUpdateListener = (update: RegistrationUpdatePayload) => void;
 type UnreadCountListener = (payload: UnreadCountUpdatedPayload) => void;
 type ProjectStatusListener = (payload: ProjectStatusUpdatedPayload) => void;
+type ChecklistUpdatedListener = (payload: ChecklistUpdatedPayload) => void;
 
 interface UseSignalROptions {
   onReceiveNotification?: ReceiveNotificationListener;
   onRegistrationUpdate?: RegistrationUpdateListener;
   onUnreadCountUpdated?: UnreadCountListener;
   onProjectStatusUpdated?: ProjectStatusListener;
+  onChecklistUpdated?: ChecklistUpdatedListener;
 }
 
 // Shared connection across all components
@@ -63,6 +69,7 @@ const receiveNotificationListeners = new Set<ReceiveNotificationListener>();
 const registrationUpdateListeners = new Set<RegistrationUpdateListener>();
 const unreadCountListeners = new Set<UnreadCountListener>();
 const projectStatusListeners = new Set<ProjectStatusListener>();
+const checklistUpdatedListeners = new Set<ChecklistUpdatedListener>();
 
 function buildConnection() {
   const connection = new HubConnectionBuilder()
@@ -87,6 +94,10 @@ function buildConnection() {
 
   connection.on(SignalREvents.ProjectStatusUpdated, (payload: ProjectStatusUpdatedPayload) => {
     projectStatusListeners.forEach((listener) => listener(payload));
+  });
+
+  connection.on(SignalREvents.ChecklistUpdated, (payload: ChecklistUpdatedPayload) => {
+    checklistUpdatedListeners.forEach((listener) => listener(payload));
   });
 
   connection.onreconnecting((err) => console.warn("SignalR reconnecting:", err));
@@ -144,6 +155,7 @@ export function useSignalR({
   onRegistrationUpdate,
   onUnreadCountUpdated,
   onProjectStatusUpdated,
+  onChecklistUpdated,
 }: UseSignalROptions) {
   // Keep latest callbacks without re-subscribing the SignalR handlers
   const receiveNotificationRef = useRef(onReceiveNotification);
@@ -157,6 +169,9 @@ export function useSignalR({
 
   const projectStatusRef = useRef(onProjectStatusUpdated);
   projectStatusRef.current = onProjectStatusUpdated;
+
+  const checklistUpdatedRef = useRef(onChecklistUpdated);
+  checklistUpdatedRef.current = onChecklistUpdated;
 
   useEffect(() => {
     refCount += 1;
@@ -181,6 +196,13 @@ export function useSignalR({
 
     if (onProjectStatusUpdated) {
       projectStatusListeners.add((payload) => projectStatusRef.current?.(payload));
+    }
+
+    // Stable wrapper kept in the closure so cleanup can remove this exact listener (no leak/duplicates).
+    let checklistWrapper: ChecklistUpdatedListener | null = null;
+    if (onChecklistUpdated) {
+      checklistWrapper = (payload) => checklistUpdatedRef.current?.(payload);
+      checklistUpdatedListeners.add(checklistWrapper);
     }
 
     return () => {
@@ -216,13 +238,17 @@ export function useSignalR({
         });
       }
 
+      if (checklistWrapper) {
+        checklistUpdatedListeners.delete(checklistWrapper);
+      }
+
       refCount -= 1;
       if (refCount <= 0) {
         refCount = 0;
         void teardownConnection();
       }
     };
-  }, [onReceiveNotification, onRegistrationUpdate, onUnreadCountUpdated, onProjectStatusUpdated]);
+  }, [onReceiveNotification, onRegistrationUpdate, onUnreadCountUpdated, onProjectStatusUpdated, onChecklistUpdated]);
 
   const joinProjectChannel = useCallback((projectId: string) => {
     void ensureConnection()

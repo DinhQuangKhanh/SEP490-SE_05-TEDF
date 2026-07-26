@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
 using TEDF.Domain.Aggregates.EvaluationAggregate.Entities;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate.Entities;
 using TEDF.Domain.Aggregates.ProjectAggregate;
@@ -29,12 +30,15 @@ public class AppDbContext : DbContext
     #region User Aggregate
     public DbSet<User> Users => Set<User>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<Student> Students => Set<Student>();
+    public DbSet<Lecturer> Lecturers => Set<Lecturer>();
     #endregion
 
     #region Project Aggregate
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMentor> ProjectMentors => Set<ProjectMentor>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<ProjectAuditLog> ProjectAuditLogs => Set<ProjectAuditLog>();
     #endregion
 
     #region TopicPool Aggregate
@@ -61,6 +65,11 @@ public class AppDbContext : DbContext
     public DbSet<ProjectEvaluatorAssignment> ProjectEvaluatorAssignments => Set<ProjectEvaluatorAssignment>();
     #endregion
 
+    #region Evaluation Checklist Aggregate
+    public DbSet<ChecklistConfig> ChecklistConfigs => Set<ChecklistConfig>();
+    public DbSet<ProjectEvaluationChecklist> ProjectEvaluationChecklists => Set<ProjectEvaluationChecklist>();
+    #endregion
+
     #region Support Aggregate
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     #endregion
@@ -68,7 +77,9 @@ public class AppDbContext : DbContext
     #region Standalone Entities
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Major> Majors => Set<Major>();
-    public DbSet<MajorProgram> MajorPrograms => Set<MajorProgram>();
+    public DbSet<MajorProgram> Programs => Set<MajorProgram>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Combo> Combos => Set<Combo>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
     public DbSet<ProjectArchive> ProjectArchives => Set<ProjectArchive>();
     #endregion

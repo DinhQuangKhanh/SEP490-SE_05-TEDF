@@ -69,8 +69,7 @@ public class UsersDomainService : IUsersDomainService
         var newHead = await _userRepository.GetByIdAsync(userId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(User), userId);
 
-        var newHeadRoles = newHead.GetActiveRoles().ToList();
-        if (!newHeadRoles.Contains(DomainRoleNames.Mentor) && !newHeadRoles.Contains(DomainRoleNames.Evaluator))
+        if (!newHead.HasRole(DomainRoleIds.Mentor) && !newHead.HasRole(DomainRoleIds.Evaluator))
             throw new BusinessRuleValidationException(
                 "User must have Mentor or Evaluator role to be assigned as Department Head.");
 
@@ -83,12 +82,12 @@ public class UsersDomainService : IUsersDomainService
             var oldHead = await _userRepository.GetByIdAsync(department.HeadOfDepartmentId.Value, cancellationToken);
             if (oldHead != null)
             {
-                oldHead.RemoveRole(DomainRoleNames.DepartmentHead);
+                oldHead.RemoveRole(DomainRoleIds.DepartmentHead);
                 await _userRepository.UpdateAsync(oldHead, cancellationToken);
             }
         }
 
-        newHead.AssignRole(DomainRoleNames.DepartmentHead, assignedBy);
+        newHead.AssignRole(DomainRoleIds.DepartmentHead, DomainRoleNames.DepartmentHead, assignedBy);
         await _userRepository.UpdateAsync(newHead, cancellationToken);
 
         department.SetHeadOfDepartment(userId);

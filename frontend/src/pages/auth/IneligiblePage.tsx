@@ -12,6 +12,7 @@ export function IneligiblePage() {
   let icon: string;
   if (kind === "locked") { title = "Tài khoản đã bị khóa"; icon = "lock"; }
   else if (kind === "inactive") { title = "Tài khoản đã bị vô hiệu hóa"; icon = "block"; }
+  else if (kind === "mentor_not_eligible") { title = "Bạn chưa được phân công trong học kỳ này"; icon = "school"; }
   else { title = "Bạn chưa đủ điều kiện truy cập"; icon = "school"; }
 
   const reason =
@@ -35,6 +36,7 @@ export function IneligiblePage() {
           Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ quản trị viên hoặc giáo vụ.
         </p>
         <button
+          type="button"
           onClick={logout}
           className="flex items-center justify-center w-full gap-2 px-4 py-2.5 mt-6 text-sm font-bold text-white transition-colors rounded-md bg-primary hover:bg-primary/90"
         >

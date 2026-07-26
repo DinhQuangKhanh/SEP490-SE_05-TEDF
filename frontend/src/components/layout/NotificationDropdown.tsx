@@ -109,6 +109,17 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     setUnreadCount((prev) => prev + 1);
     setPulse(true);
     setTimeout(() => setPulse(false), 2000);
+
+    // If it targets the page the user is already on, refresh that page in place (same event the
+    // click handler fires) so lists/status update live on arrival — no click or reload needed.
+    const path = n.targetUrl;
+    if (path && isSafeInternalPath(path) && window.location.pathname === path) {
+      window.dispatchEvent(
+        new CustomEvent<NotificationTargetRefreshDetail>(NOTIFICATION_TARGET_REFRESH_EVENT, {
+          detail: { targetUrl: path, category: n.category },
+        }),
+      );
+    }
   }, []);
 
   const handleUnreadCountUpdated = useCallback((payload: { count: number }) => {
@@ -229,6 +240,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
     <div className="relative z-[9999]" ref={dropdownRef}>
       {/* Bell button */}
       <button
+        type="button"
         id="notification-bell"
         onClick={handleOpen}
         className={`relative p-2 rounded-lg transition-all duration-200 ${
@@ -270,7 +282,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
                 )}
               </div>
               {unreadCount > 0 && (
-                <button onClick={markAllAsRead} className="text-xs font-medium text-primary hover:text-primary-dark">
+                <button type="button" onClick={markAllAsRead} className="text-xs font-medium text-primary hover:text-primary-dark">
                   Đánh dấu tất cả đã đọc
                 </button>
               )}
@@ -296,6 +308,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
                   <span className="text-3xl text-red-400 material-symbols-outlined">error</span>
                   <p className="text-sm text-slate-500">{error}</p>
                   <button
+                    type="button"
                     onClick={() => {
                       fetchedRef.current = false;
                       fetchNotifications();
@@ -352,7 +365,7 @@ export function NotificationDropdown({ isNavy = false }: NotificationDropdownPro
 
             {/* Footer */}
             <div className="px-4 py-3 border-t bg-slate-50 border-slate-200">
-              <button className="w-full text-sm font-medium text-center text-primary hover:text-primary-dark">
+              <button type="button" className="w-full text-sm font-medium text-center text-primary hover:text-primary-dark">
                 Xem tất cả thông báo
               </button>
             </div>

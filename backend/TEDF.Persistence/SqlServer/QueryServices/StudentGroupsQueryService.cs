@@ -27,18 +27,25 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         int? semesterId,
         CancellationToken cancellationToken = default)
     {
-        var targetSemesterId = await ResolveSemesterIdAsync(semesterId, cancellationToken);
-        if (targetSemesterId == 0) return [];
+        var now = DateTime.UtcNow;
 
         var groups = await (
             from pm in _context.ProjectMentors.AsNoTracking()
             where pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active
             join p in _context.Projects on pm.ProjectId equals p.Id
-            where p.SemesterId == targetSemesterId && p.GroupId != null
+            where p.GroupId != null
                   && (p.Status == ProjectStatus.Approved
                    || p.Status == ProjectStatus.InProgress
                    || p.Status == ProjectStatus.Completed)
             join g in _context.Groups on p.GroupId equals g.Id
+            join s in _context.Semesters on g.SemesterId equals s.Id
+            // Filter by the GROUP's semester, not the project's. For a topic registered from the
+            // pool, project.SemesterId is the semester the mentor PROPOSED the topic, which differs
+            // from the registering group's semester; keying on the group aligns pool & direct flows.
+            // When no semester is chosen, show groups in the active OR any upcoming semester
+            // (EndDate ≥ now) — a group is registered for the upcoming term, so restricting to the
+            // current-active semester alone would hide freshly approved groups.
+            where semesterId.HasValue ? g.SemesterId == semesterId.Value : s.EndDate >= now
             select new MentorGroupDto
             {
                 GroupId = g.Id,
@@ -59,7 +66,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                     {
                         StudentId = u.Id,
                         FullName = u.FullName,
-                        StudentCode = u.StudentCode,
+                        StudentCode = u.Student != null ? u.Student.StudentCode : null,
                         Email = u.Email,
                         Role = gm.Role.ToString(),
                         Status = gm.Status.ToString(),
@@ -99,6 +106,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 GroupId = g.Id,
                 GroupCode = g.Code,
                 GroupName = g.Name,
+                GroupDisplayName = g.DisplayName,
                 GroupStatus = g.Status.ToString(),
                 MaxMembers = g.MaxMembers,
                 IsOpenForRequests = g.IsOpenForRequests,
@@ -127,7 +135,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             {
                 StudentId = u.Id,
                 FullName = u.FullName,
-                StudentCode = u.StudentCode,
+                StudentCode = u.Student != null ? u.Student.StudentCode : null,
                 Email = u.Email,
                 Role = m.Role.ToString(),
                 Status = m.Status.ToString(),
@@ -140,6 +148,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             GroupId = groupData.GroupId,
             GroupCode = groupData.GroupCode,
             GroupName = groupData.GroupName,
+            GroupDisplayName = groupData.GroupDisplayName,
             GroupStatus = groupData.GroupStatus,
             MaxMembers = groupData.MaxMembers,
             IsOpenForRequests = groupData.IsOpenForRequests,
@@ -195,7 +204,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 {
                     StudentId = u.Id,
                     FullName = u.FullName,
-                    StudentCode = u.StudentCode,
+                    StudentCode = u.Student != null ? u.Student.StudentCode : null,
                     Email = u.Email,
                     Role = m.Role.ToString(),
                     Status = m.Status.ToString(),
@@ -260,13 +269,13 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             where r.GroupId == groupId
                && r.Status == GroupJoinRequestStatus.Pending
                && r.ExpiresAt > now
-            join u in _context.Users on r.StudentId equals u.Id
+            join u in _context.Users.AsNoTracking() on r.StudentId equals u.Id
             select new JoinRequestDto
             {
                 Id = r.Id,
                 StudentId = u.Id,
                 StudentName = u.FullName,
-                StudentCode = u.StudentCode,
+                StudentCode = u.Student != null ? u.Student.StudentCode : null,
                 Message = r.Message,
                 Status = r.Status.ToString(),
                 CreatedAt = r.CreatedAt
@@ -308,15 +317,6 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         ).FirstOrDefaultAsync(cancellationToken);
     }
 
-    private async Task<int> ResolveSemesterIdAsync(int? semesterId, CancellationToken cancellationToken)
-    {
-        return semesterId
-            ?? await _context.Semesters
-                .AsNoTracking()
-                .Where(s => s.StartDate <= DateTime.UtcNow && s.EndDate >= DateTime.UtcNow)
-                .Select(s => s.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-    }
 
     /// <summary>
     /// Resolves the next semester after the currently active one.
@@ -365,13 +365,16 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             select gm.StudentId;
 
         return await (
-            from u in _context.Users.AsNoTracking()
-            where u.StudentCode != null
-                  && u.Status == UserStatus.Active
+            from s in _context.Students.AsNoTracking()
+            join u in _context.Users.AsNoTracking() on s.Id equals u.Id
+            where u.Status == UserStatus.Active
                   && !studentsInGroups.Contains(u.Id)
-                  && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleName == "Student" && r.IsActive)
-            orderby u.StudentCode
-            select new AvailableStudentDto(u.Id, u.StudentCode!, u.FullName)
+                  && _context.UserRoles.Any(r => r.UserId == u.Id && r.RoleId == 3 && r.IsActive)
+                  // Only students on this semester's eligible roster may be invited into a group.
+                  && _context.EligibleStudents.Any(e =>
+                        e.StudentId == u.Id && e.SemesterId == semesterId && e.IsEligible)
+            orderby s.StudentCode
+            select new AvailableStudentDto(u.Id, s.StudentCode, u.FullName)
         ).ToListAsync(cancellationToken);
     }
 }

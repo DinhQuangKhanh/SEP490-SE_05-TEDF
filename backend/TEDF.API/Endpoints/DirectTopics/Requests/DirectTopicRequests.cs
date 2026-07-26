@@ -23,7 +23,9 @@ public record UpdateDirectTopicRequest(
     string? Scope,
     string? Technologies,
     string? ExpectedResults,
-    int MaxStudents
+    // Optional: the student edit form does not change the member cap. When omitted the
+    // existing value is preserved (a missing value must not overwrite it with the default 0).
+    int? MaxStudents
 );
 
 public record MentorReviewRequest(string Action, string? Feedback);

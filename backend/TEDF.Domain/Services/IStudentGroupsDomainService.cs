@@ -7,12 +7,13 @@ namespace TEDF.Domain.Services;
 public interface IStudentGroupsDomainService
 {
     // ── Helper queries ──
-    Task<string> GenerateGroupCodeAsync(int year, CancellationToken cancellationToken = default);
     Task<(bool CanJoin, string? Reason)> CanStudentJoinGroupAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
     Task<IEnumerable<Guid>> GetGroupsWithoutProjectAsync(int semesterId, CancellationToken cancellationToken = default);
 
     // ── StudentGroups feature write operations ──
-    Task<Guid> CreateGroupAsync(Guid studentId, string? name, CancellationToken cancellationToken = default);
+    /// <summary>Creates a group; <paramref name="displayName"/> is the optional student nickname —
+    /// the code and Name are generated as {SemesterCode}-SE_NN / SE_NN.</summary>
+    Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default);
     Task<int> InviteMemberAsync(Guid groupId, Guid inviterId, string studentCode, string? message, CancellationToken cancellationToken = default);
     Task<int> RequestJoinAsync(Guid groupId, Guid studentId, string? message, CancellationToken cancellationToken = default);
     Task RespondInvitationAsync(Guid groupId, int invitationId, Guid studentId, bool accept, CancellationToken cancellationToken = default);

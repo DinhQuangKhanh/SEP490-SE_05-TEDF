@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { Modal } from "@/components/common/Modal";
 import { motion, AnimatePresence } from "framer-motion";
@@ -79,6 +79,7 @@ function RepoPagination({
       {totalPages > 1 && (
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => onPage(Math.max(1, page - 1))}
             disabled={page <= 1}
             className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -92,6 +93,7 @@ function RepoPagination({
               </span>
             ) : (
               <button
+                type="button"
                 key={p}
                 onClick={() => onPage(p)}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -103,6 +105,7 @@ function RepoPagination({
             ),
           )}
           <button
+            type="button"
             onClick={() => onPage(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
             className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -139,6 +142,7 @@ function RepoSearchInput({
       />
       {value && (
         <button
+          type="button"
           onClick={() => onChange("")}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
         >
@@ -263,7 +267,7 @@ function DetailModalShell({
             <h2 className="text-lg font-bold text-slate-900 truncate">{nameVi}</h2>
             {nameEn && <p className="text-sm text-slate-500 truncate">{nameEn}</p>}
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-3">
             <span className="material-symbols-outlined text-slate-400">close</span>
           </button>
         </div>
@@ -301,13 +305,17 @@ export function LecturerRepositoryPage() {
 
 // ── Tab button + registration requests tab ───────────────────────────────────
 
-/** Drives the repository tab from the URL so notifications can deep-link (/lecturer vs /lecturer/registrations). */
+/** Drives the repository tab from the URL so notifications can deep-link (/lecturer?tab=registrations). */
 function useRepoTab() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const activeTab: "topics" | "registrations" = location.pathname.endsWith("/registrations") ? "registrations" : "topics";
-  const setActiveTab = (tab: "topics" | "registrations") =>
-    navigate(tab === "registrations" ? "/lecturer/registrations" : "/lecturer");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: "topics" | "registrations" = tabParam === "registrations" ? "registrations" : "topics";
+  const setActiveTab = useCallback(
+    (tab: "topics" | "registrations") => {
+      setSearchParams(tab === "registrations" ? { tab: "registrations" } : {}, { replace: true });
+    },
+    [setSearchParams],
+  );
   return { activeTab, setActiveTab };
 }
 
@@ -326,6 +334,7 @@ function RepoTabButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors ${
         active ? "text-primary" : "text-slate-500 hover:text-slate-700"
@@ -364,17 +373,6 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
     setRejectAttachments([]);
   };
 
-  const setItemsAndCount = useCallback(
-    (updater: (prev: MentorRegistrationRequestDto[]) => MentorRegistrationRequestDto[]) => {
-      setItems((prev) => {
-        const next = updater(prev);
-        onCountChange(next.length);
-        return next;
-      });
-    },
-    [onCountChange],
-  );
-
   const load = useCallback(() => {
     setLoading(true);
     topicPoolService
@@ -391,18 +389,27 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
     load();
   }, [load]);
 
+  const remove = useCallback(
+    (id: string) => {
+      setItems((prev) => {
+        const next = prev.filter((r) => r.registrationId !== id);
+        onCountChange(next.length);
+        return next;
+      });
+    },
+    [onCountChange],
+  );
+
   useSignalR({
     onRegistrationUpdate: (raw) => {
-      const update = raw as RegistrationUpdate;
+      const update = raw as unknown as RegistrationUpdate;
       if (update.action === "removed") {
-        setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== update.registrationId));
+        remove(update.registrationId);
       } else if (update.action === "added") {
         load();
       }
     },
   });
-
-  const remove = (id: string) => setItemsAndCount((prev) => prev.filter((r) => r.registrationId !== id));
 
   const handleConfirm = async (id: string) => {
     setProcessingId(id);
@@ -481,6 +488,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => handleConfirm(r.registrationId)}
               disabled={processingId === r.registrationId}
               className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
@@ -489,6 +497,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
               Duyệt
             </button>
             <button
+              type="button"
               onClick={() => setRejectId(r.registrationId)}
               disabled={processingId === r.registrationId}
               className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50"
@@ -523,6 +532,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
             )}
             <div className="flex items-center gap-3 mt-2">
               <button
+                type="button"
                 onClick={submitReject}
                 disabled={rejecting || (isQuillNoteEmpty(rejectNote) && rejectAttachments.length === 0)}
                 className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -535,6 +545,7 @@ function MentorRegistrationsTab({ onCountChange }: { onCountChange: (count: numb
                 Gửi từ chối
               </button>
               <button
+                type="button"
                 onClick={closeReject}
                 className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
@@ -637,6 +648,7 @@ function MentorTopicsPanel() {
               </p>
             </div>
             <button
+              type="button"
               onClick={() => setIsModalOpen(true)}
               className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-semibold shadow-sm transition-all text-sm"
             >
@@ -730,6 +742,7 @@ function MentorTopicsPanel() {
                             </td>
                             <td className="px-6 py-4 text-right">
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDetailTopic(topic);
@@ -835,11 +848,20 @@ function MentorOwnTopicsView() {
 
 // ── Department-Head view: all topics in the department ───────────────────────
 
+type DepartmentTab = "department" | "mine" | "registrations";
+/** Valid `?tab=` values; anything else falls back to the first entry. */
+const DEPARTMENT_TABS: DepartmentTab[] = ["department", "mine", "registrations"];
+
 function DepartmentTopicsView() {
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Three tabs: department-wide topics, the dept-head's OWN mentor topics, and registration requests.
-  const [activeTab, setActiveTab] = useState<"department" | "mine" | "registrations">(
-    location.pathname.endsWith("/registrations") ? "registrations" : "department",
+  const tabParam = searchParams.get("tab");
+  const activeTab: DepartmentTab = DEPARTMENT_TABS.find((t) => t === tabParam) ?? "department";
+  const setActiveTab = useCallback(
+    (tab: DepartmentTab) => {
+      setSearchParams(tab === "department" ? {} : { tab }, { replace: true });
+    },
+    [setSearchParams],
   );
   const [pendingCount, setPendingCount] = useState(0);
   const [items, setItems] = useState<DepartmentProject[]>([]);
@@ -1012,6 +1034,7 @@ function DepartmentTopicsView() {
                             <td className="px-6 py-4 text-sm text-slate-600">{formatDate(p.submittedAt)}</td>
                             <td className="px-6 py-4 text-right">
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDetailProject(p);
@@ -1088,6 +1111,7 @@ function DepartmentTopicDetailModal({ project, onClose }: { project: DepartmentP
       {/* Footer */}
       <div className="px-6 py-4 border-t border-slate-200 shrink-0 flex justify-end">
         <button
+          type="button"
           onClick={onClose}
           className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
         >
@@ -1315,6 +1339,7 @@ function TopicDetailModal({
           {isPendingMentorReview && !reviewAction && (
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => setReviewAction("approve")}
                 className="flex-1 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
               >
@@ -1322,6 +1347,7 @@ function TopicDetailModal({
                 Duyệt & gửi thẩm định
               </button>
               <button
+                type="button"
                 onClick={() => setReviewAction("requestModification")}
                 className="flex-1 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
               >
@@ -1337,6 +1363,7 @@ function TopicDetailModal({
               <p className="text-sm text-slate-600">Xác nhận duyệt đề tài này và gửi đi thẩm định?</p>
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={async () => {
                     setReviewLoading(true);
                     setReviewError(null);
@@ -1358,6 +1385,7 @@ function TopicDetailModal({
                   Xác nhận duyệt
                 </button>
                 <button
+                  type="button"
                   onClick={() => setReviewAction(null)}
                   className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 >
@@ -1379,6 +1407,7 @@ function TopicDetailModal({
               />
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={async () => {
                     setReviewLoading(true);
                     setReviewError(null);
@@ -1403,6 +1432,7 @@ function TopicDetailModal({
                   Gửi yêu cầu chỉnh sửa
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setReviewAction(null);
                     setFeedback("");
@@ -1419,6 +1449,7 @@ function TopicDetailModal({
           {isEditing && isPoolNeedsModification && (
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={async () => {
                   setEditLoading(true);
                   setEditError(null);
@@ -1444,6 +1475,7 @@ function TopicDetailModal({
                 Lưu thay đổi
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setIsEditing(false);
                   setEditError(null);
@@ -1475,6 +1507,7 @@ function TopicDetailModal({
               {resubmitError && <p className="text-sm text-red-600">{resubmitError}</p>}
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => setIsEditing(true)}
                   className="flex-1 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
                 >
@@ -1482,6 +1515,7 @@ function TopicDetailModal({
                   Chỉnh sửa đề tài
                 </button>
                 <button
+                  type="button"
                   onClick={async () => {
                     setResubmitLoading(true);
                     setResubmitError(null);
@@ -1515,6 +1549,7 @@ function TopicDetailModal({
                 <p className="text-sm text-slate-600">Đề tài đang chờ sinh viên chỉnh sửa và gửi lại.</p>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
@@ -1526,6 +1561,7 @@ function TopicDetailModal({
           {!isPendingMentorReview && !isPoolNeedsModification && !isDirectNeedsModification && !reviewAction && (
             <div className="flex justify-end">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
@@ -1576,7 +1612,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     <div className="flex flex-col items-center gap-3 py-16 text-center">
       <span className="material-symbols-outlined text-4xl text-red-400">error</span>
       <p className="text-sm text-slate-500">{message}</p>
-      <button onClick={onRetry} className="text-sm font-medium text-primary hover:underline">
+      <button type="button" onClick={onRetry} className="text-sm font-medium text-primary hover:underline">
         Thử lại
       </button>
     </div>

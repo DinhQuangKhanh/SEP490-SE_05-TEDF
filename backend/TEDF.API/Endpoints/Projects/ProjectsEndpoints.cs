@@ -1,7 +1,10 @@
 using MediatR;
+using TEDF.API.Endpoints.Projects.Requests;
+using TEDF.Application.Features.Projects.Queries.GetDepartmentAuditLogs;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
+using TEDF.Application.Features.Projects.Queries.GetProjectAuditLogs;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
@@ -9,6 +12,8 @@ namespace TEDF.API.Endpoints.Projects;
 
 public sealed class ProjectsEndpoints : IEndpoint
 {
+    private const string Tag = "Projects";
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/projects").RequireAuthorization();
@@ -16,19 +21,33 @@ public sealed class ProjectsEndpoints : IEndpoint
         // Admin oversight of all projects.
         group.MapGet("", GetProjects)
             .RequireAuthorization(PolicyNames.RequireAdmin)
-            .WithTags("Projects").WithName("GetProjects")
+            .WithTags(Tag).WithName("GetProjects")
             .Produces(200).Produces(401);
 
         // Department head: projects within the caller's department.
         group.MapGet("/department", GetDepartmentProjects)
             .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
-            .WithTags("Projects").WithName("GetDepartmentProjects")
+            .WithTags(Tag).WithName("GetDepartmentProjects")
             .Produces(200).Produces(401).Produces(403);
 
         // Mentor: projects the current user supervises (for the profile supervision history).
         group.MapGet("/supervised", GetMySupervisedProjects)
-            .WithTags("Projects").WithName("GetMySupervisedProjects")
+            .WithTags(Tag).WithName("GetMySupervisedProjects")
             .Produces(200).Produces(401);
+
+        // Department head: approval audit trail across the whole department.
+        group.MapGet("/audit-logs", GetDepartmentAuditLogs)
+            .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
+            .WithTags(Tag).WithName("GetDepartmentAuditLogs")
+            .Produces(200).Produces(401).Produces(403);
+
+        // Audit logs for a project. Admin-only: the trail names every reviewer and their verdict,
+        // and the only caller is the admin project detail drawer. Department heads read the
+        // department-wide trail above, which is already scoped to their own department.
+        group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
+            .RequireAuthorization(PolicyNames.RequireAdmin)
+            .WithTags(Tag).WithName("GetProjectAuditLogs")
+            .Produces(200).Produces(401).Produces(403);
     }
 
     private static async Task<IResult> GetProjects(
@@ -48,4 +67,16 @@ public sealed class ProjectsEndpoints : IEndpoint
     private static async Task<IResult> GetMySupervisedProjects(
         ISender sender, string? search, string? sort, int page = 1, int pageSize = 10, CancellationToken ct = default)
         => Ok(await sender.Send(new GetMySupervisedProjectsQuery(search, sort, page, pageSize), ct));
+
+    private static async Task<IResult> GetProjectAuditLogs(ISender sender, Guid id, CancellationToken ct = default)
+        => Ok(await sender.Send(new GetProjectAuditLogsQuery(id), ct));
+
+    private static async Task<IResult> GetDepartmentAuditLogs(
+        [AsParameters] GetDepartmentAuditLogsRequest request,
+        ISender sender,
+        CancellationToken ct = default)
+        => Ok(await sender.Send(
+            new GetDepartmentAuditLogsQuery(
+                request.Search, request.Actions, request.SemesterId,
+                request.From, request.To, request.Page, request.PageSize), ct));
 }

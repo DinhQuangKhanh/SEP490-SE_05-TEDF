@@ -1,4 +1,3 @@
-using System.Net.Mime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +6,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.EvaluationAggregate;
+using TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.SemesterAggregate;
@@ -47,6 +47,7 @@ namespace TEDF.Persistence
             // Add Interceptors
             services.AddScoped<AuditableEntityInterceptor>();
             services.AddScoped<SoftDeleteInterceptor>();
+            services.AddScoped<ProjectAuditLogInterceptor>();
             services.AddScoped<DomainEventInterceptor>();
 
             // Add SQL Server DbContext
@@ -55,7 +56,9 @@ namespace TEDF.Persistence
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"),
                     b => { b.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName); b.EnableRetryOnFailure(3); });
                 options.AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>(),
-                    sp.GetRequiredService<SoftDeleteInterceptor>(), sp.GetRequiredService<DomainEventInterceptor>());
+                    sp.GetRequiredService<SoftDeleteInterceptor>(),
+                    sp.GetRequiredService<ProjectAuditLogInterceptor>(),
+                    sp.GetRequiredService<DomainEventInterceptor>());
             });
 
             // Add MongoDB
@@ -84,6 +87,8 @@ namespace TEDF.Persistence
             services.AddScoped<IDepartmentRepository, DepartmentRepository>();
             services.AddScoped<IMajorReadRepository, MajorRepository>();
             services.AddScoped<IProjectEvaluatorAssignmentRepository, ProjectEvaluatorAssignmentRepository>();
+            services.AddScoped<IChecklistConfigRepository, ChecklistConfigRepository>();
+            services.AddScoped<IProjectEvaluationChecklistRepository, ProjectEvaluationChecklistRepository>();
             services.AddScoped<ISystemConfigurationRepository, SystemConfigurationRepository>();
             services.AddScoped<IProjectArchiveRepository, ProjectArchiveRepository>();
 
@@ -93,6 +98,7 @@ namespace TEDF.Persistence
             // Add Query Services
             services.AddScoped<IStudentGroupsQueryService, StudentGroupsQueryService>();
             services.AddScoped<IEvaluationsQueryService, EvaluationsQueryService>();
+            services.AddScoped<IChecklistQueryService, ChecklistQueryService>();
             services.AddScoped<ITopicPoolsQueryService, TopicPoolsQueryService>();
             services.AddScoped<ITopicsQueryService, TopicsQueryService>();
             services.AddScoped<IDashboardQueryService, DashboardQueryService>();
@@ -107,18 +113,16 @@ namespace TEDF.Persistence
             services.AddScoped<IAuthenticationsQueryService, AuthenticationsQueryService>();
 
             // Add MongoDB Repositories
-            services.AddScoped<IEvaluationLogRepository, EvaluationLogRepository>();
-            services.AddScoped<IProjectModificationHistoryRepository, ProjectModificationHistoryRepository>();
+            services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
+            services.AddScoped<IErrorLogRepository, ErrorLogRepository>();
+            services.AddScoped<ISystemAuditLogRepository, SystemAuditLogRepository>();
             services.AddScoped<INotificationRepository, NotificationRepository>();
             services.AddScoped<IConversationRepository, ConversationRepository>();
             services.AddScoped<IMessageRepository, MessageRepository>();
-            services.AddScoped<IUserActivityLogRepository, UserActivityLogRepository>();
-            services.AddScoped<ISystemAuditLogRepository, SystemAuditLogRepository>();
-            services.AddScoped<IErrorLogRepository, ErrorLogRepository>();
             services.AddScoped<IQuarantinedAttachmentRepository, QuarantinedAttachmentRepository>();
 
             // Add Log Services
-            services.AddScoped<IRequestLogService, RequestLogService>();
+            services.AddScoped<IActivityLogService, ActivityLogService>();
             services.AddScoped<IErrorLogService, ErrorLogService>();
 
             return services;
@@ -153,9 +157,6 @@ namespace TEDF.Persistence
             await dbContext.Database.MigrateAsync();
             logger.LogInformation("EF Core migrations applied successfully.");
 
-            // Seed development data (idempotent - skips if data already exists)
-            //await DevelopmentDataSeeder.SeedAsync(dbContext);
-
             // Load-test data: seed 1000 users + relationships when Firebase Emulator is enabled
             var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var useEmulator = configuration.GetValue<bool>("Firebase:UseEmulator");
@@ -165,6 +166,9 @@ namespace TEDF.Persistence
                 await LoadTestDataSeeder.SeedAsync(dbContext, logger);
                 await FirebaseEmulatorSeeder.SeedAsync(logger);
             }
+
+            // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
+            await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
 
             var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
             await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);

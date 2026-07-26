@@ -7,13 +7,7 @@ public interface IErrorLogRepository
     Task AddAsync(ErrorLogDocument log, CancellationToken ct = default);
 
     Task<(IEnumerable<ErrorLogDocument> Items, long TotalCount)> GetPagedAsync(
-        string? severity = null,
-        string? source = null,
-        string? searchTerm = null,
-        DateTime? from = null,
-        DateTime? to = null,
-        int page = 1,
-        int pageSize = 20,
+        ErrorLogFilter filter,
         CancellationToken ct = default);
 
     Task<ErrorLogDocument?> GetByIdAsync(Guid id, CancellationToken ct = default);
@@ -23,7 +17,20 @@ public interface IErrorLogRepository
         DateTime? from = null,
         DateTime? to = null,
         CancellationToken ct = default);
+
+    /// <summary>Delete error logs older than <paramref name="cutoff"/>. Pass null to delete all.</summary>
+    Task<long> DeleteOlderThanAsync(DateTime? cutoff, CancellationToken ct = default);
 }
+
+/// <summary>Filter and paging options for <see cref="IErrorLogRepository.GetPagedAsync"/>.</summary>
+public sealed record ErrorLogFilter(
+    string? Severity = null,
+    string? Source = null,
+    string? SearchTerm = null,
+    DateTime? From = null,
+    DateTime? To = null,
+    int Page = 1,
+    int PageSize = 20);
 
 public class ErrorFrequencyResult
 {

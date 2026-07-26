@@ -7,3 +7,4 @@ export { LecturerReviewPage } from "./LecturerReviewPage";
 export { LecturerHistoryPage } from "./LecturerHistoryPage";
 export { LecturerSupportPage } from "./LecturerSupportPage";
 export { SupervisedProjectsPage } from "./SupervisedProjectsPage";
+export { ProjectAuditLogsPage } from "./ProjectAuditLogsPage";
