@@ -241,7 +241,7 @@ public class ChecklistQueryService : IChecklistQueryService
             Criteria: criteria);
     }
 
-    private static string Lookup(IReadOnlyDictionary<int, string> names, int id)
+    private static string Lookup(Dictionary<int, string> names, int id)
         => names.TryGetValue(id, out var name) ? name : $"#{id}";
 
     private static string? LookupName(IReadOnlyDictionary<Guid, string> names, Guid? id)

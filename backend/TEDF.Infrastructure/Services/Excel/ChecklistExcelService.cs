@@ -175,6 +175,20 @@ public sealed class ChecklistExcelService : IChecklistExcelService
         (ColumnKey.PassScore, "Điểm đạt"),
     ];
 
+    /// <summary>
+    /// Header keyword rules, ordered from the most specific to the most generic — a header cell is
+    /// claimed by the first rule that matches and whose column is not mapped yet.
+    /// </summary>
+    private static readonly (ColumnKey Key, Func<string, bool> Matches)[] HeaderRules =
+    [
+        (ColumnKey.MaxScore, t => t.Contains("tối đa")),
+        (ColumnKey.PassScore, t => t.Contains("điểm đạt") || (t.Contains("đạt") && t.Contains("điểm"))),
+        (ColumnKey.TitleEn, t => t.Contains("anh")),
+        (ColumnKey.TitleVi, t => t.Contains("việt") || t.Contains("tên tiêu chí")),
+        (ColumnKey.Description, t => t.Contains("mô tả") || t.Contains("nội dung")),
+        (ColumnKey.Order, t => t.Contains("stt") || t.Contains("thứ tự")),
+    ];
+
     private static Dictionary<ColumnKey, int> MapColumns(IXLWorksheet worksheet)
     {
         var map = new Dictionary<ColumnKey, int>();
@@ -186,22 +200,23 @@ public sealed class ChecklistExcelService : IChecklistExcelService
             var text = header.Cell(c).GetString().Trim().ToLowerInvariant();
             if (text.Length == 0) continue;
 
-            // Order matters: check the most specific keywords first.
-            if (!map.ContainsKey(ColumnKey.MaxScore) && text.Contains("tối đa"))
-                map[ColumnKey.MaxScore] = c;
-            else if (!map.ContainsKey(ColumnKey.PassScore) && (text.Contains("điểm đạt") || (text.Contains("đạt") && text.Contains("điểm"))))
-                map[ColumnKey.PassScore] = c;
-            else if (!map.ContainsKey(ColumnKey.TitleEn) && text.Contains("anh"))
-                map[ColumnKey.TitleEn] = c;
-            else if (!map.ContainsKey(ColumnKey.TitleVi) && (text.Contains("việt") || text.Contains("tên tiêu chí")))
-                map[ColumnKey.TitleVi] = c;
-            else if (!map.ContainsKey(ColumnKey.Description) && (text.Contains("mô tả") || text.Contains("nội dung")))
-                map[ColumnKey.Description] = c;
-            else if (!map.ContainsKey(ColumnKey.Order) && (text.Contains("stt") || text.Contains("thứ tự")))
-                map[ColumnKey.Order] = c;
+            var key = ResolveColumnKey(text, map);
+            if (key.HasValue) map[key.Value] = c;
         }
 
         return map;
+    }
+
+    /// <summary>Returns the column this header cell describes, or null if it matches nothing left.</summary>
+    private static ColumnKey? ResolveColumnKey(string headerText, Dictionary<ColumnKey, int> mapped)
+    {
+        foreach (var (key, matches) in HeaderRules)
+        {
+            if (!mapped.ContainsKey(key) && matches(headerText))
+                return key;
+        }
+
+        return null;
     }
 
     private static string GetString(IXLRow row, IReadOnlyDictionary<ColumnKey, int> columns, ColumnKey key)

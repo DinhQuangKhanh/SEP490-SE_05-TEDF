@@ -463,7 +463,7 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(
                 // DBNull, not null: the params array is object[], so a null element would be a
                 // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
-                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle);
+                InsertLecturerSql, l.Id, l.EmployeeCode, l.AcademicTitle ?? (object)DBNull.Value);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -771,7 +771,7 @@ public static class LoadTestDataSeeder
         Justification = "Internal load-test seeder. Only the static column list and @p parameter " +
             "placeholders built by the callers are interpolated; every value is supplied through " +
             "the parameters array. No user input is involved, so it is not injectable.")]
-    private static Task InsertGroupsAsync(AppDbContext context, List<string> valueClauses, List<object> parameters)
+    private static Task<int> InsertGroupsAsync(AppDbContext context, List<string> valueClauses, List<object> parameters)
     {
         var sql = $@"
             INSERT INTO Groups ({GroupsInsertColumns})
@@ -779,6 +779,7 @@ public static class LoadTestDataSeeder
 
         return context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
     }
+
     private static async Task SeedGroupsAsync(AppDbContext context, ILogger? logger)
     {
         var totalGroups = Fall25GroupCount + Spring26GroupCount + Summer26GroupCount;

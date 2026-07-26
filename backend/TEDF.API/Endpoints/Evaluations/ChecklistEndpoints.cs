@@ -30,6 +30,7 @@ namespace TEDF.API.Endpoints.EvaluationChecklists;
 public sealed class EvaluationChecklistEndpoints : IEndpoint
 {
     private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private const string SwaggerTag = "EvaluationChecklists";
 
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
@@ -38,18 +39,18 @@ public sealed class EvaluationChecklistEndpoints : IEndpoint
 
         evaluator.MapGet("/projects/{projectId:guid}/checklist", GetProjectChecklist)
             .RequireAuthorization(PolicyNames.RequireEvaluator)
-            .WithTags("EvaluationChecklists").WithName("GetProjectChecklist")
+            .WithTags(SwaggerTag).WithName("GetProjectChecklist")
             .Produces<ApiResponse<ProjectChecklistDto>>().Produces(401).Produces(403).Produces(404);
 
         evaluator.MapPut("/projects/{projectId:guid}/checklist", SaveProjectChecklist)
             .RequireAuthorization(PolicyNames.RequireEvaluator)
-            .WithTags("EvaluationChecklists").WithName("SaveProjectChecklist")
+            .WithTags(SwaggerTag).WithName("SaveProjectChecklist")
             .Produces<ApiResponse<string>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         // Department-Head read-only view of a specific evaluator's checklist (needs-decision / history).
         evaluator.MapGet("/projects/{projectId:guid}/evaluators/{evaluatorId:guid}/checklist", GetEvaluatorChecklistForReview)
             .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
-            .WithTags("EvaluationChecklists").WithName("GetEvaluatorChecklistForReview")
+            .WithTags(SwaggerTag).WithName("GetEvaluatorChecklistForReview")
             .Produces<ApiResponse<ProjectChecklistDto>>().Produces(401).Produces(403).Produces(404);
 
         // ── Department-Head checklist configuration management ──
@@ -57,47 +58,47 @@ public sealed class EvaluationChecklistEndpoints : IEndpoint
             .RequireAuthorization(PolicyNames.RequireDepartmentHead);
 
         config.MapGet("", GetChecklistConfigs)
-            .WithTags("EvaluationChecklists").WithName("GetChecklistConfigs")
+            .WithTags(SwaggerTag).WithName("GetChecklistConfigs")
             .Produces<ApiResponse<ChecklistConfigListDto>>().Produces(401).Produces(403);
 
         config.MapGet("/default-criteria", GetDefaultCriteria)
-            .WithTags("EvaluationChecklists").WithName("GetDefaultChecklistCriteria")
+            .WithTags(SwaggerTag).WithName("GetDefaultChecklistCriteria")
             .Produces<ApiResponse<IReadOnlyList<ChecklistCriterionSeedDto>>>().Produces(401).Produces(403);
 
         config.MapGet("/template", DownloadTemplate)
-            .WithTags("EvaluationChecklists").WithName("DownloadChecklistTemplate")
+            .WithTags(SwaggerTag).WithName("DownloadChecklistTemplate")
             .Produces(200).Produces(401).Produces(403);
 
         config.MapGet("/{id:guid}", GetChecklistConfigById)
-            .WithTags("EvaluationChecklists").WithName("GetChecklistConfigById")
+            .WithTags(SwaggerTag).WithName("GetChecklistConfigById")
             .Produces<ApiResponse<ChecklistConfigDto>>().Produces(401).Produces(403).Produces(404);
 
         config.MapPost("/preview", PreviewImport).DisableAntiforgery()
-            .WithTags("EvaluationChecklists").WithName("PreviewChecklistImport")
+            .WithTags(SwaggerTag).WithName("PreviewChecklistImport")
             .Produces<ApiResponse<ChecklistImportPreviewDto>>().Produces(400).Produces(401).Produces(403);
 
         config.MapPost("/import", ImportChecklistConfig).DisableAntiforgery()
-            .WithTags("EvaluationChecklists").WithName("ImportChecklistConfig")
+            .WithTags(SwaggerTag).WithName("ImportChecklistConfig")
             .Produces<ApiResponse<Guid>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         config.MapPost("", CreateChecklistConfig)
-            .WithTags("EvaluationChecklists").WithName("CreateChecklistConfig")
+            .WithTags(SwaggerTag).WithName("CreateChecklistConfig")
             .Produces<ApiResponse<Guid>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         config.MapPost("/{id:guid}/copy", CopyChecklistConfig)
-            .WithTags("EvaluationChecklists").WithName("CopyChecklistConfig")
+            .WithTags(SwaggerTag).WithName("CopyChecklistConfig")
             .Produces<ApiResponse<Guid>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         config.MapPut("/{id:guid}", UpdateChecklistConfig)
-            .WithTags("EvaluationChecklists").WithName("UpdateChecklistConfig")
+            .WithTags(SwaggerTag).WithName("UpdateChecklistConfig")
             .Produces<ApiResponse<string>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         config.MapPost("/{id:guid}/activate", ActivateChecklistConfig)
-            .WithTags("EvaluationChecklists").WithName("ActivateChecklistConfig")
+            .WithTags(SwaggerTag).WithName("ActivateChecklistConfig")
             .Produces<ApiResponse<string>>().Produces(400).Produces(401).Produces(403).Produces(404);
 
         config.MapPost("/{id:guid}/deactivate", DeactivateChecklistConfig)
-            .WithTags("EvaluationChecklists").WithName("DeactivateChecklistConfig")
+            .WithTags(SwaggerTag).WithName("DeactivateChecklistConfig")
             .Produces<ApiResponse<string>>().Produces(400).Produces(401).Produces(403).Produces(404);
     }
 
@@ -181,7 +182,7 @@ public sealed class EvaluationChecklistEndpoints : IEndpoint
         return Ok("Đã ngừng sử dụng checklist.");
     }
 
-    private static IReadOnlyList<ChecklistCriterionInput> MapCriteria(IReadOnlyList<ChecklistCriterionRequest>? criteria)
+    private static List<ChecklistCriterionInput> MapCriteria(IReadOnlyList<ChecklistCriterionRequest>? criteria)
         => (criteria ?? [])
             .Select(c => new ChecklistCriterionInput(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
             .ToList();
