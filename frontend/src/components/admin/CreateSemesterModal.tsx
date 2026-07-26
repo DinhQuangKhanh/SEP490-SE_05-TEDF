@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { addDays, addWeeks, subDays, subMonths, format } from "date-fns";
 import { semesterService } from "@/lib";
 import { validatePhases, findCurrentSemester } from "@/lib";
 import { SemesterDto, ImportRosterResponse } from "@/types";
@@ -39,6 +40,89 @@ function loadDraft() {
   }
 }
 
+// ── Auto-fill semester schedule from the name ("Spring 2027" / "Summer 2027" / "Fall 2027") ──
+
+type SemesterTerm = "Spring" | "Summer" | "Fall";
+
+/** Parses a semester name into a term + year, e.g. "Summer 2027" → { Summer, 2027 }. */
+function parseSemesterTerm(raw: string): { term: SemesterTerm; year: number; key: string } | null {
+  const m = /\b(spring|summer|fall)\b\s*'?(\d{4})/i.exec(raw.trim());
+  if (!m) return null;
+  const lower = m[1].toLowerCase();
+  const term: SemesterTerm = lower === "spring" ? "Spring" : lower === "summer" ? "Summer" : "Fall";
+  const year = Number(m[2]);
+  if (year < 2000 || year > 2100) return null;
+  return { term, year, key: `${term}-${year}` };
+}
+
+/** The n-th Monday (1-based) of a given month. */
+function nthMondayOfMonth(year: number, month1: number, n: number): Date {
+  const first = new Date(year, month1 - 1, 1);
+  const offsetToMonday = (8 - first.getDay()) % 7; // 0 if the 1st is already Monday
+  return new Date(year, month1 - 1, 1 + offsetToMonday + (n - 1) * 7);
+}
+
+/** The first Monday on or after a given day of the month. */
+function firstMondayOnOrAfter(year: number, month1: number, day: number): Date {
+  const d = new Date(year, month1 - 1, day);
+  const offsetToMonday = (8 - d.getDay()) % 7;
+  return new Date(year, month1 - 1, day + offsetToMonday);
+}
+
+/**
+ * Semester start rule:
+ * - Spring: first Monday of January.
+ * - Summer: second Monday of May.
+ * - Fall:   first Monday on/after Sep 3 (Sep 2 is Vietnam's National Day).
+ */
+function semesterStartDate(term: SemesterTerm, year: number): Date {
+  switch (term) {
+    case "Spring": return nthMondayOfMonth(year, 1, 1);
+    case "Summer": return nthMondayOfMonth(year, 5, 2);
+    case "Fall": return firstMondayOnOrAfter(year, 9, 3);
+  }
+}
+
+/** Start of the semester that follows the given one (used to derive the end date). */
+function nextSemesterStartDate(term: SemesterTerm, year: number): Date {
+  switch (term) {
+    case "Spring": return semesterStartDate("Summer", year);
+    case "Summer": return semesterStartDate("Fall", year);
+    case "Fall": return semesterStartDate("Spring", year + 1);
+  }
+}
+
+/**
+ * Computes the full suggested schedule (semester + 4 phases) as "yyyy-MM-dd" strings.
+ * The admin can review and adjust before creating the semester.
+ */
+function computeSemesterSchedule(term: SemesterTerm, year: number) {
+  const semStart = semesterStartDate(term, year);
+  const semEnd = subDays(nextSemesterStartDate(term, year), 1); // day before the next semester starts
+
+  const regStart = subDays(subMonths(semStart, 1), 15); // ~1.5 months before the semester
+  const regEnd = addWeeks(regStart, 2);
+  const evalStart = addDays(regEnd, 1);
+  const evalEnd = addWeeks(evalStart, 2);
+  const implStart = semStart;
+  const implEnd = addDays(addWeeks(implStart, 15), 6); // Sunday closing the study weeks
+  const defStart = addDays(implEnd, 1);
+  const defEnd = addDays(defStart, 5);
+
+  const f = (d: Date) => format(d, "yyyy-MM-dd");
+  return {
+    startDate: f(semStart),
+    endDate: f(semEnd),
+    // Order matches PHASES_TEMPLATE: Registration, Evaluation, Implementation, Defense.
+    phaseDates: [
+      { startDate: f(regStart), endDate: f(regEnd) },
+      { startDate: f(evalStart), endDate: f(evalEnd) },
+      { startDate: f(implStart), endDate: f(implEnd) },
+      { startDate: f(defStart), endDate: f(defEnd) },
+    ],
+  };
+}
+
 export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: CreateSemesterModalProps) {
   const draft = loadDraft();
   const navigate = useNavigate();
@@ -52,6 +136,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     draft?.phases ?? PHASES_TEMPLATE.map((p) => ({ name: p.name, type: p.type, startDate: "", endDate: "" })),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [importingRoster, setImportingRoster] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -73,6 +158,32 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
   useEffect(() => {
     saveDraft();
   }, [saveDraft]);
+
+  // Auto-fill the dates when the name resolves to a new term+year (e.g. "Spring 2027").
+  // Initialised from the current name so a restored draft isn't overwritten on open, and
+  // gated on a *changed* term so the admin's manual date edits aren't clobbered while typing.
+  const lastAppliedTermKey = useRef<string | null>(parseSemesterTerm(name)?.key ?? null);
+  const [autoFilledKey, setAutoFilledKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (success) return; // don't rewrite fields after a successful create
+    const parsed = parseSemesterTerm(name);
+    if (!parsed || parsed.key === lastAppliedTermKey.current) return;
+    lastAppliedTermKey.current = parsed.key;
+
+    const sched = computeSemesterSchedule(parsed.term, parsed.year);
+    setStartDate(sched.startDate);
+    setEndDate(sched.endDate);
+    setPhases(
+      PHASES_TEMPLATE.map((p, i) => ({
+        name: p.name,
+        type: p.type,
+        startDate: sched.phaseDates[i].startDate,
+        endDate: sched.phaseDates[i].endDate,
+      })),
+    );
+    setAutoFilledKey(parsed.key);
+  }, [name, success]);
 
   const showError = (msg: string) => {
     setError(msg);
@@ -115,6 +226,8 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     setStudentResult(null);
     setMentorResult(null);
     setCreatedId(null);
+    lastAppliedTermKey.current = null;
+    setAutoFilledKey(null);
     clearDraft();
   };
 
@@ -172,6 +285,8 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     setIsSubmitting(true);
     setError(null);
 
+    // Step 1 — create the semester.
+    let newId: number;
     try {
       const res = await semesterService.createSemester({
         name: name.trim(),
@@ -187,39 +302,56 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
           endDate: new Date(p.endDate).toISOString(),
         })),
       });
-
-      setCreatedId(res.id);
-      setSuccess(true);
+      newId = res.id;
       onCreated?.();
       clearDraft();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Có lỗi xảy ra khi tạo kỳ học.");
+      setIsSubmitting(false);
+      return;
+    }
 
-      // Optional initial imports — surface their result instead of swallowing it.
+    // Step 2 — run the optional roster imports BEFORE revealing success, so the roster is
+    // fully committed by the time the admin can open the management page. Otherwise the
+    // "Quản lý danh sách" button (gated on success) becomes clickable while the imports are
+    // still in flight, and the roster page loads an empty/stale list.
+    let sResult: ImportRosterResponse | null = null;
+    let mResult: ImportRosterResponse | null = null;
+    const importErrors: string[] = [];
+    if (studentFile || mentorFile) {
+      setImportingRoster(true);
       if (studentFile) {
         try {
-          setStudentResult(await semesterService.importEligibleStudents(res.id, studentFile));
+          sResult = await semesterService.importEligibleStudents(newId, studentFile);
         } catch (e) {
-          showError("Tải danh sách sinh viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
+          importErrors.push("Tải danh sách sinh viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
         }
       }
       if (mentorFile) {
         try {
-          setMentorResult(await semesterService.importEligibleMentors(res.id, mentorFile));
+          mResult = await semesterService.importEligibleMentors(newId, mentorFile);
         } catch (e) {
-          showError("Tải danh sách giảng viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
+          importErrors.push("Tải danh sách giảng viên thất bại: " + (e instanceof Error ? e.message : "Lỗi không xác định"));
         }
       }
+      setImportingRoster(false);
+    }
 
-      // Plain create (no files) → auto-close. With files, keep open so the admin reads the results.
-      if (!studentFile && !mentorFile) {
-        setTimeout(() => {
-          resetForm();
-          onClose();
-        }, 1500);
-      }
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Có lỗi xảy ra khi tạo kỳ học.");
-    } finally {
-      setIsSubmitting(false);
+    // Step 3 — everything is persisted; now reveal success (this also enables the
+    // "Quản lý danh sách" navigation button) and show the import results together.
+    setStudentResult(sResult);
+    setMentorResult(mResult);
+    setCreatedId(newId);
+    setSuccess(true);
+    setIsSubmitting(false);
+    if (importErrors.length > 0) showError(importErrors.join(" • "));
+
+    // Plain create (no files) → auto-close. With files, keep open so the admin reads the results.
+    if (!studentFile && !mentorFile) {
+      setTimeout(() => {
+        resetForm();
+        onClose();
+      }, 1500);
     }
   };
 
@@ -331,11 +463,21 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     </label>
                     <input
                       className="w-full px-3 py-2 text-sm transition-all border rounded-md outline-none border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      placeholder="VD: Summer 2024"
+                      placeholder="VD: Summer 2027"
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
+                    {autoFilledKey && parseSemesterTerm(name)?.key === autoFilledKey ? (
+                      <p className="mt-1.5 flex items-start gap-1 text-[11px] text-emerald-600">
+                        <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                        Đã tự động điền lịch theo <span className="font-semibold">{name.trim()}</span>. Bạn có thể chỉnh lại bên dưới.
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-[11px] text-slate-400">
+                        Mẹo: nhập “Spring 2027”, “Summer 2027” hoặc “Fall 2027” để tự động điền lịch học kỳ.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -482,7 +624,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                     {isSubmitting ? (
                       <>
                         <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>{" "}
-                        Đang tạo...
+                        {importingRoster ? "Đang nhập danh sách..." : "Đang tạo..."}
                       </>
                     ) : (
                       "Khởi tạo kỳ học"
