@@ -405,7 +405,14 @@ public static class LoadTestDataSeeder
     // removes the ambiguity at the cost of one round trip per row — acceptable for a
     // dev-only load-test seeder (~510 students, ~500 lecturers).
     private const string InsertStudentSql =
-        "INSERT INTO Students (Id, StudentCode, ProgramId, ComboId) VALUES (@p0, @p1, NULL, NULL);";
+        "INSERT INTO Students (Id, StudentCode, ProgramId, ComboId) VALUES (@p0, @p1, @p2, @p3);";
+
+    // Seeded Programs (Programs.Id 1–24) and Combos (Combos.Id) — see MajorProgramConfiguration
+    // and ComboConfiguration. Students are assigned a program/combo round-robin so no student
+    // is left with a null ProgramId/ComboId.
+    private const int ProgramCount = 24;
+    private static readonly int[] ComboIds =
+        [340, 402, 1469, 2497, 2566, 2605, 2628, 2640, 2675, 2686];
 
     private static async Task SeedStudentsAsync(AppDbContext context, ILogger? logger)
     {
@@ -423,8 +430,13 @@ public static class LoadTestDataSeeder
                 students.Add((RealStudentId(nextIdx), roll));
             }
 
-        foreach (var s in students)
-            await context.Database.ExecuteSqlRawAsync(InsertStudentSql, s.Id, s.StudentCode);
+        for (var i = 0; i < students.Count; i++)
+        {
+            var (id, studentCode) = students[i];
+            var programId = (i % ProgramCount) + 1;      // 1..24
+            var comboId = ComboIds[i % ComboIds.Length];
+            await context.Database.ExecuteSqlRawAsync(InsertStudentSql, id, studentCode, programId, comboId);
+        }
 
         logger?.LogInformation("Seeded {Count} students.", students.Count);
     }
@@ -451,7 +463,7 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(
                 // DBNull, not null: the params array is object[], so a null element would be a
                 // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
-                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle ?? DBNull.Value);
+                InsertLecturerSql, l.Id, l.EmployeeCode, (object?)l.AcademicTitle);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
