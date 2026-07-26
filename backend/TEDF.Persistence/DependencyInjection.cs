@@ -47,6 +47,7 @@ namespace TEDF.Persistence
             // Add Interceptors
             services.AddScoped<AuditableEntityInterceptor>();
             services.AddScoped<SoftDeleteInterceptor>();
+            services.AddScoped<ProjectAuditLogInterceptor>();
             services.AddScoped<DomainEventInterceptor>();
 
             // Add SQL Server DbContext
@@ -55,7 +56,9 @@ namespace TEDF.Persistence
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"),
                     b => { b.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName); b.EnableRetryOnFailure(3); });
                 options.AddInterceptors(sp.GetRequiredService<AuditableEntityInterceptor>(),
-                    sp.GetRequiredService<SoftDeleteInterceptor>(), sp.GetRequiredService<DomainEventInterceptor>());
+                    sp.GetRequiredService<SoftDeleteInterceptor>(),
+                    sp.GetRequiredService<ProjectAuditLogInterceptor>(),
+                    sp.GetRequiredService<DomainEventInterceptor>());
             });
 
             // Add MongoDB
@@ -121,7 +124,6 @@ namespace TEDF.Persistence
             // Add Log Services
             services.AddScoped<IActivityLogService, ActivityLogService>();
             services.AddScoped<IErrorLogService, ErrorLogService>();
-            services.AddScoped<ISystemAuditLogWriteService, SystemAuditLogWriteService>();
 
             return services;
         }

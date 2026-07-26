@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Projects.DTOs;
@@ -9,7 +10,6 @@ using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
-using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -24,7 +24,6 @@ public class ProjectsQueryService : IProjectsQueryService
     private readonly IMajorReadRepository _majorRepository;
     private readonly IUserRepository _userRepository;
     private readonly IGroupRepository _groupRepository;
-    private readonly ISystemAuditLogRepository _auditLogRepository;
 
     public ProjectsQueryService(
         AppDbContext context,
@@ -32,8 +31,7 @@ public class ProjectsQueryService : IProjectsQueryService
         ISemesterRepository semesterRepository,
         IMajorReadRepository majorRepository,
         IUserRepository userRepository,
-        IGroupRepository groupRepository,
-        ISystemAuditLogRepository auditLogRepository)
+        IGroupRepository groupRepository)
     {
         _context = context;
         _projectRepository = projectRepository;
@@ -41,7 +39,6 @@ public class ProjectsQueryService : IProjectsQueryService
         _majorRepository = majorRepository;
         _userRepository = userRepository;
         _groupRepository = groupRepository;
-        _auditLogRepository = auditLogRepository;
     }
 
     public async Task<GetProjectsQueryResult> GetProjectsAsync(
@@ -311,29 +308,293 @@ public class ProjectsQueryService : IProjectsQueryService
         return new GetMySupervisedProjectsResult(items, totalCount, page, pageSize, totalPages);
     }
 
+    /// <remarks>
+    /// Reads the approval trail from SQL Server: the rows are written in the same transaction as
+    /// the state changes they describe, so counts here are exact rather than eventually consistent.
+    /// </remarks>
     public async Task<GetProjectAuditLogsResponse> GetProjectAuditLogsAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var logs = await _auditLogRepository.GetByEntityAsync("Project", projectId, cancellationToken);
-        
-        var userIds = logs.Where(l => l.PerformedBy.HasValue).Select(l => l.PerformedBy!.Value).Distinct().ToList();
-        var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+        // Left join on Users so a log row survives a removed user — PerformedByName is the
+        // snapshot taken at write time, the join only refreshes it to the current name.
+        var rows = await (
+            from log in _context.ProjectAuditLogs.AsNoTracking()
+            where log.ProjectId == projectId
+            join user in _context.Users on log.PerformedBy equals user.Id into matches
+            from user in matches.DefaultIfEmpty()
+            orderby log.Timestamp descending
+            select new { Log = log, CurrentName = user != null ? user.FullName : null })
+            .ToListAsync(cancellationToken);
 
-        var dtos = logs.Select(l => new ProjectAuditLogDto
+        var parsedMetadata = rows.Select(r => ParseMetadata(r.Log.MetadataJson)).ToList();
+        var metadataNames = await LoadUserNamesAsync(CollectMetadataUserIds(parsedMetadata), cancellationToken);
+
+        var dtos = rows.Select((r, i) => new ProjectAuditLogDto
         {
-            Id = l.Id,
-            Action = l.Action,
-            PerformedBy = l.PerformedBy,
-            PerformedByName = l.PerformedBy.HasValue ? users.GetValueOrDefault(l.PerformedBy.Value) : null,
-            Timestamp = l.Timestamp,
-            Metadata = l.Metadata != null ? global::MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(l.Metadata) : null
+            Id = r.Log.Id,
+            Action = r.Log.Action.ToString(),
+            PerformedBy = r.Log.PerformedBy,
+            PerformedByName = r.CurrentName ?? r.Log.PerformedByName,
+            OldStatus = r.Log.OldStatus?.ToString(),
+            NewStatus = r.Log.NewStatus?.ToString(),
+            SubmissionNumber = r.Log.SubmissionNumber,
+            Timestamp = r.Log.Timestamp,
+            Metadata = RenderMetadata(parsedMetadata[i], metadataNames)
         }).ToList();
 
-        var revisionCount = dtos.Count(d => d.Action == "NeedsModification" || d.Action == "MentorNeedsModification");
+        var revisionCount = rows.Count(r =>
+            r.Log.Action is ProjectAuditAction.NeedsModification or ProjectAuditAction.MentorNeedsModification);
+
+        var submissionCount = rows
+            .Where(r => r.Log.SubmissionNumber.HasValue)
+            .Select(r => r.Log.SubmissionNumber!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
 
         return new GetProjectAuditLogsResponse
         {
             Logs = dtos,
-            RevisionCount = revisionCount
+            RevisionCount = revisionCount,
+            SubmissionCount = submissionCount
         };
     }
+
+    /// <inheritdoc />
+    public async Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
+        Guid currentUserId, DepartmentAuditLogFilter filter, CancellationToken cancellationToken = default)
+    {
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var pageSize = filter.PageSize is < 1 or > 100 ? 10 : filter.PageSize;
+
+        var departmentId = await _context.Users.AsNoTracking()
+            .Where(u => u.Id == currentUserId)
+            .Select(u => u.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BusinessRuleValidationException("Current user is not assigned to any department.");
+
+        // Deactivated majors are included on purpose: an audit trail must not lose history
+        // when a major is retired, otherwise past terms silently disappear from the log.
+        var majorIds = await _context.Majors.AsNoTracking()
+            .Where(m => m.DepartmentId == departmentId)
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+        // Scope: only projects belonging to the department's majors.
+        var scoped = from log in _context.ProjectAuditLogs.AsNoTracking()
+                     join project in _context.Projects.AsNoTracking() on log.ProjectId equals project.Id
+                     where majorIds.Contains(project.MajorId)
+                     select new { Log = log, Project = project };
+
+        if (filter.SemesterId.HasValue)
+            scoped = scoped.Where(x => x.Project.SemesterId == filter.SemesterId.Value);
+
+        if (filter.From.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp >= filter.From.Value);
+
+        if (filter.To.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp <= filter.To.Value);
+
+        // Stats cover the semester/date scope but ignore the action and search filters, so the
+        // cards stay stable while the action tabs drill into them.
+        var stats = await scoped
+            .GroupBy(_ => 1)
+            .Select(g => new DepartmentAuditLogStatsDto
+            {
+                Total = g.Count(),
+                Submitted = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.Submitted ||
+                    x.Log.Action == ProjectAuditAction.Resubmitted ||
+                    x.Log.Action == ProjectAuditAction.SubmittedToMentor),
+                Approved = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.Approved ||
+                    x.Log.Action == ProjectAuditAction.MentorApproved),
+                Revision = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.NeedsModification ||
+                    x.Log.Action == ProjectAuditAction.MentorNeedsModification),
+                Rejected = g.Count(x => x.Log.Action == ProjectAuditAction.Rejected)
+            })
+            .FirstOrDefaultAsync(cancellationToken) ?? new DepartmentAuditLogStatsDto();
+
+        var parsedActions = ParseActions(filter.Actions);
+        if (parsedActions.Count > 0)
+            scoped = scoped.Where(x => parsedActions.Contains(x.Log.Action));
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var term = filter.Search.Trim();
+            scoped = scoped.Where(x =>
+                x.Project.Code.Value.Contains(term) ||
+                x.Project.NameVi.Value.Contains(term) ||
+                (x.Log.PerformedByName != null && x.Log.PerformedByName.Contains(term)));
+        }
+
+        var totalCount = await scoped.CountAsync(cancellationToken);
+
+        var rows = await scoped
+            .OrderByDescending(x => x.Log.Timestamp)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var parsedMetadata = rows.Select(r => ParseMetadata(r.Log.MetadataJson)).ToList();
+
+        // One round-trip for both the performers and the users referenced inside the metadata.
+        // Performer names fall back to the write-time snapshot when the user is gone.
+        var performerIds = rows
+            .Where(r => r.Log.PerformedBy.HasValue)
+            .Select(r => r.Log.PerformedBy!.Value);
+
+        var names = await LoadUserNamesAsync(
+            performerIds.Concat(CollectMetadataUserIds(parsedMetadata)), cancellationToken);
+
+        var items = rows.Select((r, i) => new DepartmentAuditLogItemDto
+        {
+            Id = r.Log.Id,
+            ProjectId = r.Log.ProjectId,
+            ProjectCode = r.Project.Code.Value,
+            ProjectName = r.Project.NameVi.Value,
+            Action = r.Log.Action.ToString(),
+            PerformedBy = r.Log.PerformedBy,
+            PerformedByName = r.Log.PerformedBy.HasValue
+                ? names.GetValueOrDefault(r.Log.PerformedBy.Value) ?? r.Log.PerformedByName
+                : r.Log.PerformedByName,
+            OldStatus = r.Log.OldStatus?.ToString(),
+            NewStatus = r.Log.NewStatus?.ToString(),
+            SubmissionNumber = r.Log.SubmissionNumber,
+            Timestamp = r.Log.Timestamp,
+            Metadata = RenderMetadata(parsedMetadata[i], names)
+        }).ToList();
+
+        return new GetDepartmentAuditLogsResponse
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Stats = stats
+        };
+    }
+
+    /// <summary>Parses the comma-separated action filter, ignoring names that are not valid actions.</summary>
+    private static List<ProjectAuditAction> ParseActions(string? actions)
+    {
+        if (string.IsNullOrWhiteSpace(actions)) return [];
+
+        return actions
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(name => Enum.TryParse<ProjectAuditAction>(name, ignoreCase: true, out var parsed)
+                ? parsed
+                : (ProjectAuditAction?)null)
+            .Where(a => a.HasValue)
+            .Select(a => a!.Value)
+            .Distinct()
+            .ToList();
+    }
+
+    // ── Audit metadata rendering ────────────────────────────────────────────────
+    // The audit interceptor stores raw user ids because an id is stable while a name is not.
+    // The reader needs names, so they are resolved here in one batched lookup per query.
+
+    /// <summary>Metadata keys holding a user id, mapped to the key their resolved name is written to.</summary>
+    private static readonly Dictionary<string, string> UserIdMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MentorId"] = "mentorName",
+        ["EvaluatorId"] = "evaluatorName",
+        ["AssignedBy"] = "assignedByName",
+        ["DeletedBy"] = "deletedByName"
+    };
+
+    /// <summary>Identifiers that mean nothing to a reader; dropped rather than shown as a raw GUID.</summary>
+    private static readonly HashSet<string> HiddenMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "DocumentId", "PhaseId"
+    };
+
+    private static Dictionary<string, JsonElement>? ParseMetadata(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        }
+        catch (JsonException)
+        {
+            // A malformed row must not break the whole trail.
+            return null;
+        }
+    }
+
+    /// <summary>Collects every user id referenced by the parsed metadata, so names load in one round-trip.</summary>
+    private static IEnumerable<Guid> CollectMetadataUserIds(IEnumerable<Dictionary<string, JsonElement>?> parsed)
+    {
+        foreach (var metadata in parsed)
+        {
+            if (metadata is null) continue;
+
+            foreach (var (key, value) in metadata)
+            {
+                if (!UserIdMetadataKeys.ContainsKey(key)) continue;
+                if (value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var userId))
+                    yield return userId;
+            }
+        }
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadUserNamesAsync(
+        IEnumerable<Guid> userIds, CancellationToken cancellationToken)
+    {
+        var ids = userIds.Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.Users.AsNoTracking()
+            .Where(u => ids.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+    }
+
+    /// <summary>
+    /// Renders raw metadata for display: user ids become names, opaque ids are dropped and the
+    /// remaining keys are camelCased so the client sees one naming convention.
+    /// </summary>
+    private static Dictionary<string, object?>? RenderMetadata(
+        Dictionary<string, JsonElement>? metadata, Dictionary<Guid, string> userNames)
+    {
+        if (metadata is null || metadata.Count == 0) return null;
+
+        var rendered = new Dictionary<string, object?>();
+
+        foreach (var (key, value) in metadata)
+        {
+            if (HiddenMetadataKeys.Contains(key)) continue;
+
+            if (UserIdMetadataKeys.TryGetValue(key, out var nameKey))
+            {
+                // A user that no longer exists leaves the key out entirely rather than showing an id.
+                if (value.ValueKind == JsonValueKind.String
+                    && value.TryGetGuid(out var userId)
+                    && userNames.TryGetValue(userId, out var name))
+                {
+                    rendered[nameKey] = name;
+                }
+                continue;
+            }
+
+            rendered[ToCamelCase(key)] = ToClrValue(value);
+        }
+
+        return rendered.Count == 0 ? null : rendered;
+    }
+
+    private static object? ToClrValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.TryGetInt64(out var number) ? number : value.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null or JsonValueKind.Undefined => null,
+        _ => value.ToString()
+    };
+
+    private static string ToCamelCase(string key) =>
+        key.Length > 0 && char.IsUpper(key[0]) ? char.ToLowerInvariant(key[0]) + key[1..] : key;
 }

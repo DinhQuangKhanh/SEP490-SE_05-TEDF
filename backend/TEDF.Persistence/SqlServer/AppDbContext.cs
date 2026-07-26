@@ -38,6 +38,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMentor> ProjectMentors => Set<ProjectMentor>();
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<ProjectAuditLog> ProjectAuditLogs => Set<ProjectAuditLog>();
     #endregion
 
     #region TopicPool Aggregate

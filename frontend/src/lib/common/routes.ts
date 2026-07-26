@@ -17,6 +17,8 @@ export const routes = {
     errorLogs: "/api/activity-logs/errors",
     errorLogDetail: (id: string) => `/api/activity-logs/errors/${id}`,
     semesters: "/api/semesters",
+    /** Same list as `semesters`, readable by any authenticated user (filter dropdowns). */
+    semestersPublic: "/api/semesters/public",
     semesterById: (id: number) => `/api/semesters/${id}`,
     activeSemester: "/api/semesters/active",
     eligibleStudentsImport: (id: number) => `/api/semesters/${id}/eligible-students/import`,
@@ -52,6 +54,7 @@ export const routes = {
     dashboard: "/api/dashboard/department-head",
     evaluators: "/api/evaluations/evaluators",
     projects: "/api/projects/department",
+    auditLogs: "/api/projects/audit-logs",
     assignEvaluator: "/api/evaluations/assign-evaluator",
     finalDecision: (projectId: string) => `/api/evaluations/projects/${projectId}/final-decision`,
   },

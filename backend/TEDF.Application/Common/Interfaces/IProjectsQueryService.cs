@@ -19,4 +19,8 @@ public interface IProjectsQueryService
         Guid mentorId, string? search, string? sort, int page, int pageSize, CancellationToken cancellationToken = default);
 
     Task<GetProjectAuditLogsResponse> GetProjectAuditLogsAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>Department-head: approval audit trail across every project in the caller's department.</summary>
+    Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
+        Guid currentUserId, DepartmentAuditLogFilter filter, CancellationToken cancellationToken = default);
 }

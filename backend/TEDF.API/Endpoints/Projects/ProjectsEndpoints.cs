@@ -1,4 +1,6 @@
 using MediatR;
+using TEDF.API.Endpoints.Projects.Requests;
+using TEDF.Application.Features.Projects.Queries.GetDepartmentAuditLogs;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
@@ -33,10 +35,19 @@ public sealed class ProjectsEndpoints : IEndpoint
             .WithTags(Tag).WithName("GetMySupervisedProjects")
             .Produces(200).Produces(401);
 
-        // Audit logs for a project.
+        // Department head: approval audit trail across the whole department.
+        group.MapGet("/audit-logs", GetDepartmentAuditLogs)
+            .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
+            .WithTags(Tag).WithName("GetDepartmentAuditLogs")
+            .Produces(200).Produces(401).Produces(403);
+
+        // Audit logs for a project. Admin-only: the trail names every reviewer and their verdict,
+        // and the only caller is the admin project detail drawer. Department heads read the
+        // department-wide trail above, which is already scoped to their own department.
         group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
+            .RequireAuthorization(PolicyNames.RequireAdmin)
             .WithTags(Tag).WithName("GetProjectAuditLogs")
-            .Produces(200).Produces(401);
+            .Produces(200).Produces(401).Produces(403);
     }
 
     private static async Task<IResult> GetProjects(
@@ -59,4 +70,13 @@ public sealed class ProjectsEndpoints : IEndpoint
 
     private static async Task<IResult> GetProjectAuditLogs(ISender sender, Guid id, CancellationToken ct = default)
         => Ok(await sender.Send(new GetProjectAuditLogsQuery(id), ct));
+
+    private static async Task<IResult> GetDepartmentAuditLogs(
+        [AsParameters] GetDepartmentAuditLogsRequest request,
+        ISender sender,
+        CancellationToken ct = default)
+        => Ok(await sender.Send(
+            new GetDepartmentAuditLogsQuery(
+                request.Search, request.Actions, request.SemesterId,
+                request.From, request.To, request.Page, request.PageSize), ct));
 }

@@ -103,11 +103,65 @@ export interface ProjectAuditLogDto {
   action: string;
   performedBy: string | null;
   performedByName: string | null;
+  /** Trạng thái trước khi hành động này thay đổi trạng thái đề tài. */
+  oldStatus: string | null;
+  /** Trạng thái sau khi hành động này thay đổi trạng thái đề tài. */
+  newStatus: string | null;
+  submissionNumber: number | null;
   timestamp: string;
   metadata: Record<string, unknown> | null;
 }
 
+export interface DepartmentAuditLogFilters {
+  search?: string;
+  /** Comma-separated action names; empty means all. */
+  actions?: string;
+  /** Chỉ lấy nhật ký của một học kỳ; bỏ trống là tất cả học kỳ. */
+  semesterId?: number;
+  /** Mốc thời gian bắt đầu (ISO, đã quy về UTC). */
+  from?: string;
+  /** Mốc thời gian kết thúc (ISO, đã quy về UTC). */
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DepartmentAuditLogItemDto {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  action: string;
+  performedBy: string | null;
+  performedByName: string | null;
+  oldStatus: string | null;
+  newStatus: string | null;
+  submissionNumber: number | null;
+  timestamp: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface DepartmentAuditLogStatsDto {
+  total: number;
+  submitted: number;
+  approved: number;
+  revision: number;
+  rejected: number;
+}
+
+export interface DepartmentAuditLogsResponse {
+  items: DepartmentAuditLogItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  stats: DepartmentAuditLogStatsDto;
+}
+
 export interface ProjectAuditLogResponse {
   logs: ProjectAuditLogDto[];
+  /** Số lần đề tài bị trả về để chỉnh sửa. */
   revisionCount: number;
+  /** Số lần nhóm đã nộp (lần nộp cao nhất). */
+  submissionCount: number;
 }
