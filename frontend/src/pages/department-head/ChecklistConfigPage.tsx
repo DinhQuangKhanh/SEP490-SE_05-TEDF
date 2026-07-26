@@ -85,6 +85,114 @@ export function ChecklistConfigPage() {
     }
   }
 
+  /**
+   * Config table body: loading / empty / the rows.
+   * Split out of the JSX so the three states read as guards instead of nested ternaries.
+   */
+  function renderConfigs() {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          <span className="text-sm">Đang tải...</span>
+        </div>
+      );
+    }
+
+    if (configs.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+          <span className="material-symbols-outlined text-4xl">checklist</span>
+          <p className="text-sm font-medium">Chưa có checklist nào</p>
+        </div>
+      );
+    }
+
+    return (
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50/80 border-b border-gray-100">
+            {["Học kỳ", "Phiên bản", "Trạng thái", "Số tiêu chí", "Cần đạt tối thiểu", "File nguồn", "Cập nhật", "Thao tác"].map(
+              (h) => (
+                <th
+                  key={h}
+                  className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
+                >
+                  {h}
+                </th>
+              ),
+            )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {configs.map((config) => {
+            const status = STATUS_DISPLAY[config.status];
+            return (
+              <tr key={config.id} className="hover:bg-blue-50/20 transition-colors">
+                <td className="px-6 py-4 text-sm font-semibold text-slate-800 whitespace-nowrap">
+                  {config.semesterName}
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600">v{config.version}</td>
+                <td className="px-6 py-4">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${status?.colors ?? ""}`}
+                  >
+                    {status?.label ?? config.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600">{config.criteriaCount}</td>
+                <td className="px-6 py-4 text-sm text-slate-600">
+                  {config.requiredPassCount}/{config.criteriaCount}
+                </td>
+                <td className="px-6 py-4 text-xs text-slate-500 max-w-[180px] truncate" title={config.sourceFileName ?? ""}>
+                  {config.sourceFileName ?? "—"}
+                </td>
+                <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">
+                  <div>{formatDate(config.updatedAt ?? config.createdAt)}</div>
+                  {config.updatedByName && <div className="text-slate-400">bởi {config.updatedByName}</div>}
+                </td>
+                <td className="px-6 py-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1">
+                    <button type="button"
+                      onClick={() => setEditor({ open: true, config })}
+                      className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
+                      title={config.status === "Draft" ? "Chỉnh sửa" : "Xem"}
+                    >
+                      {config.status === "Draft" ? "Sửa" : "Xem"}
+                    </button>
+                    <button type="button"
+                      onClick={() => setCopyFor(config)}
+                      className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
+                      title="Sao chép sang học kỳ khác"
+                    >
+                      Sao chép
+                    </button>
+                    {config.status !== "Active" && (
+                      <button type="button"
+                        onClick={() => setConfirm({ kind: "activate", config })}
+                        className="px-2 py-1 text-xs font-semibold text-green-600 rounded-lg hover:bg-green-50"
+                      >
+                        Kích hoạt
+                      </button>
+                    )}
+                    {config.status === "Active" && (
+                      <button type="button"
+                        onClick={() => setConfirm({ kind: "deactivate", config })}
+                        className="px-2 py-1 text-xs font-semibold text-red-600 rounded-lg hover:bg-red-50"
+                      >
+                        Ngừng
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <>
       {/* Header */}
@@ -92,7 +200,7 @@ export function ChecklistConfigPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
           <div className="flex flex-col gap-1">
             <h2 className="text-white text-2xl font-bold tracking-tight flex items-center gap-2">
-              <span className="material-symbols-outlined">checklist</span>
+              <span className="material-symbols-outlined">checklist</span>{" "}
               Checklist thẩm định đề tài
             </h2>
             <p className="text-blue-100/80 text-sm">
@@ -104,14 +212,14 @@ export function ChecklistConfigPage() {
               onClick={() => setEditor({ open: true, config: null })}
               className="flex items-center gap-2 h-11 px-4 rounded-xl bg-white/15 text-white font-semibold text-sm hover:bg-white/25"
             >
-              <span className="material-symbols-outlined text-[20px]">edit_note</span>
+              <span className="material-symbols-outlined text-[20px]">edit_note</span>{" "}
               Tạo thủ công
             </button>
             <button type="button"
               onClick={() => setImportOpen(true)}
               className="flex items-center gap-2 h-11 px-5 rounded-xl bg-white text-primary font-semibold text-sm hover:bg-blue-50 shadow"
             >
-              <span className="material-symbols-outlined text-[20px]">upload_file</span>
+              <span className="material-symbols-outlined text-[20px]">upload_file</span>{" "}
               Import Excel
             </button>
           </div>
@@ -121,8 +229,11 @@ export function ChecklistConfigPage() {
       <div className="w-full p-6 md:p-8 flex flex-col gap-6 flex-1 min-h-0 overflow-y-auto">
         {/* Filter */}
         <div className="flex items-center gap-3">
-          <label className="text-sm font-semibold text-slate-600">Học kỳ</label>
+          <label htmlFor="checklist-semester-filter" className="text-sm font-semibold text-slate-600">
+            Học kỳ
+          </label>
           <select
+            id="checklist-semester-filter"
             value={filterSemester}
             onChange={(e) => setFilterSemester(e.target.value)}
             className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
@@ -139,99 +250,7 @@ export function ChecklistConfigPage() {
         {/* Table */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            {loading ? (
-              <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
-                <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                <span className="text-sm">Đang tải...</span>
-              </div>
-            ) : configs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
-                <span className="material-symbols-outlined text-4xl">checklist</span>
-                <p className="text-sm font-medium">Chưa có checklist nào</p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/80 border-b border-gray-100">
-                    {["Học kỳ", "Phiên bản", "Trạng thái", "Số tiêu chí", "Cần đạt tối thiểu", "File nguồn", "Cập nhật", "Thao tác"].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {configs.map((config) => {
-                    const status = STATUS_DISPLAY[config.status];
-                    return (
-                      <tr key={config.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 whitespace-nowrap">
-                          {config.semesterName}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">v{config.version}</td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${status?.colors ?? ""}`}
-                          >
-                            {status?.label ?? config.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{config.criteriaCount}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {config.requiredPassCount}/{config.criteriaCount}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-500 max-w-[180px] truncate" title={config.sourceFileName ?? ""}>
-                          {config.sourceFileName ?? "—"}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">
-                          <div>{formatDate(config.updatedAt ?? config.createdAt)}</div>
-                          {config.updatedByName && <div className="text-slate-400">bởi {config.updatedByName}</div>}
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1">
-                            <button type="button"
-                              onClick={() => setEditor({ open: true, config })}
-                              className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
-                              title={config.status === "Draft" ? "Chỉnh sửa" : "Xem"}
-                            >
-                              {config.status === "Draft" ? "Sửa" : "Xem"}
-                            </button>
-                            <button type="button"
-                              onClick={() => setCopyFor(config)}
-                              className="px-2 py-1 text-xs font-semibold text-slate-600 rounded-lg hover:bg-gray-100"
-                              title="Sao chép sang học kỳ khác"
-                            >
-                              Sao chép
-                            </button>
-                            {config.status !== "Active" && (
-                              <button type="button"
-                                onClick={() => setConfirm({ kind: "activate", config })}
-                                className="px-2 py-1 text-xs font-semibold text-green-600 rounded-lg hover:bg-green-50"
-                              >
-                                Kích hoạt
-                              </button>
-                            )}
-                            {config.status === "Active" && (
-                              <button type="button"
-                                onClick={() => setConfirm({ kind: "deactivate", config })}
-                                className="px-2 py-1 text-xs font-semibold text-red-600 rounded-lg hover:bg-red-50"
-                              >
-                                Ngừng
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
+            {renderConfigs()}
           </div>
         </div>
       </div>
@@ -416,8 +435,11 @@ function ChecklistImportDialog({
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Học kỳ áp dụng</label>
+                  <label htmlFor="checklist-import-semester" className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                    Học kỳ áp dụng
+                  </label>
                   <select
+                    id="checklist-import-semester"
                     value={semesterId}
                     onChange={(e) => setSemesterId(e.target.value)}
                     className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
@@ -436,15 +458,18 @@ function ChecklistImportDialog({
                     disabled={downloading}
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-semibold text-slate-600 hover:bg-gray-50 disabled:opacity-50"
                   >
-                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    <span className="material-symbols-outlined text-[18px]">download</span>{" "}
                     {downloading ? "Đang tải..." : "Tải file mẫu"}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold uppercase text-slate-500">File Excel (.xlsx)</label>
+                <label htmlFor="checklist-import-file" className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                  File Excel (.xlsx)
+                </label>
                 <input
+                  id="checklist-import-file"
                   ref={fileInputRef}
                   type="file"
                   accept=".xlsx"
@@ -466,8 +491,8 @@ function ChecklistImportDialog({
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                       <p className="mb-1 font-bold">File có {preview.errors.length} lỗi cần sửa:</p>
                       <ul className="list-disc space-y-0.5 pl-4">
-                        {preview.errors.map((err, i) => (
-                          <li key={i}>{err}</li>
+                        {preview.errors.map((err) => (
+                          <li key={err}>{err}</li>
                         ))}
                       </ul>
                     </div>
@@ -511,8 +536,11 @@ function ChecklistImportDialog({
                         Hợp lệ • {preview.criteriaCount} tiêu chí
                       </span>
                       <div className="flex items-center gap-2">
-                        <label className="text-xs font-semibold text-slate-600">Số tiêu chí tối thiểu cần đạt:</label>
+                        <label htmlFor="checklist-import-threshold" className="text-xs font-semibold text-slate-600">
+                          Số tiêu chí tối thiểu cần đạt:
+                        </label>
                         <input
+                          id="checklist-import-threshold"
                           type="number"
                           min={1}
                           max={validCount}
@@ -544,7 +572,7 @@ function ChecklistImportDialog({
               >
                 {importing ? (
                   <>
-                    <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />{" "}
                     Đang import...
                   </>
                 ) : (
@@ -594,6 +622,9 @@ function ChecklistConfigEditor({
   const { showError } = useSystemError();
   const isEdit = !!config;
   const readOnly = !!config && config.status !== "Draft";
+
+  let editorTitle = "Tạo checklist thủ công";
+  if (config) editorTitle = readOnly ? "Xem checklist" : "Chỉnh sửa checklist";
 
   const [semesterId, setSemesterId] = useState<string>("");
   const [rows, setRows] = useState<EditorRow[]>([]);
@@ -711,9 +742,7 @@ function ChecklistConfigEditor({
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {config ? (readOnly ? "Xem checklist" : "Chỉnh sửa checklist") : "Tạo checklist thủ công"}
-                </h3>
+                <h3 className="text-base font-bold text-slate-900">{editorTitle}</h3>
                 <p className="text-xs text-slate-500">
                   Cấu hình tiêu chí, điểm tối đa/điểm đạt và số tiêu chí tối thiểu cần đạt.
                 </p>
@@ -733,8 +762,11 @@ function ChecklistConfigEditor({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {!isEdit && (
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Học kỳ áp dụng</label>
+                    <label htmlFor="checklist-editor-semester" className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                      Học kỳ áp dụng
+                    </label>
                     <select
+                      id="checklist-editor-semester"
                       value={semesterId}
                       onChange={(e) => setSemesterId(e.target.value)}
                       className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-primary"
@@ -749,10 +781,11 @@ function ChecklistConfigEditor({
                   </div>
                 )}
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                  <label htmlFor="checklist-editor-threshold" className="mb-1 block text-xs font-bold uppercase text-slate-500">
                     Số tiêu chí tối thiểu cần đạt
                   </label>
                   <input
+                    id="checklist-editor-threshold"
                     type="number"
                     min={1}
                     max={rows.length}
@@ -802,8 +835,14 @@ function ChecklistConfigEditor({
                           />
                           <div className="grid grid-cols-2 gap-2 md:w-1/2">
                             <div>
-                              <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">Điểm tối đa</label>
+                              <label
+                                htmlFor={`criterion-max-${row.key}`}
+                                className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400"
+                              >
+                                Điểm tối đa
+                              </label>
                               <input
+                                id={`criterion-max-${row.key}`}
                                 type="number"
                                 min={0}
                                 step="0.5"
@@ -814,8 +853,14 @@ function ChecklistConfigEditor({
                               />
                             </div>
                             <div>
-                              <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">Điểm đạt</label>
+                              <label
+                                htmlFor={`criterion-pass-${row.key}`}
+                                className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400"
+                              >
+                                Điểm đạt
+                              </label>
                               <input
+                                id={`criterion-pass-${row.key}`}
                                 type="number"
                                 min={0}
                                 step="0.5"
@@ -863,7 +908,7 @@ function ChecklistConfigEditor({
                       onClick={addRow}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-semibold text-slate-500 hover:bg-gray-50"
                     >
-                      <span className="material-symbols-outlined text-[18px]">add</span>
+                      <span className="material-symbols-outlined text-[18px]">add</span>{" "}
                       Thêm tiêu chí ({rows.length})
                     </button>
                   )}
@@ -885,7 +930,7 @@ function ChecklistConfigEditor({
                   >
                     {saving ? (
                       <>
-                        <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />{" "}
                         Đang lưu...
                       </>
                     ) : (

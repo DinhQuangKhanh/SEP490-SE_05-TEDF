@@ -13,6 +13,55 @@ import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { EvaluationChecklistModal } from "@/components/lecturer";
 
+/** Similarity score → badge label/colours. */
+function getSimilarityBadge(similarity: number) {
+  if (similarity >= 70)
+    return { label: "Rất có khả năng trùng", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" };
+  if (similarity >= 40)
+    return { label: "Cần kiểm tra thêm", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" };
+  return { label: "Thấp", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" };
+}
+
+/** Why the "Duyệt" verdict is blocked — shared by the submit guard and the button tooltip. */
+function approveGateMessage(hasActiveConfig: boolean, required: number, total: number): string {
+  return hasActiveConfig
+    ? `Đề tài cần đạt ít nhất ${required}/${total} tiêu chí thẩm định trước khi được duyệt.`
+    : "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.";
+}
+
+/** Trailing badge of the checklist button: spinner / passed-count / not-configured warning. */
+function ChecklistBadge({
+  loading,
+  checklist,
+  canApprove,
+  total,
+}: Readonly<{
+  loading: boolean;
+  checklist: ProjectChecklistResponse | null;
+  canApprove: boolean;
+  total: number;
+}>) {
+  if (loading) {
+    return (
+      <span className="material-symbols-outlined animate-spin text-[18px] text-slate-400">progress_activity</span>
+    );
+  }
+
+  if (checklist?.hasActiveConfig) {
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+          canApprove ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-700"
+        }`}
+      >
+        {checklist.passedCount}/{total}
+      </span>
+    );
+  }
+
+  return <span className="material-symbols-outlined text-[18px] text-amber-500">report</span>;
+}
+
 export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -142,11 +191,7 @@ export function LecturerReviewPage() {
 
     // Server-side is authoritative, but block here too for a clear, immediate message.
     if (verdict === 1 && !canApprove) {
-      showError(
-        hasActiveConfig
-          ? `Đề tài cần đạt ít nhất ${checklistRequired}/${checklistTotal} tiêu chí thẩm định trước khi được duyệt.`
-          : "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.",
-      );
+      showError(approveGateMessage(hasActiveConfig, checklistRequired, checklistTotal));
       return;
     }
 
@@ -164,14 +209,6 @@ export function LecturerReviewPage() {
       setSubmitting(false);
     }
   }, [id, verdict, feedback, navigate, showError, canApprove, hasActiveConfig, checklistRequired, checklistTotal]);
-
-  const getSimilarityBadge = (similarity: number) => {
-    if (similarity >= 70)
-      return { label: "Rất có khả năng trùng", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" };
-    if (similarity >= 40)
-      return { label: "Cần kiểm tra thêm", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" };
-    return { label: "Thấp", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" };
-  };
 
   if (loading) {
     return (
@@ -615,9 +652,7 @@ export function LecturerReviewPage() {
                     disabled={disabled}
                     title={
                       approveGated
-                        ? hasActiveConfig
-                          ? `Đề tài cần đạt ít nhất ${checklistRequired}/${checklistTotal} tiêu chí thẩm định trước khi được duyệt.`
-                          : "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn."
+                        ? approveGateMessage(hasActiveConfig, checklistRequired, checklistTotal)
                         : undefined
                     }
                     className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
@@ -651,24 +686,15 @@ export function LecturerReviewPage() {
               className="mt-3 flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-gray-50"
             >
               <span className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-primary">checklist</span>
+                <span className="material-symbols-outlined text-[20px] text-primary">checklist</span>{" "}
                 Checklist thẩm định
               </span>
-              {checklistLoading ? (
-                <span className="material-symbols-outlined animate-spin text-[18px] text-slate-400">
-                  progress_activity
-                </span>
-              ) : checklist?.hasActiveConfig ? (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    canApprove ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  {checklist.passedCount}/{checklistTotal}
-                </span>
-              ) : (
-                <span className="material-symbols-outlined text-[18px] text-amber-500">report</span>
-              )}
+              <ChecklistBadge
+                loading={checklistLoading}
+                checklist={checklist}
+                canApprove={canApprove}
+                total={checklistTotal}
+              />
             </button>
             {!checklistLoading && checklist && !hasActiveConfig && (
               <p className="mt-2 text-xs text-amber-600">

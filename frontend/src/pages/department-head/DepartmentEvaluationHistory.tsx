@@ -50,9 +50,8 @@ function matchesDateRange(iso: string | null, range: string): boolean {
   return true;
 }
 
-function toCsvValue(value: string): string {
-  const v = value ?? "";
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+function toCsvValue(value = ""): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /**
@@ -146,6 +145,94 @@ export function DepartmentEvaluationHistory() {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Table body: loading / load-failed / empty / the result rows.
+   * Split out of the JSX so the four states read as guards instead of nested ternaries.
+   */
+  function renderRows() {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-16 text-slate-400 gap-3">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          <span className="text-sm">Đang tải...</span>
+        </div>
+      );
+    }
+
+    if (loadError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
+          <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
+          <p className="text-sm font-medium">Không thể tải dữ liệu. Vui lòng thử lại.</p>
+        </div>
+      );
+    }
+
+    if (pageItems.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
+          <span className="material-symbols-outlined text-4xl">history</span>
+          <p className="text-sm font-medium">Không tìm thấy kết quả nào</p>
+        </div>
+      );
+    }
+
+    return (
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50/80 border-b border-gray-100">
+            {["Đề tài", "Học kỳ", "Kết quả", "Người thẩm định", "Thời gian", "Thao tác"].map((h) => (
+              <th
+                key={h}
+                className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {pageItems.map((p) => {
+            const resultInfo = RESULT_DISPLAY[resultKey(p.statusValue)];
+            return (
+              <tr key={p.projectId} className="hover:bg-blue-50/20 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex flex-col">
+                    <span className="text-slate-900 font-semibold text-sm line-clamp-1">{p.nameVi}</span>
+                    <span className="text-xs text-slate-500 font-mono mt-1">{p.projectCode}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{p.semesterName}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${resultInfo?.colors ?? "bg-gray-100 text-gray-600 border-gray-200"}`}
+                  >
+                    {resultInfo?.label ?? p.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-600 max-w-xs">
+                  <span className="line-clamp-2">{evaluatorNames(p)}</span>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
+                  {formatDate(reviewedAt(p))}
+                </td>
+                <td className="px-6 py-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setDetailProject(p)}
+                    className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
+                  >
+                    Chi tiết
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -153,7 +240,7 @@ export function DepartmentEvaluationHistory() {
         <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-slate-900 text-2xl font-bold tracking-tight flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">history</span>
+              <span className="material-symbols-outlined text-primary">history</span>{" "}
               Lịch sử thẩm định
             </h2>
             <p className="text-slate-500 text-sm">Các đề tài đã thẩm định thuộc bộ môn của bạn.</p>
@@ -232,75 +319,7 @@ export function DepartmentEvaluationHistory() {
             className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col flex-1"
           >
             <div className="overflow-x-auto">
-              {loading ? (
-                <div className="flex items-center justify-center py-16 text-slate-400 gap-3">
-                  <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                  <span className="text-sm">Đang tải...</span>
-                </div>
-              ) : loadError ? (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-                  <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
-                  <p className="text-sm font-medium">Không thể tải dữ liệu. Vui lòng thử lại.</p>
-                </div>
-              ) : pageItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-                  <span className="material-symbols-outlined text-4xl">history</span>
-                  <p className="text-sm font-medium">Không tìm thấy kết quả nào</p>
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                      {["Đề tài", "Học kỳ", "Kết quả", "Người thẩm định", "Thời gian", "Thao tác"].map((h) => (
-                        <th
-                          key={h}
-                          className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap last:text-right"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {pageItems.map((p) => {
-                      const resultInfo = RESULT_DISPLAY[resultKey(p.statusValue)];
-                      return (
-                        <tr key={p.projectId} className="hover:bg-blue-50/20 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="text-slate-900 font-semibold text-sm line-clamp-1">{p.nameVi}</span>
-                              <span className="text-xs text-slate-500 font-mono mt-1">{p.projectCode}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">{p.semesterName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${resultInfo?.colors ?? "bg-gray-100 text-gray-600 border-gray-200"}`}
-                            >
-                              {resultInfo?.label ?? p.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600 max-w-xs">
-                            <span className="line-clamp-2">{evaluatorNames(p)}</span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
-                            {formatDate(reviewedAt(p))}
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => setDetailProject(p)}
-                              className="inline-flex items-center justify-center h-8 px-4 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-gray-50 hover:border-primary/50 hover:text-primary transition-all"
-                            >
-                              Chi tiết
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+              {renderRows()}
             </div>
             {!loading && !loadError && totalCount > 0 && (
               <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white shrink-0">

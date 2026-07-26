@@ -17,7 +17,7 @@ function parseScore(raw: string): number | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
   const value = Number(trimmed.replace(",", "."));
-  return Number.isFinite(value) ? value : NaN;
+  return Number.isFinite(value) ? value : Number.NaN;
 }
 
 /** Per-criterion score status styling/label (extracted so the markup has no nested ternaries). */
@@ -137,6 +137,141 @@ export function EvaluationChecklistModal({
     }
   }
 
+  /**
+   * Body content: loading / missing-config / empty / the criteria list.
+   * Split out of the JSX so the four states read as guards instead of nested ternaries.
+   */
+  function renderBody() {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          <span className="text-sm">Đang tải checklist...</span>
+        </div>
+      );
+    }
+
+    if (!checklist?.hasActiveConfig) {
+      return (
+        <div className="flex flex-col items-center gap-2 py-16 text-center">
+          <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
+          <p className="max-w-sm text-sm font-medium text-slate-600">
+            Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.
+          </p>
+        </div>
+      );
+    }
+
+    if (sortedItems.length === 0) {
+      return (
+        <div className="flex flex-col items-center gap-2 py-16 text-center text-slate-400">
+          <span className="material-symbols-outlined text-4xl">inbox</span>
+          <p className="text-sm font-medium">Checklist chưa có tiêu chí nào.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {sortedItems.map((item) => {
+          const value = parseScore(scores[item.criterionId] ?? "");
+          const hasScore = value != null && !Number.isNaN(value);
+          const isPassed = hasScore && value >= item.passScore;
+          const status = scoreStatus(hasScore, isPassed);
+          return (
+            <div
+              key={item.criterionId}
+              className={`rounded-xl border p-3 transition-colors ${status.border}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400">{item.order}.</span>
+                    <span className="text-sm font-semibold text-slate-800">{item.titleVi}</span>
+                    {item.titleEn && <span className="text-xs text-slate-400">— {item.titleEn}</span>}
+                  </div>
+                  {item.description && <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>}
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Điểm tối đa: <span className="font-semibold text-slate-500">{item.maxScore}</span> • Điểm
+                    đạt: <span className="font-semibold text-slate-500">{item.passScore}</span>
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.badge}`}
+                >
+                  {status.label}
+                </span>
+              </div>
+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <div className="sm:w-40">
+                  <label
+                    htmlFor={`score-${item.criterionId}`}
+                    className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
+                  >
+                    Điểm
+                  </label>
+                  <input
+                    id={`score-${item.criterionId}`}
+                    type="number"
+                    min={0}
+                    max={item.maxScore}
+                    step="0.5"
+                    value={scores[item.criterionId] ?? ""}
+                    disabled={readOnly}
+                    onChange={(e) => setScore(item.criterionId, e.target.value, item.maxScore)}
+                    placeholder={`0 - ${item.maxScore}`}
+                    className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label
+                    htmlFor={`comment-${item.criterionId}`}
+                    className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
+                  >
+                    Nhận xét
+                  </label>
+                  <textarea
+                    id={`comment-${item.criterionId}`}
+                    rows={2}
+                    value={comments[item.criterionId] ?? ""}
+                    disabled={readOnly}
+                    maxLength={2000}
+                    onChange={(e) => setComment(item.criterionId, e.target.value)}
+                    placeholder="Nhận xét cho tiêu chí này..."
+                    className="min-h-[3rem] max-h-40 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-70"
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Show the overall note when editing, or read-only when there is a saved note. */}
+        {(!readOnly || note.trim().length > 0) && (
+          <div className="pt-1">
+            <label
+              htmlFor="checklist-overall-note"
+              className="mb-1 block text-xs font-bold uppercase text-slate-500"
+            >
+              Nhận xét tổng quát{!readOnly && " (tuỳ chọn)"}
+            </label>
+            <textarea
+              id="checklist-overall-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={readOnly}
+              rows={2}
+              maxLength={2000}
+              placeholder="Nhận xét chung cho lần thẩm định này..."
+              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 disabled:opacity-80"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <AnimatePresence>
       {open && (
@@ -189,122 +324,7 @@ export function EvaluationChecklistModal({
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {loading ? (
-                <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
-                  <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                  <span className="text-sm">Đang tải checklist...</span>
-                </div>
-              ) : !checklist?.hasActiveConfig ? (
-                <div className="flex flex-col items-center gap-2 py-16 text-center">
-                  <span className="material-symbols-outlined text-4xl text-amber-400">report</span>
-                  <p className="max-w-sm text-sm font-medium text-slate-600">
-                    Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.
-                  </p>
-                </div>
-              ) : sortedItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-16 text-center text-slate-400">
-                  <span className="material-symbols-outlined text-4xl">inbox</span>
-                  <p className="text-sm font-medium">Checklist chưa có tiêu chí nào.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {sortedItems.map((item) => {
-                    const value = parseScore(scores[item.criterionId] ?? "");
-                    const hasScore = value != null && !Number.isNaN(value);
-                    const isPassed = hasScore && value >= item.passScore;
-                    const status = scoreStatus(hasScore, isPassed);
-                    return (
-                      <div
-                        key={item.criterionId}
-                        className={`rounded-xl border p-3 transition-colors ${status.border}`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-xs font-bold text-slate-400">{item.order}.</span>
-                              <span className="text-sm font-semibold text-slate-800">{item.titleVi}</span>
-                              {item.titleEn && <span className="text-xs text-slate-400">— {item.titleEn}</span>}
-                            </div>
-                            {item.description && <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>}
-                            <p className="mt-1 text-[11px] text-slate-400">
-                              Điểm tối đa: <span className="font-semibold text-slate-500">{item.maxScore}</span> • Điểm
-                              đạt: <span className="font-semibold text-slate-500">{item.passScore}</span>
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.badge}`}
-                          >
-                            {status.label}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                          <div className="sm:w-40">
-                            <label
-                              htmlFor={`score-${item.criterionId}`}
-                              className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
-                            >
-                              Điểm
-                            </label>
-                            <input
-                              id={`score-${item.criterionId}`}
-                              type="number"
-                              min={0}
-                              max={item.maxScore}
-                              step="0.5"
-                              value={scores[item.criterionId] ?? ""}
-                              disabled={readOnly}
-                              onChange={(e) => setScore(item.criterionId, e.target.value, item.maxScore)}
-                              placeholder={`0 - ${item.maxScore}`}
-                              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label
-                              htmlFor={`comment-${item.criterionId}`}
-                              className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
-                            >
-                              Nhận xét
-                            </label>
-                            <textarea
-                              id={`comment-${item.criterionId}`}
-                              rows={2}
-                              value={comments[item.criterionId] ?? ""}
-                              disabled={readOnly}
-                              maxLength={2000}
-                              onChange={(e) => setComment(item.criterionId, e.target.value)}
-                              placeholder="Nhận xét cho tiêu chí này..."
-                              className="min-h-[3rem] max-h-40 w-full resize-y rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-70"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Show the overall note when editing, or read-only when there is a saved note. */}
-                  {(!readOnly || note.trim().length > 0) && (
-                    <div className="pt-1">
-                      <label
-                        htmlFor="checklist-overall-note"
-                        className="mb-1 block text-xs font-bold uppercase text-slate-500"
-                      >
-                        Nhận xét tổng quát{!readOnly && " (tuỳ chọn)"}
-                      </label>
-                      <textarea
-                        id="checklist-overall-note"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        disabled={readOnly}
-                        rows={2}
-                        maxLength={2000}
-                        placeholder="Nhận xét chung cho lần thẩm định này..."
-                        className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 disabled:opacity-80"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+              {renderBody()}
             </div>
 
             {/* Footer */}
@@ -341,7 +361,7 @@ export function EvaluationChecklistModal({
                       >
                         {saving ? (
                           <>
-                            <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />{" "}
                             Đang lưu...
                           </>
                         ) : (

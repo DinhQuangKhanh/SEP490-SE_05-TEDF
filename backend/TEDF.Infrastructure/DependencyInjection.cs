@@ -193,6 +193,7 @@ namespace TEDF.Infrastructure
             // Domain Services
             services.AddScoped<IProjectsDomainService, ProjectsDomainService>();
             services.AddScoped<IEvaluationsDomainService, EvaluationsDomainService>();
+            services.AddScoped<ChecklistRepositories>();
             services.AddScoped<IChecklistDomainService, ChecklistDomainService>();
             services.AddScoped<IChecklistExcelService, ChecklistExcelService>();
             services.AddScoped<ITopicPoolsDomainService, TopicPoolsDomainService>();

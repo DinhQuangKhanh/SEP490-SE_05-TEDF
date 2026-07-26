@@ -233,8 +233,10 @@ public class EvaluationsDomainService : IEvaluationsDomainService
                         break;
                     case EvaluationResult.Rejected:
                         project.Reject();
+                        // CancellationToken.None: the job runs on Hangfire after this request has
+                        // completed, so the request token must not be captured.
                         _backgroundJobService.Schedule<IProjectRepository>(
-                            repo => repo.CancelRejectedProjectAsync(projectId, default),
+                            repo => repo.CancelRejectedProjectAsync(projectId, CancellationToken.None),
                             TimeSpan.FromMinutes(5));
                         break;
                 }
@@ -287,8 +289,9 @@ public class EvaluationsDomainService : IEvaluationsDomainService
                 break;
             case EvaluationResult.Rejected:
                 project.Reject();
+                // CancellationToken.None: deliberately opting out — the job outlives this request.
                 _backgroundJobService.Schedule<IProjectRepository>(
-                    repo => repo.CancelRejectedProjectAsync(projectId, default),
+                    repo => repo.CancelRejectedProjectAsync(projectId, CancellationToken.None),
                     TimeSpan.FromMinutes(5));
                 break;
             default:
