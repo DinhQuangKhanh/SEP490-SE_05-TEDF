@@ -39,7 +39,12 @@ export function ProjectAuditLogList({ projectId }: Readonly<ProjectAuditLogListP
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700">Lịch sử (Revision: {data.revisionCount})</span>
+                <span className="text-sm font-medium text-slate-700">Lịch sử duyệt đề tài</span>
+                <span className="text-xs text-slate-500">
+                    Số lần nộp: <span className="font-semibold text-slate-700">{data.submissionCount}</span>
+                    {' · '}
+                    Số lần chỉnh sửa: <span className="font-semibold text-slate-700">{data.revisionCount}</span>
+                </span>
             </div>
 
             <div className="relative border-l-2 border-slate-200 ml-3 space-y-6 pb-2">
@@ -58,6 +63,17 @@ export function ProjectAuditLogList({ projectId }: Readonly<ProjectAuditLogListP
                             {log.performedByName && (
                                 <p className="text-sm text-slate-600">
                                     Bởi: <span className="font-medium text-slate-700">{log.performedByName}</span>
+                                    {log.submissionNumber !== null && (
+                                        <span className="text-slate-400"> · lần nộp {log.submissionNumber}</span>
+                                    )}
+                                </p>
+                            )}
+
+                            {log.newStatus && (
+                                <p className="text-xs text-slate-500">
+                                    Trạng thái: <span className="font-medium">{formatStatus(log.oldStatus)}</span>
+                                    {' → '}
+                                    <span className="font-medium text-slate-700">{formatStatus(log.newStatus)}</span>
                                 </p>
                             )}
 
@@ -83,9 +99,27 @@ function formatAction(action: string) {
         'Approved': 'Hội đồng duyệt',
         'NeedsModification': 'Hội đồng yêu cầu chỉnh sửa',
         'Rejected': 'Hội đồng từ chối',
+        'SubmittedToMentor': 'Gửi GVHD duyệt',
         'MentorAssigned': 'Phân công GVHD',
+        'EvaluatorAssigned': 'Phân công người thẩm định',
         'DocumentUploaded': 'Tải lên tài liệu',
         'DocumentDeleted': 'Xóa tài liệu',
     };
     return actionMap[action] || action;
+}
+
+function formatStatus(status: string | null) {
+    if (!status) return '—';
+    const statusMap: Record<string, string> = {
+        'Draft': 'Nháp',
+        'PendingMentorReview': 'Chờ GVHD duyệt',
+        'PendingEvaluation': 'Chờ thẩm định',
+        'NeedsModification': 'Cần chỉnh sửa',
+        'Approved': 'Đã duyệt',
+        'Rejected': 'Từ chối',
+        'InProgress': 'Đang thực hiện',
+        'Completed': 'Hoàn thành',
+        'Cancelled': 'Đã hủy',
+    };
+    return statusMap[status] || status;
 }

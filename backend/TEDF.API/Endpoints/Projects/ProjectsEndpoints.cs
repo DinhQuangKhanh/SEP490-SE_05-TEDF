@@ -1,4 +1,5 @@
 using MediatR;
+using TEDF.Application.Features.Projects.Queries.GetDepartmentAuditLogs;
 using TEDF.Application.Features.Projects.Queries.GetDepartmentProjects;
 using TEDF.Application.Features.Projects.Queries.GetMySupervisedProjects;
 using TEDF.Application.Features.Projects.Queries.GetProjects;
@@ -33,6 +34,12 @@ public sealed class ProjectsEndpoints : IEndpoint
             .WithTags(Tag).WithName("GetMySupervisedProjects")
             .Produces(200).Produces(401);
 
+        // Department head: approval audit trail across the whole department.
+        group.MapGet("/audit-logs", GetDepartmentAuditLogs)
+            .RequireAuthorization(PolicyNames.DepartmentHeadOfDepartment)
+            .WithTags(Tag).WithName("GetDepartmentAuditLogs")
+            .Produces(200).Produces(401).Produces(403);
+
         // Audit logs for a project.
         group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
             .WithTags(Tag).WithName("GetProjectAuditLogs")
@@ -59,4 +66,9 @@ public sealed class ProjectsEndpoints : IEndpoint
 
     private static async Task<IResult> GetProjectAuditLogs(ISender sender, Guid id, CancellationToken ct = default)
         => Ok(await sender.Send(new GetProjectAuditLogsQuery(id), ct));
+
+    private static async Task<IResult> GetDepartmentAuditLogs(
+        ISender sender, string? search, string? actions,
+        int page = 1, int pageSize = 10, CancellationToken ct = default)
+        => Ok(await sender.Send(new GetDepartmentAuditLogsQuery(search, actions, page, pageSize), ct));
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Projects.DTOs;
@@ -9,7 +10,6 @@ using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
-using TEDF.Persistence.MongoDB.Repositories.Interfaces;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -24,7 +24,6 @@ public class ProjectsQueryService : IProjectsQueryService
     private readonly IMajorReadRepository _majorRepository;
     private readonly IUserRepository _userRepository;
     private readonly IGroupRepository _groupRepository;
-    private readonly ISystemAuditLogRepository _auditLogRepository;
 
     public ProjectsQueryService(
         AppDbContext context,
@@ -32,8 +31,7 @@ public class ProjectsQueryService : IProjectsQueryService
         ISemesterRepository semesterRepository,
         IMajorReadRepository majorRepository,
         IUserRepository userRepository,
-        IGroupRepository groupRepository,
-        ISystemAuditLogRepository auditLogRepository)
+        IGroupRepository groupRepository)
     {
         _context = context;
         _projectRepository = projectRepository;
@@ -41,7 +39,6 @@ public class ProjectsQueryService : IProjectsQueryService
         _majorRepository = majorRepository;
         _userRepository = userRepository;
         _groupRepository = groupRepository;
-        _auditLogRepository = auditLogRepository;
     }
 
     public async Task<GetProjectsQueryResult> GetProjectsAsync(
@@ -311,29 +308,187 @@ public class ProjectsQueryService : IProjectsQueryService
         return new GetMySupervisedProjectsResult(items, totalCount, page, pageSize, totalPages);
     }
 
+    /// <remarks>
+    /// Reads the approval trail from SQL Server: the rows are written in the same transaction as
+    /// the state changes they describe, so counts here are exact rather than eventually consistent.
+    /// </remarks>
     public async Task<GetProjectAuditLogsResponse> GetProjectAuditLogsAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
-        var logs = await _auditLogRepository.GetByEntityAsync("Project", projectId, cancellationToken);
-        
-        var userIds = logs.Where(l => l.PerformedBy.HasValue).Select(l => l.PerformedBy!.Value).Distinct().ToList();
-        var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+        // Left join on Users so a log row survives a removed user — PerformedByName is the
+        // snapshot taken at write time, the join only refreshes it to the current name.
+        var rows = await (
+            from log in _context.ProjectAuditLogs.AsNoTracking()
+            where log.ProjectId == projectId
+            join user in _context.Users on log.PerformedBy equals user.Id into matches
+            from user in matches.DefaultIfEmpty()
+            orderby log.Timestamp descending
+            select new { Log = log, CurrentName = user != null ? user.FullName : null })
+            .ToListAsync(cancellationToken);
 
-        var dtos = logs.Select(l => new ProjectAuditLogDto
+        var dtos = rows.Select(r => new ProjectAuditLogDto
         {
-            Id = l.Id,
-            Action = l.Action,
-            PerformedBy = l.PerformedBy,
-            PerformedByName = l.PerformedBy.HasValue ? users.GetValueOrDefault(l.PerformedBy.Value) : null,
-            Timestamp = l.Timestamp,
-            Metadata = l.Metadata != null ? global::MongoDB.Bson.BsonTypeMapper.MapToDotNetValue(l.Metadata) : null
+            Id = r.Log.Id,
+            Action = r.Log.Action.ToString(),
+            PerformedBy = r.Log.PerformedBy,
+            PerformedByName = r.CurrentName ?? r.Log.PerformedByName,
+            OldStatus = r.Log.OldStatus?.ToString(),
+            NewStatus = r.Log.NewStatus?.ToString(),
+            SubmissionNumber = r.Log.SubmissionNumber,
+            Timestamp = r.Log.Timestamp,
+            Metadata = DeserializeMetadata(r.Log.MetadataJson)
         }).ToList();
 
-        var revisionCount = dtos.Count(d => d.Action == "NeedsModification" || d.Action == "MentorNeedsModification");
+        var revisionCount = rows.Count(r =>
+            r.Log.Action is ProjectAuditAction.NeedsModification or ProjectAuditAction.MentorNeedsModification);
+
+        var submissionCount = rows
+            .Where(r => r.Log.SubmissionNumber.HasValue)
+            .Select(r => r.Log.SubmissionNumber!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
 
         return new GetProjectAuditLogsResponse
         {
             Logs = dtos,
-            RevisionCount = revisionCount
+            RevisionCount = revisionCount,
+            SubmissionCount = submissionCount
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
+        Guid currentUserId, string? search, string? actions,
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
+
+        var departmentId = await _context.Users.AsNoTracking()
+            .Where(u => u.Id == currentUserId)
+            .Select(u => u.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BusinessRuleValidationException("Current user is not assigned to any department.");
+
+        var majorIds = await _context.Majors.AsNoTracking()
+            .Where(m => m.DepartmentId == departmentId && m.IsActive)
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+        // Scope: only projects belonging to the department's majors.
+        var scoped = from log in _context.ProjectAuditLogs.AsNoTracking()
+                     join project in _context.Projects.AsNoTracking() on log.ProjectId equals project.Id
+                     where majorIds.Contains(project.MajorId)
+                     select new { Log = log, Project = project };
+
+        // Stats cover the whole department scope so the cards stay stable while paging/filtering.
+        var stats = await scoped
+            .GroupBy(_ => 1)
+            .Select(g => new DepartmentAuditLogStatsDto
+            {
+                Total = g.Count(),
+                Submitted = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.Submitted ||
+                    x.Log.Action == ProjectAuditAction.Resubmitted ||
+                    x.Log.Action == ProjectAuditAction.SubmittedToMentor),
+                Approved = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.Approved ||
+                    x.Log.Action == ProjectAuditAction.MentorApproved),
+                Revision = g.Count(x =>
+                    x.Log.Action == ProjectAuditAction.NeedsModification ||
+                    x.Log.Action == ProjectAuditAction.MentorNeedsModification),
+                Rejected = g.Count(x => x.Log.Action == ProjectAuditAction.Rejected)
+            })
+            .FirstOrDefaultAsync(cancellationToken) ?? new DepartmentAuditLogStatsDto();
+
+        var parsedActions = ParseActions(actions);
+        if (parsedActions.Count > 0)
+            scoped = scoped.Where(x => parsedActions.Contains(x.Log.Action));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            scoped = scoped.Where(x =>
+                x.Project.Code.Value.Contains(term) ||
+                x.Project.NameVi.Value.Contains(term) ||
+                (x.Log.PerformedByName != null && x.Log.PerformedByName.Contains(term)));
+        }
+
+        var totalCount = await scoped.CountAsync(cancellationToken);
+
+        var rows = await scoped
+            .OrderByDescending(x => x.Log.Timestamp)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        // Refresh performer names in one round-trip; fall back to the write-time snapshot.
+        var performerIds = rows
+            .Where(r => r.Log.PerformedBy.HasValue)
+            .Select(r => r.Log.PerformedBy!.Value)
+            .Distinct()
+            .ToList();
+
+        var performerNames = await _context.Users.AsNoTracking()
+            .Where(u => performerIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+
+        var items = rows.Select(r => new DepartmentAuditLogItemDto
+        {
+            Id = r.Log.Id,
+            ProjectId = r.Log.ProjectId,
+            ProjectCode = r.Project.Code.Value,
+            ProjectName = r.Project.NameVi.Value,
+            Action = r.Log.Action.ToString(),
+            PerformedBy = r.Log.PerformedBy,
+            PerformedByName = r.Log.PerformedBy.HasValue
+                ? performerNames.GetValueOrDefault(r.Log.PerformedBy.Value) ?? r.Log.PerformedByName
+                : r.Log.PerformedByName,
+            OldStatus = r.Log.OldStatus?.ToString(),
+            NewStatus = r.Log.NewStatus?.ToString(),
+            SubmissionNumber = r.Log.SubmissionNumber,
+            Timestamp = r.Log.Timestamp,
+            Metadata = DeserializeMetadata(r.Log.MetadataJson)
+        }).ToList();
+
+        return new GetDepartmentAuditLogsResponse
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Stats = stats
+        };
+    }
+
+    /// <summary>Parses the comma-separated action filter, ignoring names that are not valid actions.</summary>
+    private static List<ProjectAuditAction> ParseActions(string? actions)
+    {
+        if (string.IsNullOrWhiteSpace(actions)) return [];
+
+        return actions
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(name => Enum.TryParse<ProjectAuditAction>(name, ignoreCase: true, out var parsed)
+                ? parsed
+                : (ProjectAuditAction?)null)
+            .Where(a => a.HasValue)
+            .Select(a => a!.Value)
+            .Distinct()
+            .ToList();
+    }
+
+    private static object? DeserializeMetadata(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<JsonElement>(json);
+        }
+        catch (JsonException)
+        {
+            // A malformed row must not break the whole trail.
+            return null;
+        }
     }
 }

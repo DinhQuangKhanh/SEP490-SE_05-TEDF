@@ -52,6 +52,7 @@ export const routes = {
     dashboard: "/api/dashboard/department-head",
     evaluators: "/api/evaluations/evaluators",
     projects: "/api/projects/department",
+    auditLogs: "/api/projects/audit-logs",
     assignEvaluator: "/api/evaluations/assign-evaluator",
     finalDecision: (projectId: string) => `/api/evaluations/projects/${projectId}/final-decision`,
   },

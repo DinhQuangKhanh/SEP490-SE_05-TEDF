@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
+import { projectService } from "@/lib";
+import { DepartmentAuditLogItemDto, DepartmentAuditLogStatsDto } from "@/types";
 
 // ── Animation variants ─────────────────────────────────────────────────────
 const container = {
@@ -120,187 +122,6 @@ function getActionConfig(action: string): ActionConfig {
   );
 }
 
-// ── Mock Data ───────────────────────────────────────────────────────────────
-interface AuditLogEntry {
-  id: string;
-  projectCode: string;
-  projectName: string;
-  action: string;
-  performedByName: string;
-  timestamp: string;
-  metadata: Record<string, unknown> | null;
-}
-
-function generateMockData(): AuditLogEntry[] {
-  const now = Date.now();
-  const h = 3600000; // 1 hour in ms
-
-  return [
-    {
-      id: "m01",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "Submitted",
-      performedByName: "Nguyễn Văn An",
-      timestamp: new Date(now - 168 * h).toISOString(),
-      metadata: { submissionNumber: 1 },
-    },
-    {
-      id: "m02",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "MentorAssigned",
-      performedByName: "PGS.TS. Trần Minh Đức",
-      timestamp: new Date(now - 165 * h).toISOString(),
-      metadata: { mentorName: "TS. Lê Hoàng Nam" },
-    },
-    {
-      id: "m03",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "Submitted",
-      performedByName: "Trần Thị Bích",
-      timestamp: new Date(now - 160 * h).toISOString(),
-      metadata: { submissionNumber: 1 },
-    },
-    {
-      id: "m03a",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "EvaluatorAssigned",
-      performedByName: "PGS.TS. Trần Minh Đức",
-      timestamp: new Date(now - 150 * h).toISOString(),
-      metadata: { evaluatorName: "TS. Nguyễn Huy Hoàng", phaseId: 1 },
-    },
-    {
-      id: "m04",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "MentorNeedsModification",
-      performedByName: "TS. Lê Hoàng Nam",
-      timestamp: new Date(now - 144 * h).toISOString(),
-      metadata: { feedback: "Cần bổ sung phạm vi đề tài, làm rõ công nghệ sử dụng và kết quả mong đợi" },
-    },
-    {
-      id: "m05",
-      projectCode: "POOL-SE-003",
-      projectName: "Website thương mại điện tử bán hàng trực tuyến",
-      action: "SubmittedToMentor",
-      performedByName: "Lê Văn Cường",
-      timestamp: new Date(now - 130 * h).toISOString(),
-      metadata: null,
-    },
-    {
-      id: "m06",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "DocumentUploaded",
-      performedByName: "Trần Thị Bích",
-      timestamp: new Date(now - 120 * h).toISOString(),
-      metadata: { documentType: "Proposal", fileName: "de_cuong_chi_tiet.pdf" },
-    },
-    {
-      id: "m07",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "Resubmitted",
-      performedByName: "Nguyễn Văn An",
-      timestamp: new Date(now - 96 * h).toISOString(),
-      metadata: { submissionNumber: 2 },
-    },
-    {
-      id: "m08",
-      projectCode: "POOL-SE-003",
-      projectName: "Website thương mại điện tử bán hàng trực tuyến",
-      action: "MentorApproved",
-      performedByName: "PGS.TS. Trần Minh Đức",
-      timestamp: new Date(now - 72 * h).toISOString(),
-      metadata: { comment: "Đề tài đáp ứng yêu cầu, đồng ý duyệt" },
-    },
-    {
-      id: "m09",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "MentorApproved",
-      performedByName: "TS. Lê Hoàng Nam",
-      timestamp: new Date(now - 48 * h).toISOString(),
-      metadata: { comment: "Bản chỉnh sửa đạt yêu cầu" },
-    },
-    {
-      id: "m10",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "NeedsModification",
-      performedByName: "TS. Phạm Thị Hương",
-      timestamp: new Date(now - 40 * h).toISOString(),
-      metadata: { feedback: "Scope quá rộng, cần thu hẹp phạm vi và làm rõ tính khả thi" },
-    },
-    {
-      id: "m11",
-      projectCode: "POOL-SE-003",
-      projectName: "Website thương mại điện tử bán hàng trực tuyến",
-      action: "Approved",
-      performedByName: "TS. Phạm Thị Hương",
-      timestamp: new Date(now - 36 * h).toISOString(),
-      metadata: null,
-    },
-    {
-      id: "m12",
-      projectCode: "POOL-SE-001",
-      projectName: "Xây dựng hệ thống quản lý Đặt lịch khám bệnh viện",
-      action: "Approved",
-      performedByName: "TS. Phạm Thị Hương",
-      timestamp: new Date(now - 24 * h).toISOString(),
-      metadata: null,
-    },
-    {
-      id: "m13",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "DocumentDeleted",
-      performedByName: "Trần Thị Bích",
-      timestamp: new Date(now - 20 * h).toISOString(),
-      metadata: { fileName: "de_cuong_v1_cu.pdf", deletedBy: "Trần Thị Bích" },
-    },
-    {
-      id: "m14",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "Resubmitted",
-      performedByName: "Trần Thị Bích",
-      timestamp: new Date(now - 12 * h).toISOString(),
-      metadata: { submissionNumber: 2 },
-    },
-    {
-      id: "m15",
-      projectCode: "POOL-SE-004",
-      projectName: "Hệ thống quản lý ký túc xá sinh viên",
-      action: "Submitted",
-      performedByName: "Phạm Đức Minh",
-      timestamp: new Date(now - 6 * h).toISOString(),
-      metadata: { submissionNumber: 1 },
-    },
-    {
-      id: "m16",
-      projectCode: "POOL-SE-002",
-      projectName: "Ứng dụng chăm sóc thú cưng sử dụng React Native",
-      action: "Rejected",
-      performedByName: "TS. Phạm Thị Hương",
-      timestamp: new Date(now - 2 * h).toISOString(),
-      metadata: { reason: "Đề tài không đáp ứng tiêu chí kỹ thuật sau 2 lần chỉnh sửa" },
-    },
-    {
-      id: "m17",
-      projectCode: "POOL-SE-004",
-      projectName: "Hệ thống quản lý ký túc xá sinh viên",
-      action: "MentorAssigned",
-      performedByName: "PGS.TS. Trần Minh Đức",
-      timestamp: new Date(now - 1 * h).toISOString(),
-      metadata: { mentorName: "TS. Nguyễn Quốc Bảo" },
-    },
-  ];
-}
-
 // ── Action filter tabs ──────────────────────────────────────────────────────
 const ACTION_FILTERS = [
   { key: "", label: "Tất cả", icon: "list" },
@@ -322,12 +143,22 @@ export function ProjectAuditLogsPage() {
   const [page, setPage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
+  const [logs, setLogs] = useState<DepartmentAuditLogItemDto[]>([]);
+  const [stats, setStats] = useState<DepartmentAuditLogStatsDto>({
+    total: 0,
+    submitted: 0,
+    approved: 0,
+    revision: 0,
+    rejected: 0,
+  });
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
-
-  // Mock data (replace with API call when real data is available)
-  const allLogs = useMemo(() => generateMockData(), []);
 
   // Debounce search
   useEffect(() => {
@@ -340,44 +171,34 @@ export function ProjectAuditLogsPage() {
     setPage(1);
   }, [debouncedSearch, actionFilter]);
 
-  // Filter logic
-  const filteredLogs = useMemo(() => {
-    let result = allLogs;
-
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      result = result.filter(
-        (log) =>
-          log.projectCode.toLowerCase().includes(q) ||
-          log.projectName.toLowerCase().includes(q) ||
-          log.performedByName.toLowerCase().includes(q)
-      );
+  // Search, filtering and paging are all resolved server-side against SQL Server.
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await projectService.getDepartmentAuditLogs({
+        search: debouncedSearch || undefined,
+        actions: actionFilter || undefined,
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      setLogs(data.items);
+      setStats(data.stats);
+      setTotalCount(data.totalCount);
+      setTotalPages(Math.max(1, data.totalPages));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không tải được nhật ký thao tác.");
+      setLogs([]);
+    } finally {
+      setLoading(false);
     }
+  }, [debouncedSearch, actionFilter, page]);
 
-    if (actionFilter) {
-      const actions = new Set(actionFilter.split(","));
-      result = result.filter((log) => actions.has(log.action));
-    }
+  useEffect(() => {
+    void fetchLogs();
+  }, [fetchLogs]);
 
-    return result;
-  }, [allLogs, debouncedSearch, actionFilter]);
-
-  const totalCount = filteredLogs.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const pagedLogs = filteredLogs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  // Summary stats
-  const stats = useMemo(() => {
-    const submitted = allLogs.filter((l) =>
-      ["Submitted", "Resubmitted", "SubmittedToMentor"].includes(l.action)
-    ).length;
-    const approved = allLogs.filter((l) => ["MentorApproved", "Approved"].includes(l.action)).length;
-    const revision = allLogs.filter((l) =>
-      ["MentorNeedsModification", "NeedsModification"].includes(l.action)
-    ).length;
-    const rejected = allLogs.filter((l) => l.action === "Rejected").length;
-    return { total: allLogs.length, submitted, approved, revision, rejected };
-  }, [allLogs]);
+  const pagedLogs = logs;
 
   return (
     <>
@@ -385,20 +206,26 @@ export function ProjectAuditLogsPage() {
 
       <div className="flex-1 p-8 overflow-y-auto scrollbar-hide bg-slate-50">
         <motion.div variants={container} initial="hidden" animate="show" className="flex flex-col gap-6">
-          {/* ── Mock data banner ──────────────────────────────── */}
-          <motion.div
-            variants={item}
-            className="flex items-center gap-3 px-4 py-3 border rounded-lg bg-amber-50 border-amber-200"
-          >
-            <span className="material-symbols-outlined text-amber-600 text-[20px]">science</span>
-            <div>
-              <p className="text-sm font-semibold text-amber-800">Dữ liệu mẫu — Demo</p>
-              <p className="text-xs text-amber-600">
-                Đây là dữ liệu mẫu để minh họa giao diện. Khi hệ thống có dữ liệu thật, trang sẽ tự động hiển thị dữ liệu
-                thật.
-              </p>
-            </div>
-          </motion.div>
+          {/* ── Error banner ──────────────────────────────────── */}
+          {error && (
+            <motion.div
+              variants={item}
+              className="flex items-center gap-3 px-4 py-3 border rounded-lg bg-red-50 border-red-200"
+            >
+              <span className="material-symbols-outlined text-red-600 text-[20px]">error</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-800">Không tải được dữ liệu</p>
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void fetchLogs()}
+                className="px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-md hover:bg-red-50"
+              >
+                Thử lại
+              </button>
+            </motion.div>
+          )}
 
           {/* ── Summary Cards ────────────────────────────────── */}
           <motion.div variants={item} className="grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -482,13 +309,25 @@ export function ProjectAuditLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagedLogs.length === 0 ? (
+                  {loading ? (
+                    Array.from({ length: 5 }, (_, i) => (
+                      <tr key={`skeleton-${i}`} className="animate-pulse">
+                        <td colSpan={5} className="px-6 py-4">
+                          <div className="h-8 rounded bg-slate-100" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : pagedLogs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
                         <span className="material-symbols-outlined text-[40px] mb-2 block text-slate-300">
                           search_off
                         </span>
-                        <span>Không tìm thấy bản ghi nào</span>
+                        <span>
+                          {debouncedSearch || actionFilter
+                            ? "Không tìm thấy bản ghi nào"
+                            : "Chưa có thao tác nào được ghi nhận"}
+                        </span>
                       </td>
                     </tr>
                   ) : (
@@ -545,7 +384,7 @@ export function ProjectAuditLogsPage() {
                                   {getInitials(log.performedByName)}
                                 </div>
                                 <span className="text-sm text-slate-700 font-medium truncate">
-                                  {log.performedByName}
+                                  {log.performedByName ?? "Hệ thống"}
                                 </span>
                               </div>
                             </td>
@@ -685,7 +524,8 @@ function StatCard({
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
-function getInitials(name: string): string {
+function getInitials(name: string | null): string {
+  if (!name) return "—";
   return name
     .split(" ")
     .filter(Boolean)
