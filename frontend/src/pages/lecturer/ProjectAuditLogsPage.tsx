@@ -309,15 +309,16 @@ export function ProjectAuditLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loading ? (
+                  {loading &&
                     Array.from({ length: 5 }, (_, i) => (
                       <tr key={`skeleton-${i}`} className="animate-pulse">
                         <td colSpan={5} className="px-6 py-4">
                           <div className="h-8 rounded bg-slate-100" />
                         </td>
                       </tr>
-                    ))
-                  ) : pagedLogs.length === 0 ? (
+                    ))}
+
+                  {!loading && pagedLogs.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
                         <span className="material-symbols-outlined text-[40px] mb-2 block text-slate-300">
@@ -330,7 +331,9 @@ export function ProjectAuditLogsPage() {
                         </span>
                       </td>
                     </tr>
-                  ) : (
+                  )}
+
+                  {!loading &&
                     pagedLogs.map((log) => {
                       const ac = getActionConfig(log.action);
                       const isExpanded = expandedIds.includes(log.id);
@@ -437,8 +440,7 @@ export function ProjectAuditLogsPage() {
                           )}
                         </React.Fragment>
                       );
-                    })
-                  )}
+                    })}
                 </tbody>
               </table>
             </div>

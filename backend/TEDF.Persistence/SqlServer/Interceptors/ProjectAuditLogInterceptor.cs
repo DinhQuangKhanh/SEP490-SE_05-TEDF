@@ -80,10 +80,8 @@ namespace TEDF.Persistence.SqlServer.Interceptors
                 logs.Add(ProjectAuditLog.Create(
                     projectId,
                     action,
-                    userId,
-                    userName,
-                    oldStatus,
-                    newStatus,
+                    new ProjectAuditActor(userId, userName),
+                    new ProjectStatusTransition(oldStatus, newStatus),
                     submissionNumber,
                     metadata is null ? null : JsonSerializer.Serialize(metadata)));
             }

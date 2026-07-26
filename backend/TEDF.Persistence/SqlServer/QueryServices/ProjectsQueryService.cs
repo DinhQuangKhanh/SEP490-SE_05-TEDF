@@ -477,7 +477,7 @@ public class ProjectsQueryService : IProjectsQueryService
             .ToList();
     }
 
-    private static object? DeserializeMetadata(string? json)
+    private static JsonElement? DeserializeMetadata(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
 

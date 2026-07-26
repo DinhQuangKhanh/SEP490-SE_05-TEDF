@@ -3,6 +3,14 @@ using TEDF.Domain.Enums.Project;
 
 namespace TEDF.Domain.Entities
 {
+    /// <summary>Who performed an audited action, with a name snapshot taken at write time.</summary>
+    /// <param name="UserId">Null for actions triggered by a background job.</param>
+    /// <param name="FullName">Snapshot so the trail survives a renamed or removed user.</param>
+    public readonly record struct ProjectAuditActor(Guid? UserId, string? FullName);
+
+    /// <summary>Project status before and after an audited action; both null when it did not change the status.</summary>
+    public readonly record struct ProjectStatusTransition(ProjectStatus? Old, ProjectStatus? New);
+
     /// <summary>
     /// Append-only audit record for the project approval workflow (who approved, who changed
     /// the status, who assigned a reviewer, who deleted a document, how many revisions).
@@ -43,10 +51,8 @@ namespace TEDF.Domain.Entities
         public static ProjectAuditLog Create(
             Guid projectId,
             ProjectAuditAction action,
-            Guid? performedBy,
-            string? performedByName,
-            ProjectStatus? oldStatus = null,
-            ProjectStatus? newStatus = null,
+            ProjectAuditActor actor,
+            ProjectStatusTransition statusTransition = default,
             int? submissionNumber = null,
             string? metadataJson = null)
         {
@@ -55,10 +61,10 @@ namespace TEDF.Domain.Entities
                 Id = Guid.NewGuid(),
                 ProjectId = projectId,
                 Action = action,
-                PerformedBy = performedBy,
-                PerformedByName = performedByName,
-                OldStatus = oldStatus,
-                NewStatus = newStatus,
+                PerformedBy = actor.UserId,
+                PerformedByName = actor.FullName,
+                OldStatus = statusTransition.Old,
+                NewStatus = statusTransition.New,
                 SubmissionNumber = submissionNumber,
                 MetadataJson = metadataJson,
                 Timestamp = DateTime.UtcNow

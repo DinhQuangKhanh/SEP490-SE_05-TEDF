@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace TEDF.Application.Features.Projects.DTOs;
 
 /// <summary>
@@ -28,7 +30,7 @@ public record DepartmentAuditLogItemDto
     public string? NewStatus { get; init; }
     public int? SubmissionNumber { get; init; }
     public DateTime Timestamp { get; init; }
-    public object? Metadata { get; init; }
+    public JsonElement? Metadata { get; init; }
 }
 
 public record DepartmentAuditLogStatsDto
