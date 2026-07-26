@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace TEDF.Application.Features.Projects.DTOs;
 
 /// <summary>
@@ -13,7 +11,10 @@ public record GetDepartmentAuditLogsResponse
     public int PageSize { get; init; }
     public int TotalPages { get; init; }
 
-    /// <summary>Totals over the whole department scope, not just the current page.</summary>
+    /// <summary>
+    /// Totals over the semester/date scope, before the action and search filters are applied —
+    /// so the cards stay stable while the user drills down with the action tabs.
+    /// </summary>
     public DepartmentAuditLogStatsDto Stats { get; init; } = new();
 }
 
@@ -30,7 +31,12 @@ public record DepartmentAuditLogItemDto
     public string? NewStatus { get; init; }
     public int? SubmissionNumber { get; init; }
     public DateTime Timestamp { get; init; }
-    public JsonElement? Metadata { get; init; }
+
+    /// <summary>
+    /// Action details rendered for display: user ids are resolved to names and opaque
+    /// identifiers are dropped, so the client never has to show a raw GUID.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? Metadata { get; init; }
 }
 
 public record DepartmentAuditLogStatsDto

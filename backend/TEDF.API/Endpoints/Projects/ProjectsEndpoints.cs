@@ -40,10 +40,13 @@ public sealed class ProjectsEndpoints : IEndpoint
             .WithTags(Tag).WithName("GetDepartmentAuditLogs")
             .Produces(200).Produces(401).Produces(403);
 
-        // Audit logs for a project.
+        // Audit logs for a project. Admin-only: the trail names every reviewer and their verdict,
+        // and the only caller is the admin project detail drawer. Department heads read the
+        // department-wide trail above, which is already scoped to their own department.
         group.MapGet("/{id:guid}/audit-logs", GetProjectAuditLogs)
+            .RequireAuthorization(PolicyNames.RequireAdmin)
             .WithTags(Tag).WithName("GetProjectAuditLogs")
-            .Produces(200).Produces(401);
+            .Produces(200).Produces(401).Produces(403);
     }
 
     private static async Task<IResult> GetProjects(
@@ -69,6 +72,8 @@ public sealed class ProjectsEndpoints : IEndpoint
 
     private static async Task<IResult> GetDepartmentAuditLogs(
         ISender sender, string? search, string? actions,
+        int? semesterId, DateTime? from, DateTime? to,
         int page = 1, int pageSize = 10, CancellationToken ct = default)
-        => Ok(await sender.Send(new GetDepartmentAuditLogsQuery(search, actions, page, pageSize), ct));
+        => Ok(await sender.Send(
+            new GetDepartmentAuditLogsQuery(search, actions, semesterId, from, to, page, pageSize), ct));
 }

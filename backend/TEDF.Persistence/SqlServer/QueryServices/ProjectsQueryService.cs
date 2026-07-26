@@ -325,7 +325,10 @@ public class ProjectsQueryService : IProjectsQueryService
             select new { Log = log, CurrentName = user != null ? user.FullName : null })
             .ToListAsync(cancellationToken);
 
-        var dtos = rows.Select(r => new ProjectAuditLogDto
+        var parsedMetadata = rows.Select(r => ParseMetadata(r.Log.MetadataJson)).ToList();
+        var metadataNames = await LoadUserNamesAsync(CollectMetadataUserIds(parsedMetadata), cancellationToken);
+
+        var dtos = rows.Select((r, i) => new ProjectAuditLogDto
         {
             Id = r.Log.Id,
             Action = r.Log.Action.ToString(),
@@ -335,7 +338,7 @@ public class ProjectsQueryService : IProjectsQueryService
             NewStatus = r.Log.NewStatus?.ToString(),
             SubmissionNumber = r.Log.SubmissionNumber,
             Timestamp = r.Log.Timestamp,
-            Metadata = DeserializeMetadata(r.Log.MetadataJson)
+            Metadata = RenderMetadata(parsedMetadata[i], metadataNames)
         }).ToList();
 
         var revisionCount = rows.Count(r =>
@@ -358,6 +361,7 @@ public class ProjectsQueryService : IProjectsQueryService
     /// <inheritdoc />
     public async Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
         Guid currentUserId, string? search, string? actions,
+        int? semesterId, DateTime? from, DateTime? to,
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
         page = page < 1 ? 1 : page;
@@ -369,8 +373,10 @@ public class ProjectsQueryService : IProjectsQueryService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new BusinessRuleValidationException("Current user is not assigned to any department.");
 
+        // Deactivated majors are included on purpose: an audit trail must not lose history
+        // when a major is retired, otherwise past terms silently disappear from the log.
         var majorIds = await _context.Majors.AsNoTracking()
-            .Where(m => m.DepartmentId == departmentId && m.IsActive)
+            .Where(m => m.DepartmentId == departmentId)
             .Select(m => m.Id)
             .ToListAsync(cancellationToken);
 
@@ -380,7 +386,17 @@ public class ProjectsQueryService : IProjectsQueryService
                      where majorIds.Contains(project.MajorId)
                      select new { Log = log, Project = project };
 
-        // Stats cover the whole department scope so the cards stay stable while paging/filtering.
+        if (semesterId.HasValue)
+            scoped = scoped.Where(x => x.Project.SemesterId == semesterId.Value);
+
+        if (from.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp >= from.Value);
+
+        if (to.HasValue)
+            scoped = scoped.Where(x => x.Log.Timestamp <= to.Value);
+
+        // Stats cover the semester/date scope but ignore the action and search filters, so the
+        // cards stay stable while the action tabs drill into them.
         var stats = await scoped
             .GroupBy(_ => 1)
             .Select(g => new DepartmentAuditLogStatsDto
@@ -421,18 +437,18 @@ public class ProjectsQueryService : IProjectsQueryService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        // Refresh performer names in one round-trip; fall back to the write-time snapshot.
+        var parsedMetadata = rows.Select(r => ParseMetadata(r.Log.MetadataJson)).ToList();
+
+        // One round-trip for both the performers and the users referenced inside the metadata.
+        // Performer names fall back to the write-time snapshot when the user is gone.
         var performerIds = rows
             .Where(r => r.Log.PerformedBy.HasValue)
-            .Select(r => r.Log.PerformedBy!.Value)
-            .Distinct()
-            .ToList();
+            .Select(r => r.Log.PerformedBy!.Value);
 
-        var performerNames = await _context.Users.AsNoTracking()
-            .Where(u => performerIds.Contains(u.Id))
-            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+        var names = await LoadUserNamesAsync(
+            performerIds.Concat(CollectMetadataUserIds(parsedMetadata)), cancellationToken);
 
-        var items = rows.Select(r => new DepartmentAuditLogItemDto
+        var items = rows.Select((r, i) => new DepartmentAuditLogItemDto
         {
             Id = r.Log.Id,
             ProjectId = r.Log.ProjectId,
@@ -441,13 +457,13 @@ public class ProjectsQueryService : IProjectsQueryService
             Action = r.Log.Action.ToString(),
             PerformedBy = r.Log.PerformedBy,
             PerformedByName = r.Log.PerformedBy.HasValue
-                ? performerNames.GetValueOrDefault(r.Log.PerformedBy.Value) ?? r.Log.PerformedByName
+                ? names.GetValueOrDefault(r.Log.PerformedBy.Value) ?? r.Log.PerformedByName
                 : r.Log.PerformedByName,
             OldStatus = r.Log.OldStatus?.ToString(),
             NewStatus = r.Log.NewStatus?.ToString(),
             SubmissionNumber = r.Log.SubmissionNumber,
             Timestamp = r.Log.Timestamp,
-            Metadata = DeserializeMetadata(r.Log.MetadataJson)
+            Metadata = RenderMetadata(parsedMetadata[i], names)
         }).ToList();
 
         return new GetDepartmentAuditLogsResponse
@@ -477,13 +493,32 @@ public class ProjectsQueryService : IProjectsQueryService
             .ToList();
     }
 
-    private static JsonElement? DeserializeMetadata(string? json)
+    // ── Audit metadata rendering ────────────────────────────────────────────────
+    // The interceptor writes raw ids (MentorId, EvaluatorId, ...) because they are stable;
+    // the reader needs names. Resolving happens here, in one batched lookup per query.
+
+    /// <summary>Metadata keys holding a user id, mapped to the key their resolved name is written to.</summary>
+    private static readonly Dictionary<string, string> UserIdMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MentorId"] = "mentorName",
+        ["EvaluatorId"] = "evaluatorName",
+        ["AssignedBy"] = "assignedByName",
+        ["DeletedBy"] = "deletedByName"
+    };
+
+    /// <summary>Identifiers that mean nothing to a reader; dropped rather than shown as a raw GUID.</summary>
+    private static readonly HashSet<string> HiddenMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "DocumentId", "PhaseId"
+    };
+
+    private static Dictionary<string, JsonElement>? ParseMetadata(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
 
         try
         {
-            return JsonSerializer.Deserialize<JsonElement>(json);
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
         }
         catch (JsonException)
         {
@@ -491,4 +526,77 @@ public class ProjectsQueryService : IProjectsQueryService
             return null;
         }
     }
+
+    /// <summary>Collects every user id referenced by the parsed metadata, so names load in one round-trip.</summary>
+    private static IEnumerable<Guid> CollectMetadataUserIds(IEnumerable<Dictionary<string, JsonElement>?> parsed)
+    {
+        foreach (var metadata in parsed)
+        {
+            if (metadata is null) continue;
+
+            foreach (var (key, value) in metadata)
+            {
+                if (!UserIdMetadataKeys.ContainsKey(key)) continue;
+                if (value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var userId))
+                    yield return userId;
+            }
+        }
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadUserNamesAsync(
+        IEnumerable<Guid> userIds, CancellationToken cancellationToken)
+    {
+        var ids = userIds.Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.Users.AsNoTracking()
+            .Where(u => ids.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, cancellationToken);
+    }
+
+    /// <summary>
+    /// Renders raw metadata for display: user ids become names, opaque ids are dropped and the
+    /// remaining keys are camelCased so the client sees one naming convention.
+    /// </summary>
+    private static IReadOnlyDictionary<string, object?>? RenderMetadata(
+        Dictionary<string, JsonElement>? metadata, IReadOnlyDictionary<Guid, string> userNames)
+    {
+        if (metadata is null || metadata.Count == 0) return null;
+
+        var rendered = new Dictionary<string, object?>();
+
+        foreach (var (key, value) in metadata)
+        {
+            if (HiddenMetadataKeys.Contains(key)) continue;
+
+            if (UserIdMetadataKeys.TryGetValue(key, out var nameKey))
+            {
+                // A user that no longer exists leaves the key out entirely rather than showing an id.
+                if (value.ValueKind == JsonValueKind.String
+                    && value.TryGetGuid(out var userId)
+                    && userNames.TryGetValue(userId, out var name))
+                {
+                    rendered[nameKey] = name;
+                }
+                continue;
+            }
+
+            rendered[ToCamelCase(key)] = ToClrValue(value);
+        }
+
+        return rendered.Count == 0 ? null : rendered;
+    }
+
+    private static object? ToClrValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.TryGetInt64(out var number) ? number : value.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null or JsonValueKind.Undefined => null,
+        _ => value.ToString()
+    };
+
+    private static string ToCamelCase(string key) =>
+        key.Length > 0 && char.IsUpper(key[0]) ? char.ToLowerInvariant(key[0]) + key[1..] : key;
 }

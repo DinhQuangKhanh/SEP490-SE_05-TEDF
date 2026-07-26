@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
-import { projectService } from "@/lib";
-import { DepartmentAuditLogItemDto, DepartmentAuditLogStatsDto } from "@/types";
+import { projectService, semesterService } from "@/lib";
+import {
+  DepartmentAuditLogFilters,
+  DepartmentAuditLogItemDto,
+  DepartmentAuditLogStatsDto,
+  SemesterDto,
+} from "@/types";
 
 // ── Animation variants ─────────────────────────────────────────────────────
 const container = {
@@ -133,15 +138,45 @@ const ACTION_FILTERS = [
   { key: "DocumentUploaded,DocumentDeleted", label: "Tài liệu", icon: "description" },
 ];
 
+// ── Project status labels (for the "trạng thái trước → sau" column) ─────────
+const STATUS_LABELS: Record<string, string> = {
+  Draft: "Nháp",
+  PendingMentorReview: "Chờ GVHD duyệt",
+  PendingEvaluation: "Chờ thẩm định",
+  NeedsModification: "Cần chỉnh sửa",
+  Approved: "Đã duyệt",
+  Rejected: "Từ chối",
+  InProgress: "Đang thực hiện",
+  Completed: "Hoàn thành",
+  Cancelled: "Đã hủy",
+};
+
+function formatStatus(status: string | null): string {
+  if (!status) return "—";
+  return STATUS_LABELS[status] ?? status;
+}
+
 const PAGE_SIZE = 10;
+
+/** Server caps pageSize at 100; export walks the pages with that size. */
+const EXPORT_PAGE_SIZE = 100;
+
+/** Safety valve so an unfiltered export cannot pull an unbounded number of rows into the browser. */
+const EXPORT_MAX_ROWS = 5000;
 
 // ── Page Component ──────────────────────────────────────────────────────────
 export function ProjectAuditLogsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [semesterId, setSemesterId] = useState<number | "">("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
+
+  const [semesters, setSemesters] = useState<SemesterDto[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const [logs, setLogs] = useState<DepartmentAuditLogItemDto[]>([]);
   const [stats, setStats] = useState<DepartmentAuditLogStatsDto>({
@@ -166,22 +201,48 @@ export function ProjectAuditLogsPage() {
     return () => clearTimeout(id);
   }, [search]);
 
+  // Semester dropdown options. A failure here only costs the filter, not the page.
+  useEffect(() => {
+    semesterService
+      .getPublicSemesters()
+      .then(setSemesters)
+      .catch(() => setSemesters([]));
+  }, []);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, actionFilter]);
+  }, [debouncedSearch, actionFilter, semesterId, fromDate, toDate]);
+
+  // The date inputs are local dates; widen them to cover the whole day before going to UTC,
+  // otherwise "to = today" would drop everything logged after midnight.
+  const filters = useMemo<DepartmentAuditLogFilters>(
+    () => ({
+      search: debouncedSearch || undefined,
+      actions: actionFilter || undefined,
+      semesterId: semesterId === "" ? undefined : semesterId,
+      from: fromDate ? new Date(`${fromDate}T00:00:00`).toISOString() : undefined,
+      to: toDate ? new Date(`${toDate}T23:59:59.999`).toISOString() : undefined,
+    }),
+    [debouncedSearch, actionFilter, semesterId, fromDate, toDate]
+  );
+
+  const hasActiveFilter = Boolean(debouncedSearch || actionFilter || semesterId !== "" || fromDate || toDate);
+
+  const clearFilters = () => {
+    setSearch("");
+    setActionFilter("");
+    setSemesterId("");
+    setFromDate("");
+    setToDate("");
+  };
 
   // Search, filtering and paging are all resolved server-side against SQL Server.
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await projectService.getDepartmentAuditLogs({
-        search: debouncedSearch || undefined,
-        actions: actionFilter || undefined,
-        page,
-        pageSize: PAGE_SIZE,
-      });
+      const data = await projectService.getDepartmentAuditLogs({ ...filters, page, pageSize: PAGE_SIZE });
       setLogs(data.items);
       setStats(data.stats);
       setTotalCount(data.totalCount);
@@ -192,11 +253,39 @@ export function ProjectAuditLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, actionFilter, page]);
+  }, [filters, page]);
 
   useEffect(() => {
     void fetchLogs();
   }, [fetchLogs]);
+
+  // Exports what the current filters select, not just the visible page, by walking the pages.
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const rows: DepartmentAuditLogItemDto[] = [];
+      let current = 1;
+      let lastPage = 1;
+
+      do {
+        const data = await projectService.getDepartmentAuditLogs({
+          ...filters,
+          page: current,
+          pageSize: EXPORT_PAGE_SIZE,
+        });
+        rows.push(...data.items);
+        lastPage = Math.max(1, data.totalPages);
+        current += 1;
+      } while (current <= lastPage && rows.length < EXPORT_MAX_ROWS);
+
+      downloadCsv(rows);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không xuất được nhật ký thao tác.");
+    } finally {
+      setExporting(false);
+    }
+  }, [filters]);
 
   const pagedLogs = logs;
 
@@ -290,6 +379,68 @@ export function ProjectAuditLogsPage() {
                 </button>
               )}
             </div>
+
+            {/* Semester + date range + export */}
+            <div className="flex flex-wrap items-end gap-3 p-3 bg-white border rounded-lg shadow-sm border-slate-200">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Học kỳ</span>
+                <select
+                  className="py-2 pl-3 pr-8 text-sm bg-white border rounded-md border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  value={semesterId}
+                  onChange={(e) => setSemesterId(e.target.value === "" ? "" : Number(e.target.value))}
+                >
+                  <option value="">Tất cả học kỳ</option>
+                  {semesters.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Từ ngày</span>
+                <input
+                  type="date"
+                  className="px-3 py-2 text-sm bg-white border rounded-md border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  value={fromDate}
+                  max={toDate || undefined}
+                  onChange={(e) => setFromDate(e.target.value)}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-500">Đến ngày</span>
+                <input
+                  type="date"
+                  className="px-3 py-2 text-sm bg-white border rounded-md border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </label>
+
+              {hasActiveFilter && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                  Xóa bộ lọc
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={exporting || totalCount === 0}
+                className="flex items-center gap-1.5 px-3 py-2 ml-auto text-sm font-medium text-white rounded-md bg-primary hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                {exporting ? "Đang xuất..." : "Xuất CSV"}
+              </button>
+            </div>
           </motion.div>
 
           {/* ── Table ─────────────────────────────────────────── */}
@@ -304,6 +455,7 @@ export function ProjectAuditLogsPage() {
                     <th className="px-6 py-4 w-40">Thời gian</th>
                     <th className="px-6 py-4 min-w-[250px]">Đề tài</th>
                     <th className="px-6 py-4 w-56">Hành động</th>
+                    <th className="px-6 py-4 w-52">Trạng thái</th>
                     <th className="px-6 py-4 w-48">Người thực hiện</th>
                     <th className="px-6 py-4 w-16 text-center">Chi tiết</th>
                   </tr>
@@ -312,7 +464,7 @@ export function ProjectAuditLogsPage() {
                   {loading &&
                     Array.from({ length: 5 }, (_, i) => (
                       <tr key={`skeleton-${i}`} className="animate-pulse">
-                        <td colSpan={5} className="px-6 py-4">
+                        <td colSpan={6} className="px-6 py-4">
                           <div className="h-8 rounded bg-slate-100" />
                         </td>
                       </tr>
@@ -320,7 +472,7 @@ export function ProjectAuditLogsPage() {
 
                   {!loading && pagedLogs.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
+                      <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
                         <span className="material-symbols-outlined text-[40px] mb-2 block text-slate-300">
                           search_off
                         </span>
@@ -355,19 +507,27 @@ export function ProjectAuditLogsPage() {
                               </div>
                             </td>
 
-                            {/* Project */}
+                            {/* Project — clicking it narrows the trail to this project only */}
                             <td className="px-6 py-4">
-                              <div className="flex items-start gap-2.5">
+                              <button
+                                type="button"
+                                title="Chỉ xem nhật ký của đề tài này"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSearch(log.projectCode);
+                                }}
+                                className="flex items-start gap-2.5 text-left w-full"
+                              >
                                 <div className="mt-0.5 bg-primary/10 text-primary rounded p-1.5 flex-shrink-0">
                                   <span className="material-symbols-outlined text-[16px]">description</span>
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-primary transition-colors">
+                                  <p className="text-sm font-semibold text-slate-800 truncate hover:text-primary hover:underline transition-colors">
                                     {log.projectName}
                                   </p>
                                   <p className="text-xs font-mono text-slate-400 mt-0.5">{log.projectCode}</p>
                                 </div>
-                              </div>
+                              </button>
                             </td>
 
                             {/* Action */}
@@ -378,6 +538,25 @@ export function ProjectAuditLogsPage() {
                                 <span className="material-symbols-outlined text-[14px]">{ac.icon}</span>
                                 {ac.label}
                               </span>
+                            </td>
+
+                            {/* Status transition — empty for actions that did not move the project */}
+                            <td className="px-6 py-4">
+                              {log.newStatus ? (
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 whitespace-nowrap">
+                                    {formatStatus(log.oldStatus)}
+                                  </span>
+                                  <span className="material-symbols-outlined text-[14px] text-slate-400">
+                                    arrow_forward
+                                  </span>
+                                  <span className="px-2 py-0.5 font-medium rounded bg-primary/10 text-primary whitespace-nowrap">
+                                    {formatStatus(log.newStatus)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </td>
 
                             {/* Performer */}
@@ -410,7 +589,7 @@ export function ProjectAuditLogsPage() {
                           {/* Expanded Details Row */}
                           {isExpanded && log.metadata && (
                             <tr>
-                              <td colSpan={5} className="p-0 border-b border-slate-100">
+                              <td colSpan={6} className="p-0 border-b border-slate-100">
                                 <motion.div
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: "auto", opacity: 1 }}
@@ -542,20 +721,78 @@ function formatTimestamp(iso: string): string {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/**
+ * Labels for the metadata keys the API renders. The backend resolves user ids to names and drops
+ * opaque ids, so these are the only keys that can reach here — an unmapped key falls back to itself.
+ */
 function formatMetadataKey(key: string): string {
   const map: Record<string, string> = {
     submissionNumber: "Lần nộp",
     feedback: "Phản hồi",
     comment: "Ghi chú",
     reason: "Lý do",
-    mentorName: "Giảng viên",
+    mentorName: "Giảng viên hướng dẫn",
+    evaluatorName: "Người thẩm định",
+    evaluatorOrder: "Thứ tự thẩm định",
+    assignedByName: "Người phân công",
+    deletedByName: "Người xóa",
     documentType: "Loại tài liệu",
     fileName: "Tên file",
-    deletedBy: "Người xóa",
-    evaluatorName: "Evaluator",
-    phaseId: "Giai đoạn (Phase)",
   };
   return map[key] ?? key;
+}
+
+/** Flattens rendered metadata into one readable cell, e.g. "Phản hồi: cần bổ sung mục tiêu". */
+function formatMetadata(metadata: Record<string, unknown> | null): string {
+  if (!metadata) return "";
+  return Object.entries(metadata)
+    .map(([key, value]) => `${formatMetadataKey(key)}: ${String(value)}`)
+    .join("; ");
+}
+
+// ── CSV export ──────────────────────────────────────────────────────────────
+const CSV_HEADERS = [
+  "Thời gian",
+  "Mã đề tài",
+  "Tên đề tài",
+  "Hành động",
+  "Trạng thái trước",
+  "Trạng thái sau",
+  "Lần nộp",
+  "Người thực hiện",
+  "Chi tiết",
+];
+
+function escapeCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(rows: DepartmentAuditLogItemDto[]): void {
+  const lines = rows.map((log) =>
+    [
+      new Date(log.timestamp).toLocaleString("vi-VN"),
+      log.projectCode,
+      log.projectName,
+      getActionConfig(log.action).label,
+      formatStatus(log.oldStatus),
+      formatStatus(log.newStatus),
+      log.submissionNumber?.toString() ?? "",
+      log.performedByName ?? "Hệ thống",
+      formatMetadata(log.metadata),
+    ]
+      .map(escapeCsvCell)
+      .join(",")
+  );
+
+  // BOM so Excel opens the Vietnamese text as UTF-8 instead of mojibake.
+  const csv = `\uFEFF${[CSV_HEADERS.map(escapeCsvCell).join(","), ...lines].join("\r\n")}`;
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `nhat-ky-thao-tac-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function getPageNumbers(current: number, total: number): (number | "...")[] {

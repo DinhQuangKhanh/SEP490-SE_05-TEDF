@@ -17,6 +17,8 @@ export const routes = {
     errorLogs: "/api/activity-logs/errors",
     errorLogDetail: (id: string) => `/api/activity-logs/errors/${id}`,
     semesters: "/api/semesters",
+    /** Same list as `semesters`, readable by any authenticated user (filter dropdowns). */
+    semestersPublic: "/api/semesters/public",
     semesterById: (id: number) => `/api/semesters/${id}`,
     activeSemester: "/api/semesters/active",
     eligibleStudentsImport: (id: number) => `/api/semesters/${id}/eligible-students/import`,

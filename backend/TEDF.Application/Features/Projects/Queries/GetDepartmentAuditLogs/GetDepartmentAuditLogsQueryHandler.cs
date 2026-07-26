@@ -24,6 +24,7 @@ public class GetDepartmentAuditLogsQueryHandler
 
         return _projects.GetDepartmentAuditLogsAsync(
             _currentUser.UserId.Value, request.Search, request.Actions,
+            request.SemesterId, request.From, request.To,
             request.Page, request.PageSize, cancellationToken);
     }
 }

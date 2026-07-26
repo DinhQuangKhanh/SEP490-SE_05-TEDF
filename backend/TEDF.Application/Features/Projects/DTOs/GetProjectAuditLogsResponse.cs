@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace TEDF.Application.Features.Projects.DTOs;
 
 public record GetProjectAuditLogsResponse
@@ -28,5 +26,10 @@ public record ProjectAuditLogDto
 
     public int? SubmissionNumber { get; init; }
     public DateTime Timestamp { get; init; }
-    public JsonElement? Metadata { get; init; }
+
+    /// <summary>
+    /// Action details rendered for display: user ids are resolved to names and opaque
+    /// identifiers are dropped, so the client never has to show a raw GUID.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? Metadata { get; init; }
 }

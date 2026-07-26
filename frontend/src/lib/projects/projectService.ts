@@ -41,6 +41,9 @@ export const projectService = {
     const params = new URLSearchParams();
     if (filters.search) params.set("search", filters.search);
     if (filters.actions) params.set("actions", filters.actions);
+    if (filters.semesterId != null) params.set("semesterId", String(filters.semesterId));
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
     params.set("page", String(filters.page ?? 1));
     params.set("pageSize", String(filters.pageSize ?? 10));
     return apiClient.get<DepartmentAuditLogsResponse>(`${routes.departmentHead.auditLogs}?${params.toString()}`);

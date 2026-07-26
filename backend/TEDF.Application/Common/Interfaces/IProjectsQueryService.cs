@@ -23,5 +23,6 @@ public interface IProjectsQueryService
     /// <summary>Department-head: approval audit trail across every project in the caller's department.</summary>
     Task<GetDepartmentAuditLogsResponse> GetDepartmentAuditLogsAsync(
         Guid currentUserId, string? search, string? actions,
+        int? semesterId, DateTime? from, DateTime? to,
         int page, int pageSize, CancellationToken cancellationToken = default);
 }

@@ -116,6 +116,12 @@ export interface DepartmentAuditLogFilters {
   search?: string;
   /** Comma-separated action names; empty means all. */
   actions?: string;
+  /** Chỉ lấy nhật ký của một học kỳ; bỏ trống là tất cả học kỳ. */
+  semesterId?: number;
+  /** Mốc thời gian bắt đầu (ISO, đã quy về UTC). */
+  from?: string;
+  /** Mốc thời gian kết thúc (ISO, đã quy về UTC). */
+  to?: string;
   page?: number;
   pageSize?: number;
 }
