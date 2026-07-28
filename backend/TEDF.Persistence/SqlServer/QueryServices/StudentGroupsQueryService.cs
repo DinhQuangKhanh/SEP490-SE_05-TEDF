@@ -64,6 +64,9 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 ProjectName = p.NameVi,
                 ProjectCode = p.Code,
                 ProjectStatus = p.Status.ToString(),
+                SemesterId = s.Id,
+                SemesterName = s.Name,
+                SemesterStartDate = s.StartDate,
                 CreatedAt = g.CreatedAt,
                 Members = (
                     from gm in _context.GroupMembers

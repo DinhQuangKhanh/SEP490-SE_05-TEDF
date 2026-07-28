@@ -18,6 +18,9 @@ export interface MentorGroupDto {
   projectName?: string;
   projectCode?: string;
   projectStatus?: string;
+  semesterId: number;
+  semesterName: string;
+  semesterStartDate: string;
   createdAt: string;
   members: GroupMemberDto[];
 }
