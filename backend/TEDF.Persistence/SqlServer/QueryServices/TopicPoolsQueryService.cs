@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.TopicPools.DTOs;
+using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
 using TEDF.Domain.Enums.Group;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
@@ -187,69 +188,50 @@ public class TopicPoolsQueryService : ITopicPoolsQueryService
         };
     }
 
-    public async Task<List<GroupRegistrationDto>> GetGroupRegistrationsAsync(
+    public Task<List<GroupRegistrationDto>> GetGroupRegistrationsAsync(
         Guid groupId,
-        CancellationToken cancellationToken = default)
-    {
-        return await (
-            from r in _context.TopicRegistrations.AsNoTracking()
-            where r.GroupId == groupId
-            join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id into projectJoin
-            from p in projectJoin.DefaultIfEmpty()
-            orderby r.RegisteredAt descending
-            select new GroupRegistrationDto
-            {
-                Id = r.Id,
-                ProjectId = r.ProjectId,
-                // Project value objects are mapped as string columns (NameVi/Code).
-                ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
-                ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
-                MentorName = p == null
-                    ? null
-                    : (from pm in _context.ProjectMentors.AsNoTracking()
-                       where pm.ProjectId == p.Id && pm.Status == ProjectMentorStatus.Active
-                       join u in _context.Users.AsNoTracking() on pm.MentorId equals u.Id
-                       select u.FullName).FirstOrDefault(),
-                Status = r.Status.ToString(),
-                RegisteredAt = r.RegisteredAt,
-                Note = r.Note,
-                RejectReason = r.RejectReason,
-            }
-        ).ToListAsync(cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        ProjectRegistrations(_context.TopicRegistrations.AsNoTracking().Where(r => r.GroupId == groupId))
+            .ToListAsync(cancellationToken);
 
-    public async Task<GroupRegistrationDto?> GetProjectRegistrationAsync(
+    public Task<GroupRegistrationDto?> GetProjectRegistrationAsync(
         Guid projectId,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) =>
         // The confirmed registration is the group that was assigned this topic; its Note holds the
-        // registration reason + attachment URLs the group submitted. Newest-first in the unlikely
-        // event of more than one confirmed row.
-        return await (
-            from r in _context.TopicRegistrations.AsNoTracking()
-            where r.ProjectId == projectId && r.Status == TopicRegistrationStatus.Confirmed
-            join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id into projectJoin
-            from p in projectJoin.DefaultIfEmpty()
-            orderby r.RegisteredAt descending
-            select new GroupRegistrationDto
-            {
-                Id = r.Id,
-                ProjectId = r.ProjectId,
-                ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
-                ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
-                MentorName = p == null
-                    ? null
-                    : (from pm in _context.ProjectMentors.AsNoTracking()
-                       where pm.ProjectId == p.Id && pm.Status == ProjectMentorStatus.Active
-                       join u in _context.Users.AsNoTracking() on pm.MentorId equals u.Id
-                       select u.FullName).FirstOrDefault(),
-                Status = r.Status.ToString(),
-                RegisteredAt = r.RegisteredAt,
-                Note = r.Note,
-                RejectReason = r.RejectReason,
-            }
-        ).FirstOrDefaultAsync(cancellationToken);
-    }
+        // registration reason + attachment URLs the group submitted. Newest-first (via the shared
+        // projection) in the unlikely event of more than one confirmed row.
+        ProjectRegistrations(_context.TopicRegistrations.AsNoTracking()
+                .Where(r => r.ProjectId == projectId && r.Status == TopicRegistrationStatus.Confirmed))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Shared projection of a topic registration to <see cref="GroupRegistrationDto"/> (resolved
+    /// topic name/code, active mentor name, status and note), newest-first. Callers compose their
+    /// own filter (by group or by project) onto <paramref name="registrations"/> before projecting.
+    /// </summary>
+    private IQueryable<GroupRegistrationDto> ProjectRegistrations(IQueryable<TopicRegistration> registrations) =>
+        from r in registrations
+        join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id into projectJoin
+        from p in projectJoin.DefaultIfEmpty()
+        orderby r.RegisteredAt descending
+        select new GroupRegistrationDto
+        {
+            Id = r.Id,
+            ProjectId = r.ProjectId,
+            // Project value objects are mapped as string columns (NameVi/Code).
+            ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
+            ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
+            MentorName = p == null
+                ? null
+                : (from pm in _context.ProjectMentors.AsNoTracking()
+                   where pm.ProjectId == p.Id && pm.Status == ProjectMentorStatus.Active
+                   join u in _context.Users.AsNoTracking() on pm.MentorId equals u.Id
+                   select u.FullName).FirstOrDefault(),
+            Status = r.Status.ToString(),
+            RegisteredAt = r.RegisteredAt,
+            Note = r.Note,
+            RejectReason = r.RejectReason,
+        };
 
     public async Task<List<MentorRegistrationRequestDto>> GetMentorRegistrationsAsync(
         Guid mentorId,
