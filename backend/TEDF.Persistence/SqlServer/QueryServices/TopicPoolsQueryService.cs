@@ -218,6 +218,39 @@ public class TopicPoolsQueryService : ITopicPoolsQueryService
         ).ToListAsync(cancellationToken);
     }
 
+    public async Task<GroupRegistrationDto?> GetProjectRegistrationAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        // The confirmed registration is the group that was assigned this topic; its Note holds the
+        // registration reason + attachment URLs the group submitted. Newest-first in the unlikely
+        // event of more than one confirmed row.
+        return await (
+            from r in _context.TopicRegistrations.AsNoTracking()
+            where r.ProjectId == projectId && r.Status == TopicRegistrationStatus.Confirmed
+            join p in _context.Projects.AsNoTracking() on r.ProjectId equals p.Id into projectJoin
+            from p in projectJoin.DefaultIfEmpty()
+            orderby r.RegisteredAt descending
+            select new GroupRegistrationDto
+            {
+                Id = r.Id,
+                ProjectId = r.ProjectId,
+                ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
+                ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
+                MentorName = p == null
+                    ? null
+                    : (from pm in _context.ProjectMentors.AsNoTracking()
+                       where pm.ProjectId == p.Id && pm.Status == ProjectMentorStatus.Active
+                       join u in _context.Users.AsNoTracking() on pm.MentorId equals u.Id
+                       select u.FullName).FirstOrDefault(),
+                Status = r.Status.ToString(),
+                RegisteredAt = r.RegisteredAt,
+                Note = r.Note,
+                RejectReason = r.RejectReason,
+            }
+        ).FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<List<MentorRegistrationRequestDto>> GetMentorRegistrationsAsync(
         Guid mentorId,
         CancellationToken cancellationToken = default)

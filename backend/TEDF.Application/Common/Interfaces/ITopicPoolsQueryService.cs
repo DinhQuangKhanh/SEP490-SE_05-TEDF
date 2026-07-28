@@ -21,6 +21,13 @@ public interface ITopicPoolsQueryService
     Task<List<GroupRegistrationDto>> GetGroupRegistrationsAsync(Guid groupId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the confirmed registration for a project — the group assigned to the topic — so the
+    /// supervising mentor can view the group's registration note (reason + attachments).
+    /// Returns null when the project has no confirmed registration.
+    /// </summary>
+    Task<GroupRegistrationDto?> GetProjectRegistrationAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the pending registration requests for a mentor's pool topics (newest first),
     /// with resolved topic, group and requester info.
     /// </summary>
