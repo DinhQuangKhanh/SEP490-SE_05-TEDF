@@ -2,9 +2,10 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
+import { MemberProfileModal } from "@/components/common/MemberProfileModal";
 import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
 import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
-import type { GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
+import type { GroupMemberDto, GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
@@ -230,6 +231,7 @@ function InfoPill({ icon, label, value }: { icon: string; label: string; value: 
 
 /** Right-hand column shared by the pending and rejected pool-registration views: attachments + members. */
 function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; group: StudentGroupDto }) {
+  const [selectedMember, setSelectedMember] = useState<GroupMemberDto | null>(null);
   return (
     <motion.div variants={item} className="space-y-6">
       <div className="bg-white rounded-xl border border-[#e9ecf1] shadow-sm">
@@ -271,7 +273,12 @@ function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; gro
         </div>
         <div className="p-5 flex flex-col gap-3">
           {group.members.map((m) => (
-            <div key={m.studentId} className="flex items-center justify-between gap-3">
+            <button
+              key={m.studentId}
+              type="button"
+              onClick={() => setSelectedMember(m)}
+              className="flex items-center justify-between w-full gap-3 p-2 -mx-2 text-left transition-colors rounded-lg hover:bg-gray-50"
+            >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                   {(m.fullName ?? "?").charAt(0).toUpperCase()}
@@ -284,10 +291,11 @@ function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; gro
               {m.role?.toLowerCase() === "leader" && (
                 <span className="text-xs font-semibold text-primary shrink-0">Nhóm trưởng</span>
               )}
-            </div>
+            </button>
           ))}
         </div>
       </div>
+      {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
     </motion.div>
   );
 }
@@ -457,6 +465,7 @@ export function StudentMyTopicPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [myGroup, setMyGroup] = useState<StudentGroupDto | null>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMemberDto | null>(null);
   const [topicDetail, setTopicDetail] = useState<TopicDetail | null>(null);
   const [documents, setDocuments] = useState<TopicDocument[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -1224,9 +1233,11 @@ export function StudentMyTopicPage() {
                     </div>
                     <div className="flex flex-col gap-2 p-4">
                       {myGroup.members.map((m) => (
-                        <div
+                        <button
                           key={m.studentId}
-                          className="flex items-center gap-3 p-2 transition-colors rounded-lg hover:bg-gray-50"
+                          type="button"
+                          onClick={() => setSelectedMember(m)}
+                          className="flex items-center w-full gap-3 p-2 text-left transition-colors rounded-lg hover:bg-gray-50"
                         >
                           <div className="flex items-center justify-center text-sm font-bold rounded-full h-9 w-9 bg-primary/10 text-primary shrink-0">
                             {m.fullName.charAt(0).toUpperCase()}
@@ -1240,7 +1251,7 @@ export function StudentMyTopicPage() {
                               Nhóm trưởng
                             </span>
                           )}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1302,6 +1313,8 @@ export function StudentMyTopicPage() {
           </div>
         </div>
       )}
+
+      {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
     </>
   );
 }
