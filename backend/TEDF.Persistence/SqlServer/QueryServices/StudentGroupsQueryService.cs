@@ -33,8 +33,15 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             from pm in _context.ProjectMentors.AsNoTracking()
             where pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active
             join p in _context.Projects on pm.ProjectId equals p.Id
+            // Include PendingEvaluation so a mentor sees the group as soon as they ACCEPT its
+            // topic — for a direct (student-proposed) topic, mentor acceptance moves the project to
+            // PendingEvaluation (Project.MentorApproveAndSubmit) with the group already assigned,
+            // before the DepartmentHead's final approval. The `p.GroupId != null` gate keeps a
+            // mentor's own *unassigned* pool proposal (also PendingEvaluation, but GroupId == null)
+            // out — a pool topic only gets a GroupId at registration-confirm, when it is Approved.
             where p.GroupId != null
-                  && (p.Status == ProjectStatus.Approved
+                  && (p.Status == ProjectStatus.PendingEvaluation
+                   || p.Status == ProjectStatus.Approved
                    || p.Status == ProjectStatus.InProgress
                    || p.Status == ProjectStatus.Completed)
             join g in _context.Groups on p.GroupId equals g.Id
