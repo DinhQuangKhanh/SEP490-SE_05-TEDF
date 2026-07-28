@@ -10,5 +10,5 @@ public class GetAvailableMentorsQueryHandler : IQueryHandler<GetAvailableMentors
     public GetAvailableMentorsQueryHandler(IDirectTopicsQueryService directTopics) => _directTopics = directTopics;
 
     public Task<AvailableMentorsResponse> Handle(GetAvailableMentorsQuery request, CancellationToken cancellationToken)
-        => _directTopics.GetAvailableMentorsAsync(cancellationToken);
+        => _directTopics.GetAvailableMentorsAsync(request.GroupId, cancellationToken);
 }

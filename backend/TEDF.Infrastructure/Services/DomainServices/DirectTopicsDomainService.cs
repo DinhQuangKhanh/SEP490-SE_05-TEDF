@@ -58,26 +58,27 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         if (group.ProjectId.HasValue)
             throw new BusinessRuleValidationException("Nhóm đã có đề tài, không thể đề xuất thêm.");
 
-        var activeSemester = await _semesterRepository.GetActiveAsync(ct)
-            ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ đang hoạt động.");
-
-        var nextSemester = await _semesterRepository.GetSemesterAfterAsync(activeSemester.Id, 1, ct)
-            ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ kế tiếp.");
+        // The topic belongs to the group's own semester (the thesis term), which is the source of
+        // truth for both capacity and the created project — not "active + 1".
+        var semesterId = group.SemesterId;
 
         // A student may only propose a topic in the major they study this semester (eligible-student roster).
         // The form disables the major field; this guards against a tampered request.
-        var studentMajorId = await _semesterRepository.GetEligibleStudentMajorAsync(createdBy, nextSemester.Id, ct)
+        var studentMajorId = await _semesterRepository.GetEligibleStudentMajorAsync(createdBy, semesterId, ct)
             ?? throw new BusinessRuleValidationException("Bạn chưa được gán chuyên ngành trong học kỳ này.");
         if (majorId != studentMajorId)
             throw new BusinessRuleValidationException("Đề tài phải thuộc đúng chuyên ngành bạn đang theo học.");
 
         // Capacity includes pending pool registrations (each reserves a future supervised group).
         var mentorGroupCount =
-            await _projectRepository.CountMentorActiveProjectsInSemesterAsync(mentorId, nextSemester.Id, ct)
+            await _projectRepository.CountMentorActiveProjectsInSemesterAsync(mentorId, semesterId, ct)
             + await _registrationRepository.CountPendingByMentorIdAsync(mentorId, ct);
-        if (new MentorCannotExceedMaxGroupsPerSemesterRule(mentorGroupCount).IsBroken())
+        // Reserve one slot for the mentor's own pool-proposed topics: a student may pick this mentor
+        // for a direct topic only while they stay at least one group below the per-semester cap
+        // (e.g. blocked once already at 3 of 4). The +1 is that reserved slot.
+        if (new MentorCannotExceedMaxGroupsPerSemesterRule(mentorGroupCount + 1).IsBroken())
             throw new BusinessRuleValidationException(
-                new MentorCannotExceedMaxGroupsPerSemesterRule(mentorGroupCount).Message);
+                $"Giảng viên đã đủ số nhóm hướng dẫn cho học kỳ này (tối đa {MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester} nhóm, trong đó phải để dành 1 suất cho đề tài trong kho đề tài chung).");
 
         var year = DateTime.UtcNow.Year;
         var seq = await _projectRepository.GetNextSequenceAsync(year, ct);
@@ -94,7 +95,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
             content.Technologies != null ? TechnologyStack.Create(content.Technologies) : null,
             content.ExpectedResults,
             majorId,
-            nextSemester.Id,
+            semesterId,
             // "Max students" is the group's member cap (default 5); the form no longer asks for it.
             group.MaxMembers,
             groupId: groupId);
