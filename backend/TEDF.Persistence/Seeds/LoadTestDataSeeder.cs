@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TEDF.Persistence.SqlServer;
@@ -460,10 +461,15 @@ public static class LoadTestDataSeeder
             lecturers.Add((DualRoleId(i), $"LT-EMP-L{i:D4}", LecturerTitles[i % LecturerTitles.Length]));
 
         foreach (var l in lecturers)
+            // Pass SqlParameter instances (not bare values): a nullable AcademicTitle becomes
+            // DBNull.Value, and EF's ExecuteSqlRawAsync cannot infer a store type for a bare
+            // DBNull ("no store type mapping for type 'DBNull'"). A DbParameter is handed straight
+            // to ADO.NET, which maps DBNull to a SQL NULL without any EF type inference.
             await context.Database.ExecuteSqlRawAsync(
-                // DBNull, not null: the params array is object[], so a null element would be a
-                // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
-                InsertLecturerSql, l.Id, l.EmployeeCode, l.AcademicTitle ?? (object)DBNull.Value);
+                InsertLecturerSql,
+                new SqlParameter("@p0", l.Id),
+                new SqlParameter("@p1", l.EmployeeCode),
+                new SqlParameter("@p2", (object?)l.AcademicTitle ?? DBNull.Value));
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -1813,6 +1819,9 @@ public static class LoadTestDataSeeder
             "GroupJoinRequests",
 
             // Leaf tables (no dependents)
+            // ProjectAuditLogs has Restrict FKs to Projects and Users, so it must be cleared
+            // before both (it is append-only and nothing references it).
+            "ProjectAuditLogs",
             "EligibleStudents",
             "EligibleMentors",
             "SupportTickets",
