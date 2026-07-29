@@ -1,5 +1,6 @@
 import {
   DepartmentWithPoolsDto,
+  GroupRegistrationDto,
   MentorRegistrationRequestDto,
   NoteAttachmentUploadResponse,
   TopicPoolDto,
@@ -37,6 +38,13 @@ export const topicPoolService = {
   /** Pending registration requests for the current mentor's pool topics. */
   getMentorRegistrations: (): Promise<MentorRegistrationRequestDto[]> =>
     apiClient.get<MentorRegistrationRequestDto[]>(routes.topicPools.mentorRegistrations),
+
+  /**
+   * Confirmed registration (reason + attachments) for a project the current mentor supervises.
+   * Returns null when the project has no confirmed registration (e.g. a direct-registration topic).
+   */
+  getProjectRegistration: (projectId: string): Promise<GroupRegistrationDto | null> =>
+    apiClient.get<GroupRegistrationDto | null>(routes.topicPools.projectRegistration(projectId)),
 
   /** Mentor confirms a registration (assigns the group to the topic). */
   confirmRegistration: (registrationId: string): Promise<void> =>

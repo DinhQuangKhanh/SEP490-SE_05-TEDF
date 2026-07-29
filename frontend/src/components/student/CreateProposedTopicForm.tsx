@@ -58,8 +58,9 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
 
   useEffect(() => {
     // The student's program is fixed by the roster; the form only displays it (read-only).
+    // Mentor group counts are computed for this group's semester.
     proposedTopicService
-      .getAvailableMentors()
+      .getAvailableMentors(groupId)
       .then((res) => {
         setMentors(res.mentors);
         setMajorName(res.majorName);
@@ -67,7 +68,7 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Không thể tải dữ liệu đề xuất."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [groupId]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -281,7 +282,9 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
                           {mentorOpen && !form.mentorId && filteredMentors.length > 0 && (
                             <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
                               {filteredMentors.map((m) => {
-                                const isFull = m.currentGroupCount >= m.maxGroups;
+                                // Reserve one slot for the mentor's shared-pool topics: unselectable
+                                // once they are one group below the cap (e.g. 3/4).
+                                const isFull = m.currentGroupCount + 1 >= m.maxGroups;
                                 return (
                                   <button
                                     key={m.mentorId}
@@ -301,7 +304,8 @@ export function CreateProposedTopicForm({ groupId, onCreated, onCancel }: Props)
                                       {m.fullName}
                                     </div>
                                     <div className="text-xs text-slate-500">
-                                      {m.email} · {m.currentGroupCount}/{m.maxGroups} nhóm {isFull ? "(Đã đầy)" : ""}
+                                      {m.email} · {m.currentGroupCount}/{m.maxGroups} nhóm{" "}
+                                      {isFull ? "(Đã đủ — dành 1 suất cho kho đề tài)" : ""}
                                     </div>
                                   </button>
                                 );

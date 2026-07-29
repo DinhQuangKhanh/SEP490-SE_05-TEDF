@@ -16,9 +16,12 @@ export const proposedTopicService = {
     return apiClient.put<void>(routes.studentTopics.updateDirectTopic(projectId), data);
   },
 
-  /** Returns the student's own program (read-only) plus the mentors rostered to supervise it. */
-  getAvailableMentors: (): Promise<AvailableMentorsResponse> =>
-    apiClient.get<AvailableMentorsResponse>(routes.studentTopics.availableMentors),
+  /**
+   * Returns the student's own program (read-only) plus the mentors rostered to supervise it, with
+   * each mentor's group count computed for the given group's semester (the thesis term).
+   */
+  getAvailableMentors: (groupId: string): Promise<AvailableMentorsResponse> =>
+    apiClient.get<AvailableMentorsResponse>(routes.studentTopics.availableMentors(groupId)),
 
   mentorReviewProposedTopic: (projectId: string, payload: MentorReviewRequest): Promise<void> => {
     return apiClient.put<void>(routes.mentor.directRegistrationReview(projectId), payload);

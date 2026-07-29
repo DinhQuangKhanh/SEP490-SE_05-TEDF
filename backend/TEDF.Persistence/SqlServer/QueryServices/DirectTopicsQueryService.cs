@@ -1,5 +1,6 @@
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.DirectTopics.Queries.GetAvailableMentors;
+using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.SemesterAggregate;
@@ -20,6 +21,7 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
     private readonly ISemesterRepository _semesterRepository;
     private readonly ITopicRegistrationRepository _registrationRepository;
     private readonly IMajorReadRepository _majorRepository;
+    private readonly IGroupRepository _groupRepository;
     private readonly ICurrentUserService _currentUser;
 
     public DirectTopicsQueryService(
@@ -28,6 +30,7 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
         ISemesterRepository semesterRepository,
         ITopicRegistrationRepository registrationRepository,
         IMajorReadRepository majorRepository,
+        IGroupRepository groupRepository,
         ICurrentUserService currentUser)
     {
         _userRepository = userRepository;
@@ -35,29 +38,31 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
         _semesterRepository = semesterRepository;
         _registrationRepository = registrationRepository;
         _majorRepository = majorRepository;
+        _groupRepository = groupRepository;
         _currentUser = currentUser;
     }
 
-    public async Task<AvailableMentorsResponse> GetAvailableMentorsAsync(CancellationToken cancellationToken = default)
+    public async Task<AvailableMentorsResponse> GetAvailableMentorsAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
         var studentId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        var activeSemester = await _semesterRepository.GetActiveAsync(cancellationToken)
-            ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ đang hoạt động.");
-
-        var nextSemester = await _semesterRepository.GetSemesterAfterAsync(activeSemester.Id, 1, cancellationToken)
-            ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ kế tiếp.");
+        // Capacity is per-semester and this topic belongs to the registering group's own semester
+        // (the thesis term), so resolve everything from the group's semester — not "active + 1",
+        // which can point at an empty future term and read 0 for every mentor.
+        var group = await _groupRepository.GetByIdAsync(groupId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Group), groupId);
+        var semesterId = group.SemesterId;
 
         // The student's program is fixed by the eligible-student roster (the major is read-only on the form).
-        var studentMajorId = await _semesterRepository.GetEligibleStudentMajorAsync(studentId, nextSemester.Id, cancellationToken)
+        var studentMajorId = await _semesterRepository.GetEligibleStudentMajorAsync(studentId, semesterId, cancellationToken)
             ?? throw new BusinessRuleValidationException("Bạn chưa được gán chuyên ngành trong học kỳ này.");
 
         var major = await _majorRepository.GetByIdAsync(studentMajorId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Major), studentMajorId);
 
         // Only mentors rostered to supervise this major this semester — not every "Mentor" user.
-        var mentorIds = await _semesterRepository.GetEligibleMentorIdsByMajorAsync(nextSemester.Id, studentMajorId, cancellationToken);
+        var mentorIds = await _semesterRepository.GetEligibleMentorIdsByMajorAsync(semesterId, studentMajorId, cancellationToken);
         var mentors = await _userRepository.GetByIdsAsync(mentorIds, cancellationToken);
 
         var result = new List<AvailableMentorDto>();
@@ -66,7 +71,7 @@ public class DirectTopicsQueryService : IDirectTopicsQueryService
             // A pending pool registration reserves a topic that becomes one supervised group on confirm,
             // so it counts toward capacity here (the proposal screen), as required by the business rules.
             var activeCount = await _projectRepository.CountMentorActiveProjectsInSemesterAsync(
-                mentor.Id, nextSemester.Id, cancellationToken);
+                mentor.Id, semesterId, cancellationToken);
             var pendingPoolCount = await _registrationRepository.CountPendingByMentorIdAsync(mentor.Id, cancellationToken);
 
             result.Add(new AvailableMentorDto(

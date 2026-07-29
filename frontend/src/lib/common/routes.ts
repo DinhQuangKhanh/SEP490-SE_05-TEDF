@@ -113,7 +113,7 @@ export const routes = {
     updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
     submitDirectTopicToMentor: (groupId: string, projectId: string) =>
       `/api/direct-topics/${projectId}/submit-to-mentor/${groupId}`,
-    availableMentors: "/api/direct-topics/available-mentors",
+    availableMentors: (groupId: string) => `/api/direct-topics/available-mentors?groupId=${groupId}`,
   },
   topics: {
     list: "/api/topics",
@@ -126,6 +126,7 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    projectRegistration: (projectId: string) => `/api/topic-pools/projects/${projectId}/registration`,
     mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,
