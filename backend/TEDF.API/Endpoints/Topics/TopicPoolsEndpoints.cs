@@ -7,6 +7,7 @@ using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
 using TEDF.Application.Features.TopicPools.Queries.GetGroupRegistrations;
 using TEDF.Application.Features.TopicPools.Queries.GetMentorRegistrations;
+using TEDF.Application.Features.TopicPools.Queries.GetProjectRegistration;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -86,6 +87,14 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .WithName("GetGroupRegistrations")
             .Produces<List<GroupRegistrationDto>>()
             .Produces(401).Produces(403);
+
+        // Supervising mentor views the confirmed registration (reason + attachments) of their group.
+        pool.MapGet("/projects/{projectId:guid}/registration", GetProjectRegistration)
+            .RequireAuthorization(PolicyNames.MentorOfProject)
+            .WithTags("TopicPools")
+            .WithName("GetProjectRegistration")
+            .Produces<GroupRegistrationDto>()
+            .Produces(401).Produces(403).Produces(404);
 
         pool.MapGet("/registrations/mentor", GetMentorRegistrations)
             .WithTags("TopicPools")
@@ -167,6 +176,9 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
     private static async Task<IResult> GetGroupRegistrations(Guid groupId, ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetGroupRegistrationsQuery(groupId), ct));
+
+    private static async Task<IResult> GetProjectRegistration(Guid projectId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetProjectRegistrationQuery(projectId), ct));
 
     private static async Task<IResult> GetMentorRegistrations(ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetMentorRegistrationsQuery(), ct));

@@ -3,12 +3,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout";
 import { SuccessModal } from "@/components/common/SuccessModal";
+import { MemberProfileModal } from "@/components/common/MemberProfileModal";
 import { EvaluatorPagination } from "@/components/lecturer/EvaluatorPagination";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { studentGroupService } from "@/lib";
 import type {
   AvailableStudentDto,
+  GroupMemberDto,
   InvitationDto,
   JoinRequestDto,
   OpenGroupDto,
@@ -96,6 +98,7 @@ export function StudentGroupPage() {
 function MyGroupContent() {
   const { showError } = useSystemError();
   const [myGroup, setMyGroup] = useState<StudentGroupDto | null>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMemberDto | null>(null);
   const [joinRequests, setJoinRequests] = useState<JoinRequestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -418,9 +421,11 @@ function MyGroupContent() {
           <div className="space-y-3">
             {myGroup.members && myGroup.members.length > 0 ? (
               myGroup.members.map((member) => (
-                <div
+                <button
                   key={member.studentId}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  type="button"
+                  onClick={() => setSelectedMember(member)}
+                  className="flex items-center justify-between w-full gap-3 p-3 text-left transition border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-primary/30"
                 >
                   <div>
                     <p className="font-semibold text-gray-800">{member.fullName}</p>
@@ -428,13 +433,13 @@ function MyGroupContent() {
                       {member.studentCode} • {member.email}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-sm font-medium text-gray-600">{member.role}</p>
                     <p className="text-xs text-gray-500">
                       Tham gia: {new Date(member.joinedAt).toLocaleDateString("vi-VN")}
                     </p>
                   </div>
-                </div>
+                </button>
               ))
             ) : (
               <p className="py-4 text-center text-gray-500">Chưa có thành viên nào</p>
@@ -613,6 +618,8 @@ function MyGroupContent() {
         icon="person_add"
         autoClose={3000}
       />
+
+      {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
     </>
   );
 }
@@ -625,6 +632,7 @@ function OpenGroupsContent() {
   const [myGroup, setMyGroup] = useState<{ groupCode: string; groupName?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<OpenGroupDto | null>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMemberDto | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
@@ -934,18 +942,20 @@ function OpenGroupsContent() {
               <h4 className="mb-3 text-sm font-bold text-gray-700">Danh sách thành viên</h4>
               <div className="space-y-2">
                 {selectedGroup.members.map((member) => (
-                  <div
+                  <button
                     key={member.studentId}
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                    type="button"
+                    onClick={() => setSelectedMember(member)}
+                    className="flex items-center justify-between w-full gap-3 p-3 text-left transition border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-primary/30"
                   >
                     <div>
                       <p className="font-semibold text-gray-800">{member.fullName}</p>
                       <p className="text-sm text-gray-500">{member.studentCode}</p>
                     </div>
-                    <span className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded">
+                    <span className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded shrink-0">
                       {member.role}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1049,6 +1059,8 @@ function OpenGroupsContent() {
           </div>
         </div>
       )}
+
+      {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
     </>
   );
 }

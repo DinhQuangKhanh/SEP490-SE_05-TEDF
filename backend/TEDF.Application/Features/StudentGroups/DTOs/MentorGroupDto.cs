@@ -11,6 +11,9 @@ public record MentorGroupDto
     public string? ProjectName { get; init; }
     public string? ProjectCode { get; init; }
     public string? ProjectStatus { get; init; }
+    public int SemesterId { get; init; }
+    public string SemesterName { get; init; } = string.Empty;
+    public DateTime SemesterStartDate { get; init; }
     public DateTime CreatedAt { get; init; }
     public List<GroupMemberDto> Members { get; init; } = [];
 }
