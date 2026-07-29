@@ -463,7 +463,7 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(
                 // DBNull, not null: the params array is object[], so a null element would be a
                 // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
-                InsertLecturerSql, l.Id, l.EmployeeCode, l.AcademicTitle ?? (object)DBNull.Value);
+                InsertLecturerSql, l.Id, l.EmployeeCode, l.AcademicTitle);
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -1822,6 +1822,10 @@ public static class LoadTestDataSeeder
             "Documents",
             "GroupMembers",
             "EvaluationSubmissions",
+
+            // Append-only project audit trail. Its FKs to Projects and Users are Restrict,
+            // so it has to go before both of them below.
+            "ProjectAuditLogs",
 
             // Projects reference Groups & TopicPools; Groups reference Projects (circular via ProjectId)
             // Break the cycle: NULL out the FK first, then delete.
