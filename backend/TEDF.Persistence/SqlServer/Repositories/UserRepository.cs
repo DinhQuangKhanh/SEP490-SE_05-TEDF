@@ -1,5 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Aggregates.UserAggregate.Rules;
 using TEDF.Domain.Aggregates.UserAggregate.ValueObjects;
 using TEDF.Persistence.Common;
 
@@ -15,10 +17,35 @@ namespace TEDF.Persistence.SqlServer.Repositories
         /// <inheritdoc/>
         public async Task<User?> GetByEmailAsync(string email, CancellationToken ct = default)
         {
-            var normalizedEmail = email.ToLowerInvariant();
+            // Email is persisted through a value converter (Email <-> string), so the column
+            // cannot be compared with a raw string parameter: EF applies the converter to that
+            // parameter and throws "Invalid cast from 'System.String' to '...Email'".
+            // The parameter has to be an Email value object as well.
+            if (!TryCreateEmail(email, out var normalizedEmail))
+                return null;
+
             return await _dbSet
                 .Include(u => u.Roles)
-                .FirstOrDefaultAsync(u => EF.Property<string>(u, "Email") == normalizedEmail, ct);
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
+        }
+
+        /// <summary>
+        /// Normalizes raw input into an <see cref="Email"/> without throwing when the address is
+        /// not an FPT one (e.g. a Google sign-in with a personal account). Such an address can
+        /// never match a stored user, since every persisted email is an @fpt.edu.vn address.
+        /// </summary>
+        private static bool TryCreateEmail(string? value, [NotNullWhen(true)] out Email? email)
+        {
+            email = null;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var normalized = value.Trim().ToLowerInvariant();
+            if (new EmailMustBeFptDomainRule(normalized).IsBroken())
+                return false;
+
+            email = Email.Create(normalized);
+            return true;
         }
 
         /// <inheritdoc/>
@@ -127,9 +154,21 @@ namespace TEDF.Persistence.SqlServer.Repositories
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var term = search.Trim();
+
+                // Same value-converter limitation as in GetByEmailAsync: a partial match on the
+                // Email column cannot be expressed with a string parameter in LINQ, so it runs as
+                // a composable raw-SQL subquery (single round trip, translated to an IN (...)).
+                var emailPattern = "%" + term
+                    .Replace("[", "[[]")
+                    .Replace("%", "[%]")
+                    .Replace("_", "[_]") + "%";
+                var emailMatches = _context.Users
+                    .FromSql($"SELECT * FROM Users WHERE Email LIKE {emailPattern}")
+                    .Select(u => u.Id);
+
                 query = query.Where(u =>
                     u.FullName.Contains(term) ||
-                    EF.Property<string>(u, "Email").Contains(term) ||
+                    emailMatches.Contains(u.Id) ||
                     _context.Students.Any(s => s.Id == u.Id && s.StudentCode.Contains(term)) ||
                     _context.Lecturers.Any(l => l.Id == u.Id && l.EmployeeCode.Contains(term)));
             }
