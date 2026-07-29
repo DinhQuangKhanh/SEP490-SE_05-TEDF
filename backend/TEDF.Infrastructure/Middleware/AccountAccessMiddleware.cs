@@ -8,10 +8,10 @@ using TEDF.Application.Common.Interfaces;
 namespace TEDF.Infrastructure.Middleware
 {
     /// <summary>
-    /// Blocks API access for accounts that are locked/inactive, or for student-only accounts not on any
-    /// active/upcoming eligible list. Must run AFTER authentication. The /api/auth/* endpoints are
-    /// allowlisted so an ineligible student can still call /api/auth/session and learn why they're blocked.
-    /// The per-user decision is cached briefly to avoid a DB hit on every request.
+    /// Blocks API and SignalR access for accounts that are locked/inactive, or for student-only accounts
+    /// not on any active/upcoming eligible list. Must run AFTER authentication. The /api/auth/* endpoints
+    /// are allowlisted so an ineligible student can still call /api/auth/session and learn why they're
+    /// blocked. The per-user decision is cached briefly to avoid a DB hit on every request.
     /// </summary>
     public class AccountAccessMiddleware
     {
@@ -28,6 +28,16 @@ namespace TEDF.Infrastructure.Middleware
             "/hangfire"
         ];
 
+        /// <summary>Path prefixes the gate applies to. SignalR is included: a blocked account must not
+        /// keep a live chat/notification connection just because the hubs are not under /api.</summary>
+        private static readonly string[] GatedPrefixes = ["/api", "/hubs"];
+
+        /// <summary>
+        /// Decision kinds that come from the account status itself. Admins bypass the eligibility rules
+        /// (semester roster), but never these — a locked or disabled admin account stays blocked.
+        /// </summary>
+        private static readonly string[] StatusBlockedKinds = ["locked", "inactive"];
+
         public AccountAccessMiddleware(RequestDelegate next)
         {
             _next = next;
@@ -37,16 +47,9 @@ namespace TEDF.Infrastructure.Middleware
         {
             var path = context.Request.Path.Value ?? string.Empty;
 
-            var isApi = path.StartsWith("/api", StringComparison.OrdinalIgnoreCase);
+            var isGated = GatedPrefixes.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
             var isAllowlisted = Allowlist.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-            if (!isApi || isAllowlisted || context.User?.Identity?.IsAuthenticated != true)
-            {
-                await _next(context);
-                return;
-            }
-
-            // Admins always have full access.
-            if (context.User.IsInRole("Admin"))
+            if (!isGated || isAllowlisted || context.User?.Identity?.IsAuthenticated != true)
             {
                 await _next(context);
                 return;
@@ -68,7 +71,11 @@ namespace TEDF.Infrastructure.Middleware
                 TimeSpan.FromSeconds(60),
                 context.RequestAborted);
 
-            if (decision is { Allowed: false })
+            // Admins skip the eligibility rules but not the status ones, so the decision is evaluated
+            // for them too and only then filtered.
+            var bypassesEligibility = context.User.IsInRole("Admin");
+            if (decision is { Allowed: false }
+                && (!bypassesEligibility || StatusBlockedKinds.Contains(decision.Kind)))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";

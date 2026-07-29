@@ -13,7 +13,10 @@ using StackExchange.Redis;
 using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.UserAggregate;
+using TEDF.Domain.Aggregates.UserAggregate.ValueObjects;
 using TEDF.Domain.Common.Interfaces;
+using TEDF.Domain.Constants;
+using TEDF.Domain.Enums.User;
 using TEDF.Domain.Services;
 using TEDF.Infrastructure.Authentication;
 using TEDF.Infrastructure.Authorization;
@@ -116,7 +119,11 @@ namespace TEDF.Infrastructure
                         // not the database Id. Resolve the database Id here and inject it as a
                         // separate claim so that CurrentUserService can return the correct Guid.
                         var firebaseUid = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-                        if (string.IsNullOrEmpty(firebaseUid)) return;
+                        if (string.IsNullOrEmpty(firebaseUid))
+                        {
+                            context.Fail("Firebase token does not carry a user id.");
+                            return;
+                        }
 
                         var userRepo = context.HttpContext.RequestServices
                             .GetRequiredService<IUserRepository>();
@@ -124,20 +131,31 @@ namespace TEDF.Infrastructure
                         var user = await userRepo.GetByFirebaseUidAsync(firebaseUid);
                         if (user is null)
                         {
-                            // First Google login of an imported "pending" account: link it by the
-                            // verified FPT email so the account gets its real FirebaseUid.
+                            // The account can already exist while holding a placeholder FirebaseUid:
+                            // imported accounts get "pending:<code>" and seeded ones get "test-*",
+                            // because the real UID is only issued the first time the person signs in
+                            // with Google. Match on the email instead and re-point the row to the real
+                            // UID. The email claim is only trusted when Firebase reports it verified —
+                            // otherwise anyone able to create a Firebase account with someone's FPT
+                            // address could take that account over.
                             var email = context.Principal?.FindFirstValue("email")
                                 ?? context.Principal?.FindFirstValue(ClaimTypes.Email);
-                            var emailVerified = context.Principal?.FindFirstValue("email_verified");
+                            var emailVerified = string.Equals(
+                                context.Principal?.FindFirstValue("email_verified"),
+                                "true",
+                                StringComparison.OrdinalIgnoreCase);
 
-                            if (!string.IsNullOrEmpty(email)
-                                && !string.Equals(emailVerified, "false", StringComparison.OrdinalIgnoreCase))
+                            if (!string.IsNullOrEmpty(email) && emailVerified)
                             {
-                                var pending = await userRepo.GetByEmailAsync(email);
-                                if (pending is not null && pending.IsPendingActivation)
+                                var existing = await userRepo.GetByEmailAsync(email);
+
+                                // A locked or disabled account is never linked: the row keeps its
+                                // placeholder UID until an admin reactivates it. The access gate would
+                                // block the request anyway, this just avoids writing to a dead account.
+                                if (existing is not null && existing.Status == UserStatus.Active)
                                 {
-                                    pending.LinkFirebaseAccount(firebaseUid);
-                                    await userRepo.UpdateAsync(pending);
+                                    existing.LinkFirebaseAccount(firebaseUid);
+                                    await userRepo.UpdateAsync(existing);
                                     await context.HttpContext.RequestServices
                                         .GetRequiredService<IUnitOfWork>()
                                         .SaveChangesAsync();
@@ -147,20 +165,47 @@ namespace TEDF.Infrastructure
                                     {
                                         var firebaseAuth = context.HttpContext.RequestServices
                                             .GetService<IFirebaseAuthService>();
+                                        var existingUserRoles = existing.GetActiveRoles();
                                         if (firebaseAuth is not null)
                                             await firebaseAuth.SetCustomClaimsAsync(firebaseUid, new Dictionary<string, object>
                                             {
-                                                ["dbUserId"] = pending.Id.ToString(),
-                                                ["roles"] = pending.GetActiveRoles().ToArray()
+                                                ["dbUserId"] = existing.Id.ToString(),
+                                                ["roles"] = existing.GetActiveRoles().ToArray()
                                             });
                                     }
                                     catch { /* claims sync is best-effort */ }
 
-                                    user = pending;
+                                    user = existing;
+                                }
+                                else if (existing is null)
+                                {
+                                    // Nobody owns this verified FPT address yet: create the account
+                                    // on the spot so a first-time signer-in is not dead-ended on a
+                                    // 401 with no way to self-register.
+                                    //
+                                    // It is deliberately provisioned with the LEAST privileged role.
+                                    // That is safe because the account still has to pass
+                                    // AccountAccessGate: a Student who is not on the semester's
+                                    // eligible roster is rejected with NOT_ELIGIBLE, so this creates
+                                    // a row without granting access to anything.
+                                    user = await ProvisionFromGoogleAsync(
+                                        context.HttpContext.RequestServices,
+                                        userRepo,
+                                        firebaseUid,
+                                        email,
+                                        context.Principal);
                                 }
                             }
                         }
-                        if (user is null) return;
+
+                        if (user is null)
+                        {
+                            // Valid Firebase token, but no TEDF account owns it. Failing here returns a
+                            // 401 instead of letting the request run as Anonymous and making every
+                            // handler throw "User is not authenticated".
+                            context.Fail("No TEDF account is linked to this Firebase user.");
+                            return;
+                        }
 
                         var identity = context.Principal!.Identity as ClaimsIdentity;
                         identity?.AddClaim(new Claim(AppClaimTypes.DbUserId, user.Id.ToString()));
@@ -280,6 +325,52 @@ namespace TEDF.Infrastructure
             app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [new HangfireAuthFilter()] });
             RecurringJobsConfiguration.ConfigureRecurringJobs();
             return app;
+        }
+
+        /// <summary>
+        /// Creates a TEDF account for a Google user who signed in successfully but has no row yet.
+        /// Returns null when the address is not an FPT one, so outsiders cannot self-register.
+        /// </summary>
+        /// <remarks>
+        /// Only the <c>Users</c> + <c>UserRoles</c> rows are written — no <c>Students</c> profile,
+        /// because a Google token carries no student code and that column is unique and required.
+        /// Note this means a later roster import will report the row as an issue instead of
+        /// completing it (<c>TryProvisionUserAsync</c> skips addresses that already exist).
+        /// </remarks>
+        private static async Task<User?> ProvisionFromGoogleAsync(
+            IServiceProvider services,
+            IUserRepository userRepo,
+            string firebaseUid,
+            string email,
+            ClaimsPrincipal? principal)
+        {
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+
+            // Checked here rather than relying on Email.Create throwing: a non-FPT sign-in is an
+            // expected outcome, not an exceptional one. The `hd` hint set by the SPA is only a UI
+            // filter and can be bypassed, so this is the real gate.
+            if (!normalizedEmail.EndsWith($"@{Email.AllowedDomain}", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var fullName = principal?.FindFirstValue("name")
+                ?? principal?.FindFirstValue(ClaimTypes.Name);
+            if (string.IsNullOrWhiteSpace(fullName))
+                fullName = normalizedEmail.Split('@')[0];
+
+            var user = User.Create(
+                firebaseUid: firebaseUid,   // real UID — no "pending:" placeholder needed here
+                email: normalizedEmail,
+                fullName: fullName.Trim(),
+                avatarUrl: principal?.FindFirstValue("picture"));
+
+            user.AssignRole(DomainRoleIds.Student, DomainRoleNames.Student);
+
+            await userRepo.AddAsync(user);
+            await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+
+            // Firebase custom claims are pushed by SyncFirebaseClaimsOnUserCreatedHandler /
+            // SyncFirebaseClaimsOnRoleAssignedHandler once the domain events dispatch after save.
+            return user;
         }
 
         private static GoogleCredential BuildFirebaseCredential(FirebaseSettings settings)

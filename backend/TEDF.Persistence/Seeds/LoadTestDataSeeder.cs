@@ -1832,6 +1832,10 @@ public static class LoadTestDataSeeder
             "GroupMembers",
             "EvaluationSubmissions",
 
+            // Append-only project audit trail. Its FKs to Projects and Users are Restrict,
+            // so it has to go before both of them below.
+            "ProjectAuditLogs",
+
             // Projects reference Groups & TopicPools; Groups reference Projects (circular via ProjectId)
             // Break the cycle: NULL out the FK first, then delete.
             "UPDATE Groups SET ProjectId = NULL;",
