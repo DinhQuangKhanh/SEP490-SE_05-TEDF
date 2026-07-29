@@ -5,6 +5,8 @@ const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
     authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'TEDF-dev'}.firebaseapp.com`,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'TEDF-dev',
+    storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'TEDF-dev'}.firebasestorage.app`,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || 'fake-messaging-sender-id'
 }
 
 const app = initializeApp(firebaseConfig)
