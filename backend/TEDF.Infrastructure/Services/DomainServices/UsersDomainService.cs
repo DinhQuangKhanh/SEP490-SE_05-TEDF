@@ -147,7 +147,9 @@ public class UsersDomainService : IUsersDomainService
 
         int? departmentId = await ResolveDepartmentIdAsync(input.MajorId, cancellationToken);
 
-        var user = ProvisionUser(role, email, input.FullName, code, input.Phone, input.AcademicTitle, departmentId, actingUserId);
+        var user = ProvisionUser(
+            new NewUserData(role, email, input.FullName, code, input.Phone, input.AcademicTitle, departmentId),
+            actingUserId);
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return user.Id;
@@ -163,40 +165,21 @@ public class UsersDomainService : IUsersDomainService
 
         foreach (var row in rows)
         {
-            var code = (row.Code ?? string.Empty).Trim();
-            var label = string.IsNullOrWhiteSpace(code) ? (row.Email ?? "?") : code;
-
-            // Import provisions students & lecturers only; DepartmentHead is a singleton created manually.
-            if (!TryNormalizeRole(row.Role, out var role) || role is DomainRoleNames.Admin or DomainRoleNames.DepartmentHead)
+            var (issue, data) = await ValidateImportRowAsync(row, seenEmails, seenCodes, cancellationToken);
+            if (issue is not null || data is null)
             {
-                issues.Add(new ImportRowIssue(label, $"Vai trò '{row.Role}' không hợp lệ (chỉ Student/Mentor/Evaluator)."));
+                if (issue is not null) issues.Add(issue);
                 continue;
             }
 
-            var email = (row.Email ?? string.Empty).Trim().ToLowerInvariant();
-            if (!email.EndsWith(FptEmailDomain, StringComparison.OrdinalIgnoreCase))
-            {
-                issues.Add(new ImportRowIssue(label, $"Email không hợp lệ (phải là {FptEmailDomain}).")); continue;
-            }
-            if (string.IsNullOrWhiteSpace(code)) { issues.Add(new ImportRowIssue(label, "Thiếu mã số.")); continue; }
-            if (!seenEmails.Add(email)) { issues.Add(new ImportRowIssue(label, $"Email '{email}' trùng trong file.")); continue; }
-            if (!seenCodes.Add(code)) { issues.Add(new ImportRowIssue(label, $"Mã số '{code}' trùng trong file.")); continue; }
-            if (await _userRepository.ExistsByEmailAsync(email, cancellationToken)) { issues.Add(new ImportRowIssue(label, $"Email '{email}' đã tồn tại.")); continue; }
-
-            var isStudent = role == DomainRoleNames.Student;
-            if (isStudent && await _userRepository.GetByStudentCodeAsync(code, cancellationToken) is not null) { issues.Add(new ImportRowIssue(label, "MSSV đã tồn tại.")); continue; }
-            if (!isStudent && await _userRepository.GetByEmployeeCodeAsync(code, cancellationToken) is not null) { issues.Add(new ImportRowIssue(label, "Mã giảng viên đã tồn tại.")); continue; }
-
             try
             {
-                var departmentId = await ResolveDepartmentIdByNameOrCodeAsync(row.MajorName, cancellationToken);
-                var user = ProvisionUser(role, email, row.FullName, code, row.Phone, row.AcademicTitle, departmentId, actingUserId);
-                await _userRepository.AddAsync(user, cancellationToken);
+                await _userRepository.AddAsync(ProvisionUser(data, actingUserId), cancellationToken);
                 success++;
             }
             catch (Exception ex)
             {
-                issues.Add(new ImportRowIssue(label, ex.Message));
+                issues.Add(new ImportRowIssue(data.Code, ex.Message));
             }
         }
 
@@ -206,25 +189,63 @@ public class UsersDomainService : IUsersDomainService
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /// <summary>Validated data needed to provision one user (bundles the fields to keep signatures small).</summary>
+    private sealed record NewUserData(
+        string Role, string Email, string? FullName, string Code, string? Phone, string? AcademicTitle, int? DepartmentId);
+
     /// <summary>Builds a pending (SSO) user with the right sub-profile and role. Does not persist.</summary>
-    private static User ProvisionUser(
-        string role, string email, string? fullName, string code, string? phone,
-        string? academicTitle, int? departmentId, Guid actingUserId)
+    private static User ProvisionUser(NewUserData data, Guid actingUserId)
     {
         var user = User.Create(
-            firebaseUid: $"{User.PendingUidPrefix}{code}",
-            email: email,
-            fullName: string.IsNullOrWhiteSpace(fullName) ? code : fullName.Trim(),
-            departmentId: departmentId,
-            phoneNumber: string.IsNullOrWhiteSpace(phone) ? null : phone.Trim());
+            firebaseUid: $"{User.PendingUidPrefix}{data.Code}",
+            email: data.Email,
+            fullName: string.IsNullOrWhiteSpace(data.FullName) ? data.Code : data.FullName.Trim(),
+            departmentId: data.DepartmentId,
+            phoneNumber: string.IsNullOrWhiteSpace(data.Phone) ? null : data.Phone.Trim());
 
-        if (role == DomainRoleNames.Student)
-            user.InitializeStudentProfile(code);
+        if (data.Role == DomainRoleNames.Student)
+            user.InitializeStudentProfile(data.Code);
         else
-            user.InitializeStaffProfile(code, string.IsNullOrWhiteSpace(academicTitle) ? null : academicTitle.Trim());
+            user.InitializeStaffProfile(data.Code, string.IsNullOrWhiteSpace(data.AcademicTitle) ? null : data.AcademicTitle.Trim());
 
-        user.AssignRole(DomainRoleIds.FromName(role), role, actingUserId);
+        user.AssignRole(DomainRoleIds.FromName(data.Role), data.Role, actingUserId);
         return user;
+    }
+
+    /// <summary>
+    /// Validates one import row (role, email, code, in-file + DB duplicates) and resolves its major.
+    /// Returns an issue to skip the row, or the provisioning data when the row is valid.
+    /// </summary>
+    private async Task<(ImportRowIssue? Issue, NewUserData? Data)> ValidateImportRowAsync(
+        UserImportRow row, HashSet<string> seenEmails, HashSet<string> seenCodes, CancellationToken ct)
+    {
+        var code = (row.Code ?? string.Empty).Trim();
+        var label = string.IsNullOrWhiteSpace(code) ? (row.Email ?? "?") : code;
+
+        // Import provisions students & lecturers only; DepartmentHead is a singleton created manually.
+        if (!TryNormalizeRole(row.Role, out var role) || role is DomainRoleNames.Admin or DomainRoleNames.DepartmentHead)
+            return (new ImportRowIssue(label, $"Vai trò '{row.Role}' không hợp lệ (chỉ Student/Mentor/Evaluator)."), null);
+
+        var email = (row.Email ?? string.Empty).Trim().ToLowerInvariant();
+        if (!email.EndsWith(FptEmailDomain, StringComparison.OrdinalIgnoreCase))
+            return (new ImportRowIssue(label, $"Email không hợp lệ (phải là {FptEmailDomain})."), null);
+        if (string.IsNullOrWhiteSpace(code))
+            return (new ImportRowIssue(label, "Thiếu mã số."), null);
+        if (!seenEmails.Add(email))
+            return (new ImportRowIssue(label, $"Email '{email}' trùng trong file."), null);
+        if (!seenCodes.Add(code))
+            return (new ImportRowIssue(label, $"Mã số '{code}' trùng trong file."), null);
+        if (await _userRepository.ExistsByEmailAsync(email, ct))
+            return (new ImportRowIssue(label, $"Email '{email}' đã tồn tại."), null);
+
+        var isStudent = role == DomainRoleNames.Student;
+        if (isStudent && await _userRepository.GetByStudentCodeAsync(code, ct) is not null)
+            return (new ImportRowIssue(label, "MSSV đã tồn tại."), null);
+        if (!isStudent && await _userRepository.GetByEmployeeCodeAsync(code, ct) is not null)
+            return (new ImportRowIssue(label, "Mã giảng viên đã tồn tại."), null);
+
+        var departmentId = await ResolveDepartmentIdByNameOrCodeAsync(row.MajorName, ct);
+        return (null, new NewUserData(role, email, row.FullName, code, row.Phone, row.AcademicTitle, departmentId));
     }
 
     private async Task<bool> HasActiveDepartmentHeadAsync(CancellationToken ct)

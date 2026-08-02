@@ -187,6 +187,7 @@ export function UsersPage() {
                                 />
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setShowImportModal(true)}
                                 className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap"
                             >
@@ -194,6 +195,7 @@ export function UsersPage() {
                                 <span className="hidden sm:inline">Nhập Excel</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setShowCreateModal(true)}
                                 className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light transition-colors shadow-sm whitespace-nowrap"
                             >
