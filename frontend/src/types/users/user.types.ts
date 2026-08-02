@@ -61,3 +61,27 @@ export interface UpdateMyProfileRequest {
   birthDate?: string | null;
   privacySettings?: string | null;
 }
+
+/** Body for POST /api/users — create a single user (admin). */
+export interface CreateUserRequest {
+  role: string; // Student | Mentor | Evaluator | DepartmentHead
+  email: string;
+  fullName: string;
+  code: string; // MSSV for Student, employee code for staff
+  phone?: string;
+  academicTitle?: string; // staff only
+  majorId?: number; // student's major (also resolves the department)
+}
+
+/** One rejected/skipped row in a user import. */
+export interface UserImportIssue {
+  code: string;
+  reason: string;
+}
+
+/** Result of POST /api/users/import. */
+export interface UserImportResponse {
+  totalProcessed: number;
+  successfullyImported: number;
+  issues: UserImportIssue[];
+}
