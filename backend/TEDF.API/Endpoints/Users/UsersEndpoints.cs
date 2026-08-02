@@ -75,11 +75,11 @@ public sealed class UsersEndpoints : IEndpoint
         return Created($"/api/users/{id}", new { id }, "Tạo người dùng thành công.");
     }
 
-    private static async Task<IResult> ImportUsers(IFormFile file, ISender sender, HttpContext context)
+    private static async Task<IResult> ImportUsers(IFormFile file, ISender sender, HttpContext context, CancellationToken ct)
     {
         var userId = context.User.GetUserId();
         using var stream = file.OpenReadStream();
-        var result = await sender.Send(new ImportUsersCommand(stream, file.FileName, userId));
+        var result = await sender.Send(new ImportUsersCommand(stream, file.FileName, userId), ct);
         return Results.Ok(result);
     }
 

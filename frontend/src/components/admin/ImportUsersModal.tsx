@@ -94,7 +94,7 @@ export function ImportUsersModal({ onClose, onImported }: Readonly<Props>) {
             className="flex items-center gap-1 shrink-0 text-xs font-semibold text-primary hover:underline"
           >
             <span className="material-symbols-outlined text-[16px]">download</span>
-            Tải file mẫu (.xlsx)
+            <span>Tải file mẫu (.xlsx)</span>
           </button>
         </div>
 
