@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
+import { AddUserModal } from '@/components/admin/AddUserModal'
+import { ImportUsersModal } from '@/components/admin/ImportUsersModal'
 import { useSystemError } from '@/contexts/SystemErrorContext'
 import { userService } from "@/lib";
 import type { UserListItem, UserListResponse } from "@/types";
@@ -89,6 +91,8 @@ export function UsersPage() {
     const [data, setData] = useState<UserListResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const [lockingUserId, setLockingUserId] = useState<string | null>(null)
+    const [showCreateModal, setShowCreateModal] = useState(false)
+    const [showImportModal, setShowImportModal] = useState(false)
     const { showError } = useSystemError()
 
     // Debounced search (400ms)
@@ -182,11 +186,19 @@ export function UsersPage() {
                                     onChange={(e) => setSearch(e.target.value)}
                                 />
                             </div>
-                            <button className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap">
+                            <button
+                                type="button"
+                                onClick={() => setShowImportModal(true)}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap"
+                            >
                                 <span className="material-symbols-outlined text-[20px]">upload_file</span>
                                 <span className="hidden sm:inline">Nhập Excel</span>
                             </button>
-                            <button className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light transition-colors shadow-sm whitespace-nowrap">
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateModal(true)}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light transition-colors shadow-sm whitespace-nowrap"
+                            >
                                 <span className="material-symbols-outlined text-[20px]">person_add</span>
                                 <span className="hidden sm:inline">Thêm mới</span>
                             </button>
@@ -296,6 +308,19 @@ export function UsersPage() {
                     </motion.div>
                 </motion.div>
             </div>
+
+            {showCreateModal && (
+                <AddUserModal
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={fetchUsers}
+                />
+            )}
+            {showImportModal && (
+                <ImportUsersModal
+                    onClose={() => setShowImportModal(false)}
+                    onImported={fetchUsers}
+                />
+            )}
         </>
     )
 }

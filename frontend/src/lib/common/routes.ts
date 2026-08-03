@@ -12,6 +12,8 @@ export const routes = {
     projects: "/api/projects",
     assignDepartmentHead: (departmentId: number) => `/api/users/departments/${departmentId}/head`,
     users: "/api/users",
+    usersImport: "/api/users/import",
+    usersImportTemplate: "/api/users/import/template",
     activityLogs: "/api/activity-logs",
     activityLogsSummary: "/api/activity-logs/summary",
     errorLogs: "/api/activity-logs/errors",

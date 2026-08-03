@@ -1,4 +1,4 @@
-import { UserFilters, UserListResponse } from "@/types";
+import { CreateUserRequest, UserFilters, UserImportResponse, UserListResponse } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -7,6 +7,20 @@ export const userService = {
     const params = buildParams(filters);
     return apiClient.get<UserListResponse>(`${routes.admin.users}?${params.toString()}`);
   },
+
+  /** Create a single user (Student/Mentor/Evaluator/DepartmentHead). Returns the new id. */
+  createUser: (payload: CreateUserRequest): Promise<{ id: string }> =>
+    apiClient.post<{ id: string }>(routes.admin.users, payload),
+
+  /** Bulk-import users from an Excel/CSV file; returns a per-row issue summary. */
+  importUsers: (file: File): Promise<UserImportResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postForm<UserImportResponse>(routes.admin.usersImport, formData);
+  },
+
+  /** Downloads the .xlsx import template (authenticated). */
+  downloadImportTemplate: (): Promise<Blob> => apiClient.getBlob(routes.admin.usersImportTemplate),
 
   lockUser: (userId: string): Promise<void> => apiClient.put<void>(`${routes.admin.users}/${userId}/lock`, {}),
 
