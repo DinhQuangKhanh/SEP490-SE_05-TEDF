@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TEDF.Application.Common.Interfaces;
+using TEDF.Application.Features.StudentGroups;
 using TEDF.Application.Features.StudentGroups.DTOs;
 using TEDF.Domain.Enums.Group;
 using TEDF.Domain.Enums.Mentor;
@@ -33,12 +34,10 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             from pm in _context.ProjectMentors.AsNoTracking()
             where pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active
             join p in _context.Projects on pm.ProjectId equals p.Id
-            // Include PendingEvaluation so a mentor sees the group as soon as they ACCEPT its
-            // topic — for a direct (student-proposed) topic, mentor acceptance moves the project to
-            // PendingEvaluation (Project.MentorApproveAndSubmit) with the group already assigned,
-            // before the DepartmentHead's final approval. The `p.GroupId != null` gate keeps a
-            // mentor's own *unassigned* pool proposal (also PendingEvaluation, but GroupId == null)
-            // out — a pool topic only gets a GroupId at registration-confirm, when it is Approved.
+            // PendingEvaluation is included so a mentor keeps seeing a group whose topic is still
+            // under review. The `p.GroupId != null` gate keeps a mentor's own *unassigned* pool
+            // proposal (also PendingEvaluation, but GroupId == null) out — a pool topic only gets a
+            // GroupId at registration-confirm, or when its proposed roster becomes a group on approval.
             where p.GroupId != null
                   && (p.Status == ProjectStatus.PendingEvaluation
                    || p.Status == ProjectStatus.Approved
@@ -62,6 +61,7 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 MaxMembers = g.MaxMembers,
                 ProjectId = p.Id,
                 ProjectName = p.NameVi,
+                ProjectNameEn = p.NameEn,
                 ProjectCode = p.Code,
                 ProjectStatus = p.Status.ToString(),
                 SemesterId = s.Id,
@@ -86,7 +86,20 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             }
         ).ToListAsync(cancellationToken);
 
-        return groups;
+        // Every group here is supervised by this mentor, so their name is fetched once rather than
+        // joined per row.
+        var mentorName = await _context.Users.AsNoTracking()
+            .Where(u => u.Id == mentorId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return groups
+            .Select(g => g with
+            {
+                DisplayName = GroupNameFormatter.Build(
+                    g.GroupName, g.GroupCode, g.ProjectNameEn, mentorName, g.ProjectStatus)
+            })
+            .ToList();
     }
 
     public async Task<StudentGroupDto?> GetStudentGroupAsync(
@@ -116,13 +129,13 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 GroupId = g.Id,
                 GroupCode = g.Code,
                 GroupName = g.Name,
-                GroupDisplayName = g.DisplayName,
                 GroupStatus = g.Status.ToString(),
                 MaxMembers = g.MaxMembers,
                 IsOpenForRequests = g.IsOpenForRequests,
                 ProjectId = g.ProjectId,
                 // Project is optional for newly created groups, so project fields must be null-safe.
                 ProjectName = p == null ? null : EF.Property<string>(p, "NameVi"),
+                ProjectNameEn = p == null ? null : EF.Property<string>(p, "NameEn"),
                 ProjectCode = p == null ? null : EF.Property<string>(p, "Code"),
                 ProjectStatus = p != null ? p.Status.ToString() : null,
                 CreatedAt = g.CreatedAt,
@@ -158,7 +171,9 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
             GroupId = groupData.GroupId,
             GroupCode = groupData.GroupCode,
             GroupName = groupData.GroupName,
-            GroupDisplayName = groupData.GroupDisplayName,
+            DisplayName = GroupNameFormatter.Build(
+                groupData.GroupName, groupData.GroupCode, groupData.ProjectNameEn,
+                groupData.ProjectMentorName, groupData.ProjectStatus),
             GroupStatus = groupData.GroupStatus,
             MaxMembers = groupData.MaxMembers,
             IsOpenForRequests = groupData.IsOpenForRequests,

@@ -130,7 +130,7 @@ export function LecturerGroupDetailPage() {
               <span className="text-sm font-medium text-blue-100/80">Nhóm của tôi</span>
               <span className="material-symbols-outlined text-[18px] text-blue-100/60">chevron_right</span>
               <h2 className="text-lg font-bold">
-                Chi tiết đề tài{group ? ` — ${group.groupName ?? group.groupCode}` : ""}
+                Chi tiết đề tài{group ? ` — ${group.displayName || group.groupName || group.groupCode}` : ""}
               </h2>
             </div>
           </div>

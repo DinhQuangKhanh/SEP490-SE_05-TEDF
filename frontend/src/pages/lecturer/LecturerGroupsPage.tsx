@@ -111,7 +111,9 @@ export function LecturerGroupsPage() {
                       <div className="flex-1 p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h3 className="text-lg font-bold text-slate-900">{group.groupName ?? group.groupCode}</h3>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {group.displayName || group.groupName || group.groupCode}
+                        </h3>
                         <span className="inline-flex items-center gap-1 mt-1 text-xs text-slate-500">
                           <span className="material-symbols-outlined text-[14px]">tag</span>
                           {group.groupCode}
