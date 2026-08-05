@@ -43,7 +43,11 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public DateTime? Deadline { get; private set; }
         public int EvaluationCount { get; private set; }
         public EvaluationResult? LastEvaluationResult { get; private set; }
-        /// <summary>The mentor's most recent modification request note, shown to the student. Cleared on resubmit/approve.</summary>
+        /// <summary>
+        /// A mentor review note from the retired student-proposal flow. Nothing writes it any more,
+        /// but the setter has to stay: EF drops the column without it, and historical projects
+        /// still surface their note.
+        /// </summary>
         public string? MentorFeedback { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }

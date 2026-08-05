@@ -684,7 +684,8 @@ function StepAttachments({
 
       {/* Capstone register form — seeds the group when its student table is filled in */}
       <div>
-        <label className={labelClass}>Phiếu đăng ký (tùy chọn)</label>
+        {/* A heading, not a control label — the file input carries its own label below. */}
+        <p className={labelClass}>Phiếu đăng ký (tùy chọn)</p>
         <p className="mb-2 text-xs text-slate-500">
           Tệp PDF theo mẫu &ldquo;Capstone Project Register&rdquo;. Nếu phiếu đã điền danh sách sinh viên, hệ thống sẽ tự
           tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành

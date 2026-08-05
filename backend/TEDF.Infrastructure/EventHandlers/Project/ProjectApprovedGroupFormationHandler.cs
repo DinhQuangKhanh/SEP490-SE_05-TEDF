@@ -88,13 +88,13 @@ namespace TEDF.Infrastructure.EventHandlers.Project
 
                 // Any member already placed in a group invalidates the whole roster — partially
                 // forming the group would silently drop a student the mentor registered.
-                foreach (var member in project.ProposedMembers)
+                foreach (var studentId in project.ProposedMembers.Select(m => m.StudentId))
                 {
-                    if (await _groupRepository.IsStudentInActiveGroupAsync(member.StudentId, project.SemesterId, cancellationToken))
+                    if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, project.SemesterId, cancellationToken))
                     {
                         _logger.LogWarning(
                             "Student {StudentId} on project {ProjectId}'s roster already belongs to a group this semester; skipping group creation.",
-                            member.StudentId, project.Id);
+                            studentId, project.Id);
                         return;
                     }
                 }
