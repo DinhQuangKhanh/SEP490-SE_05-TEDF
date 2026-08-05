@@ -3,7 +3,20 @@ name: Build and Deploy tedf
 on:
   push:
     branches:
-      - main
+      - dev
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tedf-production-deploy
+  cancel-in-progress: true
+
+env:
+  BACKEND_IMAGE: truongnhat2102/tedf-backend
+  FRONTEND_IMAGE: truongnhat2102/tedf-frontend
 
 jobs:
   build-and-deploy:
@@ -118,6 +131,52 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           envs: DOCKER_USERNAME,DOCKER_PASSWORD
           script: |
-            cd /home/tedf
-            docker compose pull
-            docker compose up -d
+            set -Eeuo pipefail
+
+            PROJECT_DIR="/home/tedf/tedf"
+
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "Không tìm thấy thư mục $PROJECT_DIR"
+              exit 1
+            fi
+
+            cd "$PROJECT_DIR"
+
+            if [ -d .git ]; then
+              echo "Cập nhật source trên server..."
+              git fetch --prune origin
+              git checkout dev
+              git reset --hard origin/dev
+            fi
+
+            echo "Đăng nhập Docker Hub..."
+            echo "$DOCKER_PASSWORD" | docker login \
+              --username "$DOCKER_USERNAME" \
+              --password-stdin
+
+            echo "Kiểm tra cấu hình Docker Compose..."
+            docker compose config --quiet
+
+            echo "Tải image mới..."
+            docker compose pull backend frontend
+
+            echo "Khởi tạo các service nền..."
+            docker compose up -d sqlserver mongodb redis clamav
+
+            echo "Chạy service tạo hoặc cập nhật database..."
+            docker compose up --force-recreate sqlserver-init
+
+            echo "Khởi động backend và frontend..."
+            docker compose up -d \
+              --no-build \
+              --remove-orphans \
+              backend frontend
+
+            echo "Kiểm tra trạng thái container..."
+            docker compose ps
+
+            echo "Hiển thị log backend gần nhất..."
+            docker compose logs --tail=50 backend
+
+            echo "Đăng xuất Docker Hub..."
+            docker logout
