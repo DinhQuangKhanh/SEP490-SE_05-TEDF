@@ -46,9 +46,12 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
         public async Task<Project?> GetWithAllAsync(Guid id, CancellationToken cancellationToken = default)
         {
+            // Two collection includes in one query multiply rows (mentors x documents),
+            // so the load is split into separate queries.
             return await _dbSet
                 .Include(p => p.Mentors)
                 .Include(p => p.Documents)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 

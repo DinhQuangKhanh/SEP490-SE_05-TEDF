@@ -120,6 +120,7 @@ export function LecturerGroupDetailPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-white">
             <button
+              type="button"
               onClick={() => navigate("/lecturer/groups")}
               className="flex items-center justify-center transition-colors rounded-lg size-9 hover:bg-white/10"
               aria-label="Quay lại"
