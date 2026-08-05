@@ -37,6 +37,13 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Project?> GetWithProposedMembersAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Include(p => p.ProposedMembers)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        }
+
         public async Task<Project?> GetWithAllAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _dbSet

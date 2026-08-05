@@ -27,6 +27,11 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         Task<Project?> GetWithAllAsync(Guid id, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Loads the project together with the roster taken off the register form at proposal time.
+        /// </summary>
+        Task<Project?> GetWithProposedMembersAsync(Guid id, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Gets all projects by mentor identifier.
         /// </summary>
         Task<IEnumerable<Project>> GetByMentorIdAsync(Guid mentorId, CancellationToken cancellationToken = default);

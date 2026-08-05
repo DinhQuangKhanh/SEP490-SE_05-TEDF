@@ -14,6 +14,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
     {
         private readonly List<ProjectMentor> _mentors = [];
         private readonly List<Document> _documents = [];
+        private readonly List<ProposedGroupMember> _proposedMembers = [];
 
         #region Properties
 
@@ -52,6 +53,12 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
 
         public IReadOnlyCollection<ProjectMentor> Mentors => _mentors.AsReadOnly();
         public IReadOnlyCollection<Document> Documents => _documents.AsReadOnly();
+
+        /// <summary>
+        /// Students listed on the register form the mentor attached when proposing this topic.
+        /// Empty when no roster was supplied — the topic then follows the normal pool flow.
+        /// </summary>
+        public IReadOnlyCollection<ProposedGroupMember> ProposedMembers => _proposedMembers.AsReadOnly();
 
         /// <summary>
         /// Gets the count of currently active mentors (avoids materializing a list).
@@ -100,6 +107,34 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             };
             project.RaiseDomainEvent(new ProjectCreatedEvent(project.Id, project.Code.Value, ProjectSourceType.FromPool));
             return project;
+        }
+
+        /// <summary>
+        /// Records the students listed on the register form attached at proposal time.
+        /// Replaces any previously recorded roster. Passing an empty roster clears it, which
+        /// leaves the topic on the normal pool flow.
+        /// </summary>
+        /// <param name="members">Student ids paired with whether they are the group leader.</param>
+        public void SetProposedRoster(IEnumerable<(Guid StudentId, bool IsLeader)> members)
+        {
+            ArgumentNullException.ThrowIfNull(members);
+
+            var roster = members
+                .GroupBy(m => m.StudentId)
+                .Select(g => (StudentId: g.Key, IsLeader: g.Any(m => m.IsLeader)))
+                .ToList();
+
+            if (roster.Count > MaxStudents)
+                throw new BusinessRuleValidationException($"Danh sách sinh viên vượt quá số lượng tối đa ({MaxStudents}).");
+
+            if (roster.Count(m => m.IsLeader) > 1)
+                throw new BusinessRuleValidationException("Chỉ được chỉ định một nhóm trưởng.");
+
+            _proposedMembers.Clear();
+            foreach (var (studentId, isLeader) in roster)
+                _proposedMembers.Add(ProposedGroupMember.Create(Id, studentId, isLeader));
+
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>

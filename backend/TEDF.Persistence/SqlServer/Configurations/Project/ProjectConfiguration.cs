@@ -85,6 +85,11 @@ namespace TEDF.Persistence.SqlServer.Configurations.Project
                 .HasForeignKey(d => d.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            builder.HasMany(p => p.ProposedMembers)
+                .WithOne()
+                .HasForeignKey(pm => pm.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Indexes
             builder.HasIndex(p => p.Code).IsUnique();
             builder.HasIndex(p => p.Status);
