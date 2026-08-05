@@ -64,31 +64,6 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
 
         private Project() { }
 
-        private Project(Guid id, ProjectCode code, ProjectName nameVi, ProjectName nameEn, string nameAbbr, string description, string objectives,
-            string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, ProjectSourceType sourceType, Guid? groupId = null, Guid? topicPoolId = null) : base(id)
-        {
-            Code = code;
-            NameVi = nameVi;
-            NameEn = nameEn;
-            NameAbbr = nameAbbr;
-            Description = description;
-            Objectives = objectives;
-            Scope = scope;
-            Technologies = technologyStack;
-            ExpectedResults = expectedResults;
-            MajorId = majorId;
-            SemesterId = semesterId;
-            MaxStudents = maxStudents;
-            SourceType = sourceType;
-            GroupId = groupId;
-            TopicPoolId = topicPoolId;
-            Status = ProjectStatus.Draft;
-            Priority = ProjectPriority.Normal;
-            RegistrationType = RegistrationType.Public;
-            EvaluationCount = 0;
-            CreatedAt = DateTime.UtcNow;
-        }
-
         #endregion
 
         #region Factory Methods
@@ -124,14 +99,6 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
                 CreatedAt = DateTime.UtcNow
             };
             project.RaiseDomainEvent(new ProjectCreatedEvent(project.Id, project.Code.Value, ProjectSourceType.FromPool));
-            return project;
-        }
-
-        public static Project CreateDirect(ProjectCode code, ProjectName nameVi, ProjectName nameEn, string nameAbbr, string description, string objectives,
-             string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, Guid? groupId = null)
-        {
-            var project = new Project(Guid.NewGuid(), code, nameVi, nameEn, nameAbbr, description, objectives, scope, technologyStack, expectedResults, majorId, semesterId, maxStudents, ProjectSourceType.DirectRegistration, groupId: groupId);
-            project.RaiseDomainEvent(new ProjectCreatedEvent(project.Id, project.Code.Value, ProjectSourceType.DirectRegistration));
             return project;
         }
 
@@ -253,80 +220,6 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             EvaluationCount++;
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectResubmittedEvent(Id, submittedBy, EvaluationCount));
-        }
-
-        #endregion
-
-        #region Mentor Review Workflow (Direct Registration)
-
-        /// <summary>
-        /// Student submits a direct-registration project to their mentor for review.
-        /// Transitions: Draft → PendingMentorReview
-        /// </summary>
-        public void SubmitToMentor(Guid submittedBy)
-        {
-            if (Status != ProjectStatus.Draft)
-                throw new BusinessRuleValidationException("Project can only be submitted to mentor when in Draft status.");
-            if (SourceType != ProjectSourceType.DirectRegistration)
-                throw new BusinessRuleValidationException("Only direct registration projects can be submitted to mentor for review.");
-
-            Status = ProjectStatus.PendingMentorReview;
-            SubmittedAt = DateTime.UtcNow;
-            SubmittedBy = submittedBy;
-            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
-        }
-
-        /// <summary>
-        /// Student re-submits a modified direct-registration project back to mentor.
-        /// Transitions: NeedsModification → PendingMentorReview
-        /// </summary>
-        public void ResubmitToMentor(Guid submittedBy)
-        {
-            if (Status != ProjectStatus.NeedsModification)
-                throw new BusinessRuleValidationException("Project can only be resubmitted when in NeedsModification status.");
-            if (SourceType != ProjectSourceType.DirectRegistration)
-                throw new BusinessRuleValidationException("Only direct registration projects can be resubmitted to mentor.");
-
-            Status = ProjectStatus.PendingMentorReview;
-            SubmittedAt = DateTime.UtcNow;
-            SubmittedBy = submittedBy;
-            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
-        }
-
-        /// <summary>
-        /// Mentor approves the project and submits it for formal evaluation.
-        /// Transitions: PendingMentorReview → PendingEvaluation
-        /// </summary>
-        public void MentorApproveAndSubmit(Guid mentorId)
-        {
-            if (Status != ProjectStatus.PendingMentorReview)
-                throw new BusinessRuleValidationException("Only projects pending mentor review can be approved by mentor.");
-
-            Status = ProjectStatus.PendingEvaluation;
-            EvaluationCount++;
-            MentorFeedback = null; // approved; the modification note no longer applies
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectMentorApprovedEvent(Id, mentorId));
-        }
-
-        /// <summary>
-        /// Mentor requests modifications to the project before it can be submitted for evaluation.
-        /// Transitions: PendingMentorReview → NeedsModification
-        /// </summary>
-        public void MentorRequestModification(string? feedback = null)
-        {
-            if (Status != ProjectStatus.PendingMentorReview)
-                throw new BusinessRuleValidationException("Only projects pending mentor review can request modification.");
-
-            Status = ProjectStatus.NeedsModification;
-            LastEvaluationResult = EvaluationResult.NeedsModification;
-            MentorFeedback = feedback; // surfaced to the student on the my-topic page
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectMentorRequestedModificationEvent(Id, feedback));
         }
 
         #endregion

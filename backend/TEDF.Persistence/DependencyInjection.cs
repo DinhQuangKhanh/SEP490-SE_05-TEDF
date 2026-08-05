@@ -108,7 +108,6 @@ namespace TEDF.Persistence
             services.AddScoped<ISettingsQueryService, SettingsQueryService>();
             services.AddScoped<ISupportsQueryService, SupportsQueryService>();
             services.AddScoped<IArchivesQueryService, ArchivesQueryService>();
-            services.AddScoped<IDirectTopicsQueryService, DirectTopicsQueryService>();
             services.AddScoped<INotificationsQueryService, NotificationsQueryService>();
             services.AddScoped<IAuthenticationsQueryService, AuthenticationsQueryService>();
 
