@@ -19,7 +19,8 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 
 - **Core lifecycle is live:** topic pools, direct registration, evaluations, student groups, semesters, supports, notifications, dashboards, and admin/department-head/mentor management are implemented end to end (Application + endpoints).
 - **User profile is live:** `GET /api/users/me` (GetMyProfileQuery) + `PUT /api/users/me` (UpdateMyProfileCommand) — phone number, birth date, privacy settings, Programs/Combos display (via `Student.ProgramId` / `Student.ComboId`). Supervisor endpoint `GET /api/projects/supervised` also live.
-- **Semester roster is live:** 8 additional endpoints on `/api/semesters/{id}/` — import eligible students/mentors (CSV), assign major program per mentor, bulk-delete, and publish roster. Roster-published domain events enqueue batch student emails and notify mentors.
+- **Semester roster is live:** 8 additional endpoints on `/api/semesters/{id}/` — import eligible students/mentors (CSV), assign major program per mentor, bulk-delete, and publish roster. Roster-published domain events enqueue the roster emails (students + lecturers) and notify mentors.
+- **Transactional email is live (Firestore Trigger Email):** six flows send mail — roster publish (students + lecturers), topic proposed to the department head, evaluator assigned, evaluator finished, evaluator consensus, and the department head's final decision. Handlers compose one message per recipient and hand them to Hangfire; `FirestoreMailQueue` writes them to the `mail` collection under a deterministic document id, which is what makes delivery exactly-once across retries.
 - **User schema normalized (RefactorUserSchema migration):** Student/lecturer/role data extracted from `User` into dedicated `Students`, `Lecturers`, `Roles` tables; `MajorPrograms` replaced by `Programs` + `Combos`; `User` retains only shared profile fields (`FullName`, email, `DepartmentId`, `PhoneNumber`, `BirthDate`, `PrivacySettings`, `FirebaseUid`). Navigation properties `User.Student?` / `User.Lecturer?` loaded via EF LEFT JOIN.
 - **Admin system settings are live:** the `SystemConfiguration` store is wired (`ISystemSettingsService` + cache), with admin settings CRUD, public branding (color/header/logo), logo upload, test email, backend-enforced maintenance mode, and the Project Archives feature. Registration rules (`MaxGroupMembers`, `AllowDirectRegistration`) are enforced from settings.
 - **Pool-topic registration flow is fully wired:** registration request → mentor confirm/reject → notifications (SignalR + MongoDB) + real-time status updates to the student SPA. Cancel-registration endpoint live.
@@ -77,8 +78,9 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | SignalR                          | ✅     | `NotificationHub` (`/hubs/notifications`), `ChatHub` (`/hubs/chat`) mapped; `RealtimeNotificationService` drives real-time pushes |
 | Real-time notifications          | ✅     | `RealtimeNotificationService` + MongoDB persistence; `ProjectStatusUpdate` model for pool-registration status |
 | Real-time chat                   | 🚧     | Hub + repositories + documents exist; no feature/endpoints to drive it                                      |
-| Email (SMTP)                     | ✅     | `SmtpEmailService` (MailKit) + HTML templates (`EmailTemplateService`) + email settings toggle (`EmailOnEvaluationResult`) |
-| Batch email (roster publish)     | ✅     | `SendEligibleStudentEmailsJob` enqueued by `EnqueueStudentEmailsOnRosterPublishedHandler` |
+| Transactional email (Firestore)  | ✅     | `FirestoreMailQueue` writes one document per recipient to the `mail` collection; the `firebase/firestore-send-email` extension renders `emailTemplates` and does the SMTP delivery. Configured under `FirestoreMail`. Exactly-once via deterministic document ids |
+| Email (SMTP, direct)             | ✅     | `SmtpEmailService` (MailKit) + `EmailTemplateService` — now used only by the admin "send test email" action |
+| Batch email (roster publish)     | ✅     | `SendRosterPublishedMailJob` enqueued by `EnqueueRosterMailsOnRosterPublishedHandler`; emails eligible students **and** assigned lecturers |
 | File storage                     | ✅     | `FirebaseStorageService`                                                                                    |
 | Excel import/export              | 🚧     | `ExcelService` consumed by semester roster import and checklist-config import/preview. No Reports feature/endpoints yet |
 | PDF reports                      | ❌     | Not implemented                                                                                             |
@@ -105,7 +107,8 @@ Snapshot of what is implemented in the TEDF API (`backend/`), by bounded context
 | SemesterPhaseTransitionJob     | ✅     | Advances semester phases by date                          |
 | GroupJoinRequestExpirationJob  | ✅     | Expires stale join requests                               |
 | QuarantineRetryJob (API layer) | ✅     | Re-scans quarantined attachments every 30 min             |
-| SendEligibleStudentEmailsJob   | ✅     | Batch email to newly eligible students on roster publish  |
+| SendRosterPublishedMailJob     | ✅     | Roster-publish email to eligible students + assigned lecturers |
+| MailDispatchJob                | ✅     | Delivers handler-composed emails to the Firestore `mail` collection |
 | EvaluationReminderJob          | 🚧     | Registered & scheduled, body is a `TODO` stub             |
 | DefenseScheduleReminderJob     | 🚧     | Stub — depends on the (unbuilt) defense feature           |
 | MeetingReminderJob             | 🚧     | Stub — depends on the (unbuilt) meetings feature          |
@@ -121,12 +124,12 @@ Job scheduling is centralized in `Infrastructure/BackgroundJobs/Scheduling/Recur
 
 | Subfolder | Handlers |
 |---|---|
-| `Project/` | `ProjectCreatedEventHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier`, `ProjectChecklistSavedRealtimeHandler` |
+| `Project/` | `ProjectCreatedEventHandler`, `SendTopicProposedMailHandler`, `ProjectSubmittedEventHandler`, `ProjectApprovedEventHandler`, `ProjectRejectedEventHandler`, `ProjectResubmittedEventHandler`, `ProjectModificationRequestedEventHandler`, `ProjectStatusRealtimeNotifier`, `ProjectChecklistSavedRealtimeHandler` |
 | `Group/` | `GroupCreatedEventHandler`, `MemberInvitedEventHandler`, `InvitationAcceptedEventHandler`, `InvitationRejectedEventHandler`, `JoinRequestedEventHandler`, `JoinRequestApprovedEventHandler`, `JoinRequestRejectedEventHandler`, `MemberAddedEventHandler`, `MemberRemovedEventHandler` |
-| `Evaluation/` | `EvaluationAssignedEventHandler`, `EvaluatorAssignedToProjectEventHandler`, `EvaluatorSubmittedResultEventHandler`, `EvaluationCompletedEventHandler`, `EvaluationCancelledEventHandler`, `DepartmentHeadFinalDecisionEventHandler` |
+| `Evaluation/` | `EvaluationAssignedEventHandler`, `EvaluatorAssignedToProjectEventHandler`, `SendEvaluationAssignedMailHandler`, `EvaluatorSubmittedResultEventHandler`, `SendEvaluationOutcomeMailsHandler`, `EvaluationCompletedEventHandler`, `EvaluationCancelledEventHandler`, `DepartmentHeadFinalDecisionEventHandler`, `SendFinalDecisionMailHandler` |
 | `DirectTopic/` | `ProjectSubmittedToMentorEventHandler`, `ProjectMentorApprovedEventHandler`, `ProjectMentorRequestedModificationEventHandler` |
 | `Semester/` | `SemesterCreatedEventHandler`, `PhaseStartedEventHandler`, `PhaseUpcomingEventHandler` |
-| `Semesters/` | `EnqueueStudentEmailsOnRosterPublishedHandler`, `NotifyMentorsOnRosterPublishedHandler` |
+| `Semesters/` | `EnqueueRosterMailsOnRosterPublishedHandler`, `NotifyMentorsOnRosterPublishedHandler` |
 | `Support/` | `TicketCreatedEventHandler`, `TicketAssignedEventHandler`, `TicketMessageAddedEventHandler`, `TicketStatusChangedEventHandler`, `TicketClosedEventHandler`, `TicketResolvedEventHandler`, `TicketReopenedEventHandler` |
 | `TopicPool/` | `TopicPoolCreatedEventHandler`, `TopicPoolActivatedEventHandler`, `TopicPoolSuspendedEventHandler`, `TopicRegistrationCancelledEventHandler`, `TopicRegistrationConfirmedEventHandler`, `TopicRegistrationRejectedEventHandler`, `TopicRegistrationOutcomeEventHandlerBase` |
 | `User/` | `SyncFirebaseClaimsOnUserCreatedHandler`, `SyncFirebaseClaimsOnRoleAssignedHandler` |
