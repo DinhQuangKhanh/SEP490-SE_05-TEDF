@@ -47,6 +47,13 @@ Generated\ Files/
 **/.env.*
 !**/.env.example
 !**/.env.*.example
+service-account.json
+**/service-account.json
+secrets/
+**/secrets/
+*.pem
+*.p12
+*.key
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
