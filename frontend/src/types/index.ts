@@ -5,7 +5,6 @@ export * from "./auth/auth.types";
 export * from "./activityLogs/activityLog.types";
 export * from "./archives/archive.types";
 export * from "./dashboard/dashboard.types";
-export * from "./directTopics/proposedTopic.types";
 export * from "./evaluations/evaluation.types";
 export * from "./evaluations/checklist.types";
 export * from "./groups/group.types";

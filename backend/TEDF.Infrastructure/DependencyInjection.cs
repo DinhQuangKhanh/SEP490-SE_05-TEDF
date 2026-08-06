@@ -250,7 +250,6 @@ namespace TEDF.Infrastructure
             services.AddScoped<ISupportsDomainService, SupportsDomainService>();
             services.AddScoped<IArchivesDomainService, ArchivesDomainService>();
             services.AddScoped<ITopicsDomainService, TopicsDomainService>();
-            services.AddScoped<IDirectTopicsDomainService, DirectTopicsDomainService>();
             services.AddScoped<IDashboardDomainService, DashboardDomainService>();
             services.AddScoped<INotificationsDomainService, NotificationsDomainService>();
             services.AddScoped<IAuthenticationsDomainService, AuthenticationsDomainService>();
@@ -274,6 +273,7 @@ namespace TEDF.Infrastructure
             services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));
             services.AddScoped<IFileStorageService, FirebaseStorageService>();
             services.AddScoped<IExcelService, ExcelService>();
+            services.AddScoped<IRegisterFormParser, RegisterFormParser>();
 
             // Notification & RealTime
             services.AddScoped<INotificationService, NotificationService>();

@@ -4,12 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { MemberProfileModal } from "@/components/common/MemberProfileModal";
 import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
-import { notificationService, proposedTopicService, studentGroupService, topicService } from "@/lib";
+import { notificationService, studentGroupService, topicService } from "@/lib";
 import type { GroupMemberDto, GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { CreateProposedTopicForm } from "@/components/student/CreateProposedTopicForm";
-import { EditProposedTopicForm } from "@/components/student/EditProposedTopicForm";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 
@@ -313,7 +311,7 @@ type PoolRegistrationDetailViewProps = {
   isLeader: boolean;
 } & (
   | { variant: "pending"; onCancel: () => void; cancelling: boolean }
-  | { variant: "rejected"; onBrowsePool: () => void; onProposeNew: () => void }
+  | { variant: "rejected"; onBrowsePool: () => void }
 );
 
 function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
@@ -388,16 +386,6 @@ function PoolRegistrationDetailView(props: PoolRegistrationDetailViewProps) {
                   >
                     Xem kho đề tài
                   </button>
-                  {isLeader && (
-                    <button
-                      type="button"
-                      onClick={props.onProposeNew}
-                      className="px-4 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <span className="text-lg material-symbols-outlined">edit_note</span>
-                      Đề xuất đề tài mới
-                    </button>
-                  )}
                 </div>
               )}
           </div>
@@ -472,9 +460,6 @@ export function StudentMyTopicPage() {
   const [fileWarnings, setFileWarnings] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [submittingToMentor, setSubmittingToMentor] = useState(false);
   const [registrations, setRegistrations] = useState<GroupRegistrationDto[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -776,7 +761,6 @@ export function StudentMyTopicPage() {
               documents={documents}
               isLeader={isLeader}
               onBrowsePool={() => navigate("/student/topics")}
-              onProposeNew={() => setShowCreateForm(true)}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
@@ -784,9 +768,7 @@ export function StudentMyTopicPage() {
               <p className="text-[#101319] font-bold text-lg">
                 Nhóm <span className="text-primary">{myGroup.groupName ?? myGroup.groupCode}</span> chưa có đề tài
               </p>
-              <p className="text-[#58698d] text-sm">
-                Đăng ký đề tài từ kho hoặc đề xuất đề tài mới cho giảng viên duyệt.
-              </p>
+              <p className="text-[#58698d] text-sm">Đăng ký đề tài từ kho đề tài của giảng viên.</p>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -795,39 +777,8 @@ export function StudentMyTopicPage() {
                 >
                   Xem kho đề tài
                 </button>
-                {isLeader && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateForm(true)}
-                    className="px-5 py-2 border-2 border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-1.5"
-                  >
-                    <span className="text-lg material-symbols-outlined">edit_note</span>
-                    Đề xuất đề tài mới
-                  </button>
-                )}
               </div>
             </div>
-            )}
-            {showCreateForm && (
-              <CreateProposedTopicForm
-                groupId={myGroup.groupId}
-                onCreated={() => {
-                  setShowCreateForm(false);
-                  setLoading(true);
-                  studentGroupService
-                    .getMyGroup()
-                    .then(async (group) => {
-                      setMyGroup(group);
-                      if (group?.projectId) {
-                        const detail = await topicService.getTopicDetail(group.projectId);
-                        setTopicDetail(detail);
-                        loadDocuments(group.projectId);
-                      }
-                    })
-                    .finally(() => setLoading(false));
-                }}
-                onCancel={() => setShowCreateForm(false)}
-              />
             )}
           </>
         ) : (
@@ -864,58 +815,6 @@ export function StudentMyTopicPage() {
                       >
                         {statusLabel(myGroup.projectStatus)}
                       </span>
-                      {/* Action buttons based on status */}
-                      {isLeader &&
-                        (myGroup.projectStatus === "Draft" || myGroup.projectStatus === "NeedsModification") && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!myGroup.projectId) return;
-                                setSubmittingToMentor(true);
-                                try {
-                                  await proposedTopicService.submitToMentor(myGroup.groupId, myGroup.projectId);
-                                  // Reload group data
-                                  const group = await studentGroupService.getMyGroup();
-                                  setMyGroup(group);
-                                  if (group?.projectId) {
-                                    const detail = await topicService.getTopicDetail(group.projectId);
-                                    setTopicDetail(detail);
-                                  }
-                                } catch (err) {
-                                  showError(err instanceof Error ? err.message : "Không thể gửi đề tài.");
-                                } finally {
-                                  setSubmittingToMentor(false);
-                                }
-                              }}
-                              disabled={submittingToMentor}
-                              className="ml-2 px-4 py-1.5 bg-primary text-white rounded-full text-xs font-bold hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              {submittingToMentor ? (
-                                <div className="w-3 h-3 border-2 border-white rounded-full animate-spin border-t-transparent" />
-                              ) : (
-                                <span className="text-sm material-symbols-outlined">send</span>
-                              )}
-                              {myGroup.projectStatus === "Draft" ? "Gửi cho giảng viên" : "Gửi lại cho giảng viên"}
-                            </button>
-                            {myGroup.projectStatus === "NeedsModification" && (
-                              <button
-                                type="button"
-                                onClick={() => setShowEditForm(true)}
-                                className="ml-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-bold hover:bg-amber-600 transition-colors flex items-center gap-1.5"
-                              >
-                                <span className="text-sm material-symbols-outlined">edit_note</span>
-                                Chỉnh sửa
-                              </button>
-                            )}
-                          </>
-                        )}
-                      {myGroup.projectStatus === "PendingMentorReview" && (
-                        <span className="ml-2 px-3 py-1.5 bg-violet-50 text-violet-700 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                          <span className="text-sm material-symbols-outlined">hourglass_top</span>
-                          Đang chờ giảng viên duyệt
-                        </span>
-                      )}
                     </div>
                     <h1 className="text-2xl font-extrabold text-[#101319] leading-tight mb-4">
                       {topicDetail?.nameVi ?? "—"}
@@ -1274,45 +1173,6 @@ export function StudentMyTopicPage() {
           </motion.div>
         )}
       </div>
-
-      {/* Edit Topic Modal */}
-      {showEditForm && myGroup?.projectId && topicDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <EditProposedTopicForm
-              projectId={myGroup.projectId}
-              initialData={{
-                nameVi: topicDetail.nameVi,
-                nameEn: topicDetail.nameEn,
-                nameAbbr: topicDetail.nameAbbr,
-                description: topicDetail.description,
-                objectives: topicDetail.objectives,
-                scope: topicDetail.scope || undefined,
-                technologies: topicDetail.technologies || undefined,
-                expectedResults: topicDetail.expectedResults || undefined,
-              }}
-              onUpdated={() => {
-                setShowEditForm(false);
-                // Reload topic detail
-                studentGroupService
-                  .getMyGroup()
-                  .then(async (group) => {
-                    setMyGroup(group);
-                    if (group?.projectId) {
-                      const detail = await topicService.getTopicDetail(group.projectId);
-                      setTopicDetail(detail);
-                    }
-                  })
-                  .catch((err) => {
-                    console.error("Error reloading topic:", err);
-                    showError("Không thể tải lại thông tin đề tài.");
-                  });
-              }}
-              onCancel={() => setShowEditForm(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
     </>

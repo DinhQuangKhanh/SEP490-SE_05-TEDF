@@ -151,6 +151,20 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         ISender sender,
         CancellationToken cancellationToken)
     {
+        byte[]? registerFormPdf = null;
+        if (body.RegisterForm is { Length: > 0 } registerForm)
+        {
+            if (!FileUploadValidator.TryValidate([registerForm], NoteAttachmentMaxBytes, maxAttachmentCount: 1, out var registerFormError))
+                return Results.BadRequest(ApiResponse.Fail(registerFormError));
+
+            if (!Path.GetExtension(registerForm.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF."));
+
+            using var registerFormStream = new MemoryStream();
+            await registerForm.CopyToAsync(registerFormStream, cancellationToken);
+            registerFormPdf = registerFormStream.ToArray();
+        }
+
         var command = new ProposeTopicToPoolCommand(
             PoolId: poolId,
             NameVi: body.NameVi,
@@ -161,7 +175,8 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             Scope: body.Scope,
             Technologies: body.Technologies,
             ExpectedResults: body.ExpectedResults,
-            MaxStudents: body.MaxStudents
+            MaxStudents: body.MaxStudents,
+            RegisterFormPdf: registerFormPdf
         );
 
         var projectId = await sender.Send(command, cancellationToken);

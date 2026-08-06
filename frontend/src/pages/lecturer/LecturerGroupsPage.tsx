@@ -61,7 +61,7 @@ export function LecturerGroupsPage() {
         <div className="flex flex-col justify-between w-full gap-4 md:flex-row md:items-center">
           <div className="flex flex-col gap-1">
             <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
-              <span className="material-symbols-outlined">groups</span>
+              <span className="material-symbols-outlined">groups</span>{" "}
               Danh sách nhóm hướng dẫn
             </h2>
             <p className="text-sm text-blue-100/80">Quản lý tiến độ và theo dõi các nhóm sinh viên</p>
@@ -111,7 +111,9 @@ export function LecturerGroupsPage() {
                       <div className="flex-1 p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h3 className="text-lg font-bold text-slate-900">{group.groupName ?? group.groupCode}</h3>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {group.displayName || group.groupName || group.groupCode}
+                        </h3>
                         <span className="inline-flex items-center gap-1 mt-1 text-xs text-slate-500">
                           <span className="material-symbols-outlined text-[14px]">tag</span>
                           {group.groupCode}

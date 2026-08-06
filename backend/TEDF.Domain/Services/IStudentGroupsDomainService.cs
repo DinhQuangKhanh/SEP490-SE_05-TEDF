@@ -13,7 +13,11 @@ public interface IStudentGroupsDomainService
     // ── StudentGroups feature write operations ──
     /// <summary>Creates a group; <paramref name="displayName"/> is the optional student nickname —
     /// the code and Name are generated as {SemesterCode}-SE_NN / SE_NN.</summary>
-    Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Creates a group for the student, who becomes its leader. The group's id (SE_NN) is assigned
+    /// by the system; groups carry no user-supplied name.
+    /// </summary>
+    Task<Guid> CreateGroupAsync(Guid studentId, CancellationToken cancellationToken = default);
     Task<int> InviteMemberAsync(Guid groupId, Guid inviterId, string studentCode, string? message, CancellationToken cancellationToken = default);
     Task<int> RequestJoinAsync(Guid groupId, Guid studentId, string? message, CancellationToken cancellationToken = default);
     Task RespondInvitationAsync(Guid groupId, int invitationId, Guid studentId, bool accept, CancellationToken cancellationToken = default);

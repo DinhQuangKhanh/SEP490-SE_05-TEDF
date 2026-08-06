@@ -4,7 +4,6 @@ export { authService } from "./auth/authService";
 export { activityLogService } from "./activityLogs/activityLogService";
 export { archiveService } from "./archives/archiveService";
 export { dashboardService } from "./dashboard/dashboardService";
-export { proposedTopicService } from "./directTopics/proposedTopicService";
 export { evaluatorService } from "./evaluations/evaluatorService";
 export { checklistService } from "./evaluations/checklistService";
 export { studentGroupService } from "./groups/studentGroupService";

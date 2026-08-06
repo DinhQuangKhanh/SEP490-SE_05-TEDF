@@ -128,15 +128,6 @@ namespace TEDF.Persistence.SqlServer.Interceptors
             ProjectResubmittedEvent e =>
                 (e.ProjectId, ProjectAuditAction.Resubmitted, e.SubmissionNumber, null),
 
-            ProjectSubmittedToMentorEvent e =>
-                (e.ProjectId, ProjectAuditAction.SubmittedToMentor, null, null),
-
-            ProjectMentorApprovedEvent e =>
-                (e.ProjectId, ProjectAuditAction.MentorApproved, null, new { e.MentorId }),
-
-            ProjectMentorRequestedModificationEvent e =>
-                (e.ProjectId, ProjectAuditAction.MentorNeedsModification, null, new { e.Feedback }),
-
             ProjectApprovedEvent e =>
                 (e.ProjectId, ProjectAuditAction.Approved, null, null),
 

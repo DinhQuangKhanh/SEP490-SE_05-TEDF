@@ -120,6 +120,7 @@ export function LecturerGroupDetailPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-white">
             <button
+              type="button"
               onClick={() => navigate("/lecturer/groups")}
               className="flex items-center justify-center transition-colors rounded-lg size-9 hover:bg-white/10"
               aria-label="Quay lại"
@@ -130,7 +131,7 @@ export function LecturerGroupDetailPage() {
               <span className="text-sm font-medium text-blue-100/80">Nhóm của tôi</span>
               <span className="material-symbols-outlined text-[18px] text-blue-100/60">chevron_right</span>
               <h2 className="text-lg font-bold">
-                Chi tiết đề tài{group ? ` — ${group.groupName ?? group.groupCode}` : ""}
+                Chi tiết đề tài{group ? ` — ${group.displayName || group.groupName || group.groupCode}` : ""}
               </h2>
             </div>
           </div>

@@ -14,7 +14,6 @@ public class UpdateSystemSettingsCommandValidator : AbstractValidator<UpdateSyst
 
     private static readonly HashSet<string> BoolKeys =
     [
-        SettingKeys.AllowDirectRegistration,
         SettingKeys.RequireOutlineApproval,
         SettingKeys.MaintenanceMode,
         SettingKeys.EmailOnEvaluationResult,

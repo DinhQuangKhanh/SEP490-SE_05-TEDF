@@ -36,6 +36,7 @@ export function MemberProfileModal({ member, onClose }: { member: GroupMemberDto
           </span>
         </div>
         <button
+          type="button"
           onClick={onClose}
           className="flex items-center justify-center ml-auto transition-colors rounded-lg size-8 text-white/80 hover:bg-white/10 hover:text-white shrink-0"
           aria-label="Đóng"
