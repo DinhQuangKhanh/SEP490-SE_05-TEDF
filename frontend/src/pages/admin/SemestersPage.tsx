@@ -35,11 +35,17 @@ function phaseIcon(type: string) {
       return "fact_check";
     case "Implementation":
       return "science";
-    case "Defense":
-      return "school";
     default:
       return "event";
   }
+}
+
+/**
+ * Phases shown in the timeline. The defense phase was dropped from the process, but semesters
+ * created earlier still have the row stored, so it is hidden rather than assumed absent.
+ */
+function visiblePhases(phases: SemesterPhaseDto[]): SemesterPhaseDto[] {
+  return phases.filter((p) => p.type !== "Defense");
 }
 
 function phaseStatus(status: string): "Completed" | "InProgress" | "Pending" {
@@ -205,7 +211,10 @@ export function SemestersPage() {
           {semesters.map((semester) => {
             const badge = statusBadge(semester.status);
             const isActive = semester.status === "Ongoing";
-            const currentPhase = semester.phases.find(
+            // The defense phase is no longer part of the process. Semesters created before that
+            // decision still carry the row in the database, so it is filtered out here as well.
+            const phases = visiblePhases(semester.phases);
+            const currentPhase = phases.find(
               (p: SemesterPhaseDto) => p.status === "Ongoing" || p.status === "Ended",
             );
 
@@ -294,7 +303,7 @@ export function SemestersPage() {
                   </div>
 
                   {/* Phases Timeline */}
-                  {semester.phases.length > 0 && (
+                  {phases.length > 0 && (
                     <div className="pt-6 border-t border-slate-100">
                       <div className="flex items-end justify-between mb-4">
                         <p className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-slate-400">
@@ -312,23 +321,23 @@ export function SemestersPage() {
                         <div className="absolute left-0 z-0 w-full h-1 rounded-full top-[34px] bg-slate-100"></div>
                         {/* Track progress */}
                         {(() => {
-                          const total = semester.phases.length;
+                          const total = phases.length;
                           let pct = 0;
                           if (total > 1) {
-                            const currentIndex = semester.phases.findIndex(
+                            const currentIndex = phases.findIndex(
                               (p: SemesterPhaseDto) => p.status === "Active" || p.status === "InProgress",
                             );
                             if (currentIndex !== -1) {
                               pct = (currentIndex / (total - 1)) * 100;
                             } else {
-                              const completedCount = semester.phases.filter(
+                              const completedCount = phases.filter(
                                 (p: SemesterPhaseDto) => p.status === "Completed",
                               ).length;
                               if (completedCount === total) pct = 100;
                               else if (completedCount > 0) pct = Math.round(((completedCount - 1) / (total - 1)) * 100);
                             }
                           } else if (total === 1) {
-                            const completedCount = semester.phases.filter(
+                            const completedCount = phases.filter(
                               (p: SemesterPhaseDto) => p.status === "Completed",
                             ).length;
                             pct = completedCount === 1 ? 100 : 0;
@@ -341,7 +350,7 @@ export function SemestersPage() {
                           );
                         })()}
                         <div className="relative z-10 flex justify-between w-full">
-                          {semester.phases.map((phase: SemesterPhaseDto) => {
+                          {phases.map((phase: SemesterPhaseDto) => {
                             return (
                               <TimelineStep
                                 key={phase.id}
