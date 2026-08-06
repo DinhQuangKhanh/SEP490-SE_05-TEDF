@@ -85,3 +85,17 @@ public record SimilarityMatchDto
     public string? Semester { get; init; }
     public List<string> Technologies { get; init; } = [];
 }
+
+/// <summary>A matched topic's content translated to Vietnamese (on-demand comparison view).</summary>
+public record TranslatedThesisDto
+{
+    public Guid OtherThesisId { get; init; }
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public string? Scope { get; init; }
+    public string? Objectives { get; init; }
+    public string? ExpectedResult { get; init; }
+    public List<string> Technologies { get; init; } = [];
+    /// <summary>False when the LLM was unavailable and the original text was returned.</summary>
+    public bool Translated { get; init; }
+}

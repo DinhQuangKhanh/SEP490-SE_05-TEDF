@@ -53,6 +53,19 @@ export interface SimilarityMatchDto {
   technologies: string[];
 }
 
+/** GET /api/evaluations/theses/{id}/translate — a matched topic translated to Vietnamese. */
+export interface TranslatedThesisDto {
+  otherThesisId: string;
+  title: string | null;
+  description: string | null;
+  scope: string | null;
+  objectives: string | null;
+  expectedResult: string | null;
+  technologies: string[];
+  /** False when the LLM was unavailable and the original (English) text was returned. */
+  translated: boolean;
+}
+
 /** POST /api/evaluations/projects/{id}/evaluate */
 export interface SubmitEvaluationRequest {
   result: number;

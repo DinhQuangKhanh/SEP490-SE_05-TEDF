@@ -97,6 +97,26 @@ public class SimilarityApiClient : ISimilarityApiClient
         }
     }
 
+    public async Task<ThesisContentResult?> GetThesisTranslatedAsync(Guid thesisId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<Envelope<TranslatedThesisData>>(
+                $"/api/v1/theses/{thesisId}/translate", JsonOptions, cancellationToken);
+            var d = envelope?.Data;
+            if (d is null) return null;
+
+            return new ThesisContentResult(
+                d.Title, d.Description, d.Scope, d.Objectives, d.ExpectedResult, null, null,
+                d.Technologies ?? new List<string>(), d.Translated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not translate thesis {ThesisId} via the similarity service.", thesisId);
+            return null;
+        }
+    }
+
     // ── Wire shapes ─────────────────────────────────────────────────────────────
 
     private sealed record CreateThesisBody(
@@ -135,4 +155,13 @@ public class SimilarityApiClient : ISimilarityApiClient
         [property: JsonPropertyName("semester")] string? Semester,
         [property: JsonPropertyName("program")] string? Program,
         [property: JsonPropertyName("technologies")] List<string>? Technologies);
+
+    private sealed record TranslatedThesisData(
+        [property: JsonPropertyName("title")] string? Title,
+        [property: JsonPropertyName("description")] string? Description,
+        [property: JsonPropertyName("scope")] string? Scope,
+        [property: JsonPropertyName("objectives")] string? Objectives,
+        [property: JsonPropertyName("expected_result")] string? ExpectedResult,
+        [property: JsonPropertyName("technologies")] List<string>? Technologies,
+        [property: JsonPropertyName("translated")] bool Translated);
 }

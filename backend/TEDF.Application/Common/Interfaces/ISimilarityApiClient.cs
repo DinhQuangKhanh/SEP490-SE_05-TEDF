@@ -25,6 +25,12 @@ public interface ISimilarityApiClient
     /// side-by-side with the one under review. Returns null if it can't be fetched.
     /// </summary>
     Task<ThesisContentResult?> GetThesisAsync(Guid thesisId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches a topic's content translated to Vietnamese (GET /api/v1/theses/{id}/translate) so a
+    /// reviewer can compare in one language. Falls back to the original text if the LLM is off.
+    /// </summary>
+    Task<ThesisContentResult?> GetThesisTranslatedAsync(Guid thesisId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The content of a topic in the similarity corpus, for the comparison view.</summary>
@@ -36,7 +42,8 @@ public sealed record ThesisContentResult(
     string? ExpectedResult,
     string? Semester,
     string? Program,
-    IReadOnlyList<string> Technologies);
+    IReadOnlyList<string> Technologies,
+    bool Translated = false);
 
 /// <summary>Payload for registering one topic in the similarity corpus.</summary>
 public sealed record CreateThesisRequest(
