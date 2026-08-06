@@ -26,6 +26,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
     private readonly IGroupRepository _groupRepository;
     private readonly IMajorReadRepository _majorRepository;
     private readonly ISemestersDomainService _semesterDomainService;
+    private readonly IProjectsDomainService _projectsDomainService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TopicPoolsDomainService> _logger;
 
@@ -36,9 +37,11 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         IGroupRepository groupRepository,
         IMajorReadRepository majorRepository,
         ISemestersDomainService semesterDomainService,
+        IProjectsDomainService projectsDomainService,
         IUnitOfWork unitOfWork,
         ILogger<TopicPoolsDomainService> logger)
     {
+        _projectsDomainService = projectsDomainService;
         _topicPoolRepository = topicPoolRepository;
         _registrationRepository = registrationRepository;
         _projectRepository = projectRepository;
@@ -426,12 +429,10 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (!pool.IsAcceptingProposals())
             throw new BusinessRuleValidationException("This topic pool is not currently accepting new topic proposals.");
 
-        var year = DateTime.UtcNow.Year;
-        var sequence = await _projectRepository.GetNextSequenceAsync(year, cancellationToken);
-        var code = ProjectCode.Generate(year, sequence);
-
         var createdSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken)
             ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ đang hoạt động để tạo đề tài từ topic pool.");
+
+        var code = await _projectsDomainService.GenerateProjectCodeAsync(createdSemesterId, pool.MajorId, cancellationToken);
 
         var expirationOffset = Math.Max(1, pool.ExpirationSemesters);
         var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(createdSemesterId, expirationOffset, cancellationToken);

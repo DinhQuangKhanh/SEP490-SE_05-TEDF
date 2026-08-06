@@ -88,24 +88,24 @@ namespace TEDF.Persistence.SqlServer.Repositories
             return await _dbSet.AnyAsync(p => p.Code == code, cancellationToken);
         }
 
-        public async Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default)
+        public async Task<int> GetNextSequenceAsync(int semesterId, string codePrefix, CancellationToken cancellationToken = default)
         {
+            // Code goes through a value converter, so the prefix match cannot run in SQL. Narrowing
+            // by semester first keeps the client-side scan to one semester's topics. Soft-deleted
+            // rows count too: their codes still occupy the unique index.
             var codes = await _dbSet
-                .Where(g => g.CreatedAt.Year == year)
-                .Select(g => g.Code)
+                .IgnoreQueryFilters()
+                .Where(p => p.SemesterId == semesterId)
+                .Select(p => p.Code)
                 .ToListAsync(cancellationToken);
 
-            var prefix = $"PROJ-{year}-";
+            var highest = codes
+                .Where(c => c.Value.StartsWith(codePrefix, StringComparison.OrdinalIgnoreCase))
+                .Select(c => int.TryParse(c.Value[codePrefix.Length..], out var seq) ? seq : 0)
+                .DefaultIfEmpty(0)
+                .Max();
 
-            var lastCode = codes
-                .Where(c => c.Value.StartsWith(prefix))
-                .OrderByDescending(c => c.Value)
-                .FirstOrDefault();
-
-            if (lastCode == null) return 1;
-
-            var sequencePart = lastCode.Value.Replace(prefix, "");
-            return int.TryParse(sequencePart, out var seq) ? seq + 1 : 1;
+            return highest + 1;
         }
 
         public async Task<Dictionary<ProjectStatus, int>> GetStatusCountBySemesterAsync(int semesterId, CancellationToken cancellationToken = default)

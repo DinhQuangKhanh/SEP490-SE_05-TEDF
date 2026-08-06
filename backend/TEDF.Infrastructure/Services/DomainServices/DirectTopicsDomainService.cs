@@ -25,6 +25,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
     private readonly ISemesterRepository _semesterRepository;
     private readonly ITopicRegistrationRepository _registrationRepository;
     private readonly ISemestersDomainService _semesters;
+    private readonly IProjectsDomainService _projects;
     private readonly ISystemSettingsService _settings;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -34,9 +35,11 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
         ISemesterRepository semesterRepository,
         ITopicRegistrationRepository registrationRepository,
         ISemestersDomainService semesters,
+        IProjectsDomainService projects,
         ISystemSettingsService settings,
         IUnitOfWork unitOfWork)
     {
+        _projects = projects;
         _projectRepository = projectRepository;
         _groupRepository = groupRepository;
         _semesterRepository = semesterRepository;
@@ -80,9 +83,7 @@ public class DirectTopicsDomainService : IDirectTopicsDomainService
             throw new BusinessRuleValidationException(
                 $"Giảng viên đã đủ số nhóm hướng dẫn cho học kỳ này (tối đa {MentorCannotExceedMaxGroupsPerSemesterRule.MaxGroupsPerSemester} nhóm, trong đó phải để dành 1 suất cho đề tài trong kho đề tài chung).");
 
-        var year = DateTime.UtcNow.Year;
-        var seq = await _projectRepository.GetNextSequenceAsync(year, ct);
-        var code = ProjectCode.Generate(year, seq);
+        var code = await _projects.GenerateProjectCodeAsync(semesterId, majorId, ct);
 
         var project = Project.CreateDirect(
             code,

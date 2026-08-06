@@ -1,14 +1,16 @@
 ﻿using TEDF.Domain.Aggregates.EvaluationAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
 
 namespace TEDF.Domain.Services
 {
     public interface IProjectsDomainService
     {
         /// <summary>
-        /// Generates a unique project code.
+        /// Generates the next project code for a semester and major, e.g. "FA26-SE-01".
+        /// Single source of truth for the code format.
         /// </summary>
-        Task<string> GenerateProjectCodeAsync(int year, CancellationToken cancellationToken = default);
+        Task<ProjectCode> GenerateProjectCodeAsync(int semesterId, int majorId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Validates if a project can be submitted for evaluation.

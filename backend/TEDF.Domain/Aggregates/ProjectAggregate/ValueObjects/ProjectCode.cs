@@ -37,14 +37,24 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects
         }
 
         /// <summary>
-        /// Generates a new project code based on year and sequence number.
+        /// Builds the prefix shared by every project of one semester and major, e.g. "FA26-SE-".
+        /// Used both to generate a code and to find the highest sequence already taken.
         /// </summary>
-        /// <param name="year">The year.</param>
-        /// <param name="sequence">The sequence number.</param>
-        /// <returns>A new ProjectCode instance.</returns>
-        public static ProjectCode Generate(int year, int sequence)
+        /// <param name="semesterShortCode">Short semester code, e.g. "FA26" (see SemesterCode.ShortValue).</param>
+        /// <param name="majorCode">Major code, e.g. "SE".</param>
+        public static string BuildPrefix(string semesterShortCode, string majorCode)
         {
-            return new ProjectCode($"PROJ-{year}-{sequence:D3}");
+            return $"{semesterShortCode.Trim().ToUpperInvariant()}-{majorCode.Trim().ToUpperInvariant()}-";
+        }
+
+        /// <summary>
+        /// Generates a project code of the form &lt;semester&gt;-&lt;major&gt;-&lt;sequence&gt;,
+        /// e.g. "FA26-SE-01". The sequence is padded to two digits and grows past it naturally
+        /// once a semester/major passes 99 topics.
+        /// </summary>
+        public static ProjectCode Generate(string semesterShortCode, string majorCode, int sequence)
+        {
+            return new ProjectCode($"{BuildPrefix(semesterShortCode, majorCode)}{sequence:D2}");
         }
 
         protected override IEnumerable<object?> GetEqualityComponents()

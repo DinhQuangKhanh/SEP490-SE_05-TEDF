@@ -2,6 +2,10 @@
 using TEDF.Domain.Aggregates.EvaluationAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
+using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
+using TEDF.Domain.Aggregates.SemesterAggregate;
+using TEDF.Domain.Common.Exceptions;
+using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Project;
 using TEDF.Domain.Services;
 
@@ -11,22 +15,36 @@ namespace TEDF.Infrastructure.Services.DomainServices
     {
         private readonly IProjectRepository _projectRepository;
         private readonly IGroupRepository _groupRepository;
+        private readonly ISemesterRepository _semesterRepository;
+        private readonly IMajorReadRepository _majorRepository;
         private readonly IDateTimeService _dateTimeService;
 
         public ProjectsDomainService(
             IProjectRepository projectRepository,
             IGroupRepository groupRepository,
+            ISemesterRepository semesterRepository,
+            IMajorReadRepository majorRepository,
             IDateTimeService dateTimeService)
         {
             _projectRepository = projectRepository;
             _groupRepository = groupRepository;
+            _semesterRepository = semesterRepository;
+            _majorRepository = majorRepository;
             _dateTimeService = dateTimeService;
         }
 
-        public async Task<string> GenerateProjectCodeAsync(int year, CancellationToken ct = default)
+        /// <inheritdoc/>
+        public async Task<ProjectCode> GenerateProjectCodeAsync(int semesterId, int majorId, CancellationToken ct = default)
         {
-            var sequence = await _projectRepository.GetNextSequenceAsync(year, ct);
-            return $"PROJ-{year}-{sequence:D4}";
+            var semester = await _semesterRepository.GetByIdAsync(semesterId, ct)
+                ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
+            var major = await _majorRepository.GetByIdAsync(majorId, ct)
+                ?? throw new EntityNotFoundException(nameof(Major), majorId);
+
+            var prefix = ProjectCode.BuildPrefix(semester.Code.ShortValue, major.Code);
+            var sequence = await _projectRepository.GetNextSequenceAsync(semesterId, prefix, ct);
+
+            return ProjectCode.Generate(semester.Code.ShortValue, major.Code, sequence);
         }
 
         public async Task<(bool IsValid, string[] Errors)> ValidateForSubmissionAsync(Guid projectId, CancellationToken ct = default)
