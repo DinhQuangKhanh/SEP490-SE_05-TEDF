@@ -30,22 +30,19 @@ export interface ProjectReviewResponse {
   existingResult: string | null;
 }
 
-/** Element of GET /api/evaluations/projects/{id}/similarity */
-export interface SimilarTitleDto {
-  projectId: string;
-  projectCode: string;
-  nameEn: string;
-  nameVi: string;
-  semesterName: string;
-  similarity: number;
-  commonKeywords: string[];
-  description: string;
-  objectives: string;
-  scope: string | null;
-  technologies: string | null;
-  expectedResults: string | null;
-  mentorName: string;
-  studentName: string;
+/**
+ * Element of GET /api/evaluations/projects/{id}/similarity — one match from the DASSF
+ * similarity engine. The UI shows only the overall score and the reasons.
+ */
+export interface SimilarityMatchDto {
+  /** Id of the other topic in the pair (equals its project id). */
+  otherThesisId: string;
+  /** MDDM composite score in [0, 1]. */
+  overallScore: number;
+  /** Level bucket: Low | Moderate | High | Critical. */
+  level: string;
+  /** Explanations, e.g. "same tech stack with a different business domain". */
+  reasons: string[];
 }
 
 /** POST /api/evaluations/projects/{id}/evaluate */

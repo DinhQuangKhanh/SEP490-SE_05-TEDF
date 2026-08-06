@@ -5,7 +5,7 @@ import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService, checklistService } from "@/lib";
 import type {
   ProjectReviewResponse,
-  SimilarTitleDto,
+  SimilarityMatchDto,
   ProjectChecklistResponse,
   ChecklistScoreItemInput,
 } from "@/types";
@@ -13,14 +13,66 @@ import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { EvaluationChecklistModal } from "@/components/lecturer";
 
-/** Similarity score → badge label/colours. */
-function getSimilarityBadge(similarity: number) {
-  if (similarity >= 70)
-    return { label: "Rất có khả năng trùng", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" };
-  if (similarity >= 40)
-    return { label: "Cần kiểm tra thêm", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" };
-  return { label: "Thấp", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" };
+/** Level bucket (from the DASSF engine) → colours + Vietnamese label for the score pill. */
+function levelStyle(level: string): { bg: string; text: string; border: string; ring: string; label: string } {
+  switch (level) {
+    case "Critical":
+      return { bg: "bg-red-50", text: "text-red-600", border: "border-red-200", ring: "ring-red-200", label: "Rất cao" };
+    case "High":
+      return { bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200", ring: "ring-orange-200", label: "Cao" };
+    case "Moderate":
+      return { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200", ring: "ring-amber-200", label: "Trung bình" };
+    default:
+      return { bg: "bg-green-50", text: "text-green-600", border: "border-green-200", ring: "ring-green-200", label: "Thấp" };
+  }
 }
+
+interface ReasonMeta {
+  icon: string;
+  label: string;
+  detail: string;
+  cls: string;
+}
+
+/**
+ * Maps each DASSF reason phrase (produced by the Python score_calculator) to an icon, a
+ * Vietnamese label and an explanation — so the evaluator can see *what* each reason means
+ * and which scoring dimension it comes from.
+ */
+const REASON_CATALOG: Record<string, ReasonMeta> = {
+  "same tech stack with a different business domain": {
+    icon: "layers",
+    label: "Cùng công nghệ · khác lĩnh vực",
+    detail: "Trùng ngăn xếp công nghệ / kiến trúc nhưng khác lĩnh vực nghiệp vụ — dấu hiệu “sao chép cấu trúc”.",
+    cls: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  "same business domain": {
+    icon: "domain",
+    label: "Cùng lĩnh vực nghiệp vụ",
+    detail: "Hai đề tài cùng giải quyết một lĩnh vực / bài toán nghiệp vụ.",
+    cls: "bg-purple-50 text-purple-700 border-purple-200",
+  },
+  "similar architecture or scope": {
+    icon: "architecture",
+    label: "Kiến trúc · phạm vi tương tự",
+    detail: "Cùng kiểu kiến trúc, công nghệ hoặc phạm vi triển khai.",
+    cls: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  "shared weighted terms across fields": {
+    icon: "match_word",
+    label: "Trùng nhiều thuật ngữ trọng số",
+    detail: "Nhiều từ khoá quan trọng (TF-IDF) xuất hiện ở cả hai đề tài.",
+    cls: "bg-teal-50 text-teal-700 border-teal-200",
+  },
+  "similar semantic content": {
+    icon: "psychology",
+    label: "Ngữ nghĩa tương đồng",
+    detail: "Nội dung tổng thể của 5 trường mô tả tương đồng.",
+    cls: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  },
+};
+
+const pct = (score: number) => Math.round(score * 100);
 
 /** Why the "Duyệt" verdict is blocked — shared by the submit guard and the button tooltip. */
 function approveGateMessage(hasActiveConfig: boolean, required: number, total: number): string {
@@ -75,10 +127,9 @@ export function LecturerReviewPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Similarity state
-  const [similarTitles, setSimilarTitles] = useState<SimilarTitleDto[]>([]);
+  const [matches, setMatches] = useState<SimilarityMatchDto[]>([]);
   const [showSimilarity, setShowSimilarity] = useState(false);
   const [loadingSimilarity, setLoadingSimilarity] = useState(false);
-  const [expandedCompare, setExpandedCompare] = useState<string | null>(null);
 
   // Evaluation checklist state (gates the "Duyệt" verdict on the backend and here).
   const [checklist, setChecklist] = useState<ProjectChecklistResponse | null>(null);
@@ -172,8 +223,8 @@ export function LecturerReviewPage() {
     setLoadingSimilarity(true);
     setShowSimilarity(true);
     try {
-      const titles = await evaluatorService.checkSimilarity(id);
-      setSimilarTitles(titles);
+      const result = await evaluatorService.checkSimilarity(id);
+      setMatches(result);
     } catch {
       showError("Không thể kiểm tra trùng lặp. Vui lòng thử lại sau.");
     } finally {
@@ -419,7 +470,7 @@ export function LecturerReviewPage() {
               </div>
             </motion.div>
 
-            {/* Similarity Results (inline) */}
+            {/* Similarity Results (inline) — DASSF overall score + reasons */}
             <AnimatePresence>
               {showSimilarity && (
                 <motion.div
@@ -432,10 +483,10 @@ export function LecturerReviewPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-amber-500">compare</span>
-                        <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp tiêu đề</h3>
+                        <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp (AI)</h3>
                       </div>
                       <button type="button"
-                        onClick={() => { setShowSimilarity(false); setExpandedCompare(null); }}
+                        onClick={() => setShowSimilarity(false)}
                         className="size-7 rounded-lg hover:bg-gray-100 flex items-center justify-center"
                       >
                         <span className="material-symbols-outlined text-slate-400 text-[18px]">close</span>
@@ -447,171 +498,16 @@ export function LecturerReviewPage() {
                         <div className="size-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
                         <span className="ml-3 text-sm text-slate-500">Đang phân tích...</span>
                       </div>
-                    ) : similarTitles.length === 0 ? (
+                    ) : matches.length === 0 ? (
                       <div className="text-center py-8">
                         <span className="material-symbols-outlined text-4xl text-green-400 mb-2 block">verified</span>
-                        <p className="text-sm font-medium text-green-600">Không tìm thấy đề tài tương tự</p>
+                        <p className="text-sm font-medium text-green-600">Không tìm thấy đề tài trùng lặp đáng kể</p>
                         <p className="text-xs text-slate-500 mt-1">
-                          Tiêu đề không trùng với các đề tài trong 2 học kì gần nhất.
+                          Hệ thống AI không phát hiện đề tài nào tương đồng đủ cao với đề tài này.
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {similarTitles.map((item) => {
-                          const badge = getSimilarityBadge(item.similarity);
-                          const isExpanded = expandedCompare === item.projectId;
-                          return (
-                            <div key={item.projectId}>
-                              {/* Similarity card — clickable */}
-                              <button
-                                type="button"
-                                onClick={() => setExpandedCompare(isExpanded ? null : item.projectId)}
-                                className={`w-full text-left p-4 rounded-lg border transition-all ${
-                                  isExpanded
-                                    ? `${badge.border} ring-2 ring-offset-1 ring-primary/30 ${badge.bg}`
-                                    : `${badge.border} ${badge.bg} hover:shadow-md`
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className={`text-lg font-bold ${badge.text}`}>
-                                        {item.similarity}%
-                                      </span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.bg} ${badge.text}`}>
-                                        {badge.label}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm font-medium text-slate-800">{item.nameEn}</p>
-                                    <p className="text-xs text-slate-500">{item.nameVi}</p>
-                                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                                      <span className="font-mono">{item.projectCode}</span>
-                                      <span>•</span>
-                                      <span>{item.semesterName}</span>
-                                      {item.mentorName && (
-                                        <>
-                                          <span>•</span>
-                                          <span>GVHD: {item.mentorName}</span>
-                                        </>
-                                      )}
-                                    </div>
-                                    {item.commonKeywords.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-2">
-                                        {item.commonKeywords.map((kw) => (
-                                          <span
-                                            key={kw}
-                                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/80 text-slate-600 border border-slate-200"
-                                          >
-                                            {kw}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <span className={`material-symbols-outlined text-slate-400 text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>
-                                    expand_more
-                                  </span>
-                                </div>
-                              </button>
-
-                              {/* Expanded comparison panel */}
-                              <AnimatePresence>
-                                {isExpanded && (
-                                  <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                  >
-                                    <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-5">
-                                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
-                                        So sánh chi tiết
-                                      </h4>
-                                      <div className="grid md:grid-cols-2 gap-4">
-                                        {/* Left: Current project */}
-                                        <div className="bg-white rounded-lg border border-blue-200 p-4">
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200">
-                                              Đang thẩm định
-                                            </span>
-                                            <span className="text-xs font-mono text-slate-400">#{project.projectCode}</span>
-                                          </div>
-                                          <div className="space-y-3">
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Tên tiếng Anh</span>
-                                              <p className="text-xs text-slate-800 mt-0.5 font-medium">{project.nameEn}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mô tả</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{project.description}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mục tiêu</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{project.objectives}</p>
-                                            </div>
-                                            {project.technologies && (
-                                              <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Công nghệ</span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {project.technologies.split(",").map((t) => (
-                                                    <span key={t.trim()} className="px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">{t.trim()}</span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div className="text-[10px] text-slate-400">
-                                              GVHD: {project.mentorName || "—"} • SV: {project.studentName || "—"}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Right: Compared project */}
-                                        <div className={`bg-white rounded-lg border p-4 ${badge.border}`}>
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${badge.bg} ${badge.text}`}>
-                                              {item.similarity}% trùng
-                                            </span>
-                                            <span className="text-xs font-mono text-slate-400">{item.projectCode}</span>
-                                            <span className="text-[10px] text-slate-400">{item.semesterName}</span>
-                                          </div>
-                                          <div className="space-y-3">
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Tên tiếng Anh</span>
-                                              <p className="text-xs text-slate-800 mt-0.5 font-medium">{item.nameEn}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mô tả</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{item.description || "—"}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mục tiêu</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{item.objectives || "—"}</p>
-                                            </div>
-                                            {item.technologies && (
-                                              <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Công nghệ</span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {item.technologies.split(",").map((t) => (
-                                                    <span key={t.trim()} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-slate-700">{t.trim()}</span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div className="text-[10px] text-slate-400">
-                                              GVHD: {item.mentorName || "—"} • SV: {item.studentName || "—"}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <SimilarityResults matches={matches} />
                     )}
                   </div>
                 </motion.div>
@@ -833,4 +729,140 @@ export function LecturerReviewPage() {
       </AnimatePresence>
     </div>
   );
+}
+
+// ── Similarity sub-components ────────────────────────────────────────────────────
+
+/** The whole similarity panel body: a headline (highest match) + per-match score & reasons. */
+function SimilarityResults({ matches }: Readonly<{ matches: SimilarityMatchDto[] }>) {
+  const top = matches[0];
+  const topStyle = levelStyle(top.level);
+  const shown = matches.slice(0, 8);
+
+  return (
+    <div className="space-y-5">
+      {/* Headline: highest match */}
+      <div className={`flex items-center gap-4 rounded-xl border p-4 ${topStyle.bg} ${topStyle.border}`}>
+        <ScoreDial score={top.overallScore} level={top.level} />
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Mức độ trùng lặp cao nhất</p>
+          <p className={`text-lg font-extrabold ${topStyle.text}`}>
+            {pct(top.overallScore)}% · {topStyle.label}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tìm thấy {matches.length} đề tài có điểm tương đồng. Xem lý do bên dưới.
+          </p>
+        </div>
+      </div>
+
+      {/* Per-match cards */}
+      <div className="space-y-3">
+        {shown.map((m, idx) => {
+          const s = levelStyle(m.level);
+          return (
+            <div key={m.otherThesisId} className="rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className={`text-lg font-extrabold ${s.text}`}>{pct(m.overallScore)}%</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.bg} ${s.text} ${s.border}`}>
+                    {s.label}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400">Kết quả #{idx + 1}</span>
+              </div>
+
+              {/* Score bar */}
+              <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-3">
+                <div className={`h-full rounded-full ${dialBar(m.level)}`} style={{ width: `${pct(m.overallScore)}%` }} />
+              </div>
+
+              {m.reasons.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Lý do</p>
+                  {m.reasons.map((r) => (
+                    <ReasonRow key={r} reason={r} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">Không có lý do chi tiết.</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {matches.length > shown.length && (
+        <p className="text-center text-xs text-slate-400">… và {matches.length - shown.length} kết quả khác.</p>
+      )}
+    </div>
+  );
+}
+
+/** One reason, rendered with an icon + Vietnamese label + explanation of what it means. */
+function ReasonRow({ reason }: Readonly<{ reason: string }>) {
+  const meta = REASON_CATALOG[reason];
+  if (!meta) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <span className="material-symbols-outlined text-[18px] text-slate-400">info</span>
+        <p className="text-xs text-slate-600">{reason}</p>
+      </div>
+    );
+  }
+  return (
+    <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${meta.cls}`}>
+      <span className="material-symbols-outlined text-[18px]">{meta.icon}</span>
+      <div className="min-w-0">
+        <p className="text-xs font-bold leading-tight">{meta.label}</p>
+        <p className="text-[11px] opacity-80 mt-0.5 leading-snug">{meta.detail}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Circular gauge for a similarity score. */
+function ScoreDial({ score, level }: Readonly<{ score: number; level: string }>) {
+  const style = levelStyle(level);
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, score));
+  const offset = circumference * (1 - clamped);
+  const stroke =
+    level === "Critical" ? "#dc2626" : level === "High" ? "#ea580c" : level === "Moderate" ? "#d97706" : "#16a34a";
+
+  return (
+    <div className="relative shrink-0" style={{ width: 64, height: 64 }}>
+      <svg width="64" height="64" className="-rotate-90">
+        <circle cx="32" cy="32" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+        <circle
+          cx="32"
+          cy="32"
+          r={radius}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span className={`absolute inset-0 flex items-center justify-center text-sm font-extrabold ${style.text}`}>
+        {pct(score)}%
+      </span>
+    </div>
+  );
+}
+
+/** Score-bar fill colour per level. */
+function dialBar(level: string): string {
+  switch (level) {
+    case "Critical":
+      return "bg-red-500";
+    case "High":
+      return "bg-orange-500";
+    case "Moderate":
+      return "bg-amber-500";
+    default:
+      return "bg-green-500";
+  }
 }
