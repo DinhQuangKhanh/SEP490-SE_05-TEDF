@@ -20,6 +20,6 @@ public class CreateGroupCommandHandler : ICommandHandler<CreateGroupCommand, Gui
         var studentId = _currentUser.UserId
             ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        return _groups.CreateGroupAsync(studentId, request.Name, cancellationToken);
+        return _groups.CreateGroupAsync(studentId, cancellationToken);
     }
 }

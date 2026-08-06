@@ -67,9 +67,9 @@ public sealed class StudentGroupEndpoints : IEndpoint
     private static async Task<IResult> GetInvitableStudents(Guid groupId, ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetInvitableStudentsQuery(groupId), ct));
 
-    private static async Task<IResult> CreateGroup(CreateGroupRequest request, ISender sender, CancellationToken ct)
+    private static async Task<IResult> CreateGroup(ISender sender, CancellationToken ct)
     {
-        var groupId = await sender.Send(new CreateGroupCommand(request.Name), ct);
+        var groupId = await sender.Send(new CreateGroupCommand(), ct);
         return Created($"/api/groups/{groupId}", new { id = groupId });
     }
 

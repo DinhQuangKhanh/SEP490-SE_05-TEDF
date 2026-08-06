@@ -37,11 +37,21 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Project?> GetWithProposedMembersAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Include(p => p.ProposedMembers)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        }
+
         public async Task<Project?> GetWithAllAsync(Guid id, CancellationToken cancellationToken = default)
         {
+            // Two collection includes in one query multiply rows (mentors x documents),
+            // so the load is split into separate queries.
             return await _dbSet
                 .Include(p => p.Mentors)
                 .Include(p => p.Documents)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 

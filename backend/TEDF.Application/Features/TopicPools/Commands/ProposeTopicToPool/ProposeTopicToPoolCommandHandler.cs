@@ -30,6 +30,7 @@ public class ProposeTopicToPoolCommandHandler : ICommandHandler<ProposeTopicToPo
             new PoolTopicContent(
                 request.NameVi, request.NameEn, request.NameAbbr, request.Description,
                 request.Objectives, request.Scope, request.Technologies, request.ExpectedResults, request.MaxStudents),
+            request.RegisterFormPdf,
             cancellationToken);
     }
 }

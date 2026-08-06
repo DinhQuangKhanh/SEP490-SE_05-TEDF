@@ -36,10 +36,9 @@ export const studentGroupService = {
       `${routes.studentGroups.myPendingJoinRequest}${semesterId ? `?semesterId=${semesterId}` : ""}`,
     ),
 
-  // Wire field is still `name` — backend maps it to Group.DisplayName (the nickname).
-  // Group.Name itself is server-generated as SE_NN and cannot be set by the client.
-  createGroup: (displayName?: string) =>
-    apiClient.post<{ id: string }>(routes.studentGroups.base, { name: displayName }),
+  // Groups carry no client-supplied name: the server assigns the id (SE_NN), and the display name
+  // becomes "SE_NN - English topic name - Mentor" once the topic passes evaluation.
+  createGroup: () => apiClient.post<{ id: string }>(routes.studentGroups.base),
 
   inviteMember: (groupId: string, studentCode: string, message?: string) =>
     apiClient.post<{ id: number }>(routes.studentGroups.invitations(groupId), {

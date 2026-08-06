@@ -44,6 +44,9 @@ const STEPS = [
   { label: "Tài liệu", icon: "attachment" },
 ];
 
+/** Matches the server-side limit for the register form upload. */
+const MAX_REGISTER_FORM_BYTES = 10 * 1024 * 1024;
+
 // ── Input classes ───────────────────────────────────────────────────────────
 
 const inputClass =
@@ -70,6 +73,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
   const [loadingPools, setLoadingPools] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [fileWarnings, setFileWarnings] = useState<string[]>([]);
+  // Optional capstone register form; a filled-in student table becomes the group after evaluation.
+  const [registerForm, setRegisterForm] = useState<File | null>(null);
+  const [registerFormError, setRegisterFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -95,6 +101,8 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       setForm({ ...emptyForm });
       setAttachments([]);
       setFileWarnings([]);
+      setRegisterForm(null);
+      setRegisterFormError(null);
       setError(null);
       setShowSuccess(false);
     }
@@ -143,6 +151,24 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     setFileWarnings(rejected);
   };
 
+  const handleRegisterForm = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file after a rejection
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setRegisterFormError("Phiếu đăng ký phải là tệp PDF.");
+      return;
+    }
+    if (file.size > MAX_REGISTER_FORM_BYTES) {
+      setRegisterFormError("Phiếu đăng ký vượt quá 10MB.");
+      return;
+    }
+
+    setRegisterFormError(null);
+    setRegisterForm(file);
+  };
+
   const removeFile = (idx: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
     setFileWarnings([]);
@@ -163,6 +189,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       if (form.expectedResults) fd.append("expectedResults", form.expectedResults);
       fd.append("maxStudents", form.maxStudents.toString());
       attachments.forEach((f) => fd.append("attachments", f));
+      if (registerForm) fd.append("registerForm", registerForm);
 
       await topicPoolService.proposeTopic(form.poolId, fd);
       setShowSuccess(true);
@@ -313,6 +340,13 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                           onRemove={removeFile}
                           selectedPool={selectedPool}
                           form={form}
+                          registerForm={registerForm}
+                          registerFormError={registerFormError}
+                          onRegisterFormChange={handleRegisterForm}
+                          onRegisterFormRemove={() => {
+                            setRegisterForm(null);
+                            setRegisterFormError(null);
+                          }}
                         />
                       )}
                     </motion.div>
@@ -594,6 +628,10 @@ function StepAttachments({
   onRemove,
   selectedPool,
   form,
+  registerForm,
+  registerFormError,
+  onRegisterFormChange,
+  onRegisterFormRemove,
 }: {
   attachments: File[];
   warnings: string[];
@@ -603,6 +641,10 @@ function StepAttachments({
   onRemove: (idx: number) => void;
   selectedPool: TopicPoolDto | undefined;
   form: FormData;
+  registerForm: File | null;
+  registerFormError: string | null;
+  onRegisterFormChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRegisterFormRemove: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -638,6 +680,46 @@ function StepAttachments({
             <span className="font-medium text-slate-700">{form.technologies || "—"}</span>
           </div>
         </div>
+      </div>
+
+      {/* Capstone register form — seeds the group when its student table is filled in */}
+      <div>
+        {/* A heading, not a control label — the file input carries its own label below. */}
+        <p className={labelClass}>Phiếu đăng ký (tùy chọn)</p>
+        <p className="mb-2 text-xs text-slate-500">
+          Tệp PDF theo mẫu &ldquo;Capstone Project Register&rdquo;. Nếu phiếu đã điền danh sách sinh viên, hệ thống sẽ tự
+          tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành
+          công. Để trống thì đề tài chỉ vào kho như bình thường.
+        </p>
+        {registerForm ? (
+          <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
+            <span className="material-symbols-outlined text-primary text-[20px]">assignment</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate text-slate-700">{registerForm.name}</p>
+              <p className="text-[10px] text-slate-400">{formatFileSize(registerForm.size)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onRegisterFormRemove}
+              className="p-1 transition-colors text-slate-400 hover:text-red-500"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+        ) : (
+          <label className="flex items-center gap-2 px-4 py-3 text-sm transition-colors border-2 border-dashed cursor-pointer border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 hover:border-primary/40">
+            <span className="material-symbols-outlined text-[20px] text-slate-400">upload_file</span>
+            <span className="font-medium text-primary">Chọn phiếu đăng ký</span>
+            <span className="text-xs text-slate-400">PDF &mdash; tối đa 10MB</span>
+            <input type="file" className="sr-only" accept=".pdf" onChange={onRegisterFormChange} />
+          </label>
+        )}
+        {registerFormError && (
+          <p className="mt-2 text-xs text-red-600 flex items-start gap-1.5">
+            <span className="material-symbols-outlined text-[14px] mt-0.5">error</span>
+            {registerFormError}
+          </p>
+        )}
       </div>
 
       {/* Upload area */}

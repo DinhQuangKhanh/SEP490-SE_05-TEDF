@@ -12,6 +12,12 @@ public sealed class ProposeTopicRequest
     public string? ExpectedResults { get; set; }
     public int MaxStudents { get; set; } = 5;
     public List<IFormFile>? Attachments { get; set; }
+
+    /// <summary>
+    /// Optional capstone register form (PDF). When its student table is filled in, those students
+    /// become the topic's group after it passes evaluation.
+    /// </summary>
+    public IFormFile? RegisterForm { get; set; }
 }
 
 public sealed record TopicRegistrationRequest(Guid ProjectId, string? Note);
