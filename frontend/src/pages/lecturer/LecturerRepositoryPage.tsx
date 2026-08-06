@@ -23,6 +23,7 @@ import {
   sourceTypeLabel,
   statusConfig,
 } from "@/lib";
+import { submittedOrCreatedAt } from "@/types";
 import type {
   DepartmentProject,
   MentorRegistrationRequestDto,
@@ -1030,7 +1031,7 @@ function DepartmentTopicsView() {
                                 {sc.label}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">{formatDate(p.submittedAt)}</td>
+                            <td className="px-6 py-4 text-sm text-slate-600">{formatDate(submittedOrCreatedAt(p))}</td>
                             <td className="px-6 py-4 text-right">
                               <button
                                 type="button"

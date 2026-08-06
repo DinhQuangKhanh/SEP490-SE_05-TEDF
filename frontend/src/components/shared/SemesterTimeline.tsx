@@ -7,11 +7,17 @@
 
 interface Phase {
   name: string;
-  type: number; // 0=Registration, 1=Evaluation, 2=Implementation, 3=Defense
+  type: number; // 0=Registration, 1=Evaluation, 2=Implementation, 3=Defense (retired)
   status: number; // 0=NotStarted, 1=InProgress, 2=Completed
   startDate: string;
   endDate: string;
 }
+
+/**
+ * The defense phase was dropped from the process. Semesters created before that still carry the
+ * row, so it is filtered out here rather than assumed absent — same as in admin/semesters.
+ */
+const DEFENSE_PHASE_TYPE = 3;
 
 interface SemesterTimelineProps {
   phases: Phase[];
@@ -28,8 +34,6 @@ function phaseIcon(type: number): string {
       return "fact_check"; // Evaluation
     case 2:
       return "science"; // Implementation
-    case 3:
-      return "school"; // Defense
     default:
       return "event";
   }
@@ -41,7 +45,10 @@ function formatShortDate(iso: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function SemesterTimeline({ phases, className = "" }: SemesterTimelineProps) {
+export function SemesterTimeline({ phases: allPhases, className = "" }: SemesterTimelineProps) {
+  // Filtered before the progress maths below, so the percentage is computed over the phases
+  // actually drawn.
+  const phases = allPhases.filter((p) => p.type !== DEFENSE_PHASE_TYPE);
   if (phases.length === 0) return null;
 
   // Calculate progress percentage
@@ -77,7 +84,6 @@ export function SemesterTimeline({ phases, className = "" }: SemesterTimelinePro
       {/* Steps */}
       <div className="relative z-10 flex justify-between w-full">
         {phases.map((phase, idx) => {
-          console.log(phases);
           const isCompleted = phase.status === 2;
           const isCurrent = phase.status === 1;
           const isPending = phase.status === 0;

@@ -166,7 +166,6 @@ namespace TEDF.Infrastructure
                                     {
                                         var firebaseAuth = context.HttpContext.RequestServices
                                             .GetService<IFirebaseAuthService>();
-                                        var existingUserRoles = existing.GetActiveRoles();
                                         if (firebaseAuth is not null)
                                             await firebaseAuth.SetCustomClaimsAsync(firebaseUid, new Dictionary<string, object>
                                             {
@@ -180,16 +179,17 @@ namespace TEDF.Infrastructure
                                 }
                                 else if (existing is null)
                                 {
-                                    // Nobody owns this verified FPT address yet: create the account
-                                    // on the spot so a first-time signer-in is not dead-ended on a
-                                    // 401 with no way to self-register.
+                                    // Nobody owns this verified address yet: create the account on
+                                    // the spot so a first-time signer-in is not dead-ended on a 401
+                                    // with no way to self-register.
                                     //
-                                    // It is deliberately provisioned with the LEAST privileged role.
-                                    // That is safe because the account still has to pass
-                                    // AccountAccessGate: a Student who is not on the semester's
-                                    // eligible roster is rejected with NOT_ELIGIBLE, so this creates
-                                    // a row without granting access to anything.
-                                    user = await ProvisionFromGoogleAsync(
+                                    // The role comes from the mail domain (see DefaultRoleForEmail)
+                                    // and is never a privileged one. That is safe because the
+                                    // account still has to pass AccountAccessGate: a Student who is
+                                    // not on the semester's eligible roster is rejected with
+                                    // NOT_ELIGIBLE, so this creates a row without granting access
+                                    // to anything.
+                                    user = await ProvisionFromFirebaseAsync(
                                         context.HttpContext.RequestServices,
                                         userRepo,
                                         firebaseUid,
@@ -336,16 +336,19 @@ namespace TEDF.Infrastructure
         }
 
         /// <summary>
-        /// Creates a TEDF account for a Google user who signed in successfully but has no row yet.
-        /// Returns null when the address is not an FPT one, so outsiders cannot self-register.
+        /// Creates a TEDF account for someone whose Firebase sign-in succeeded — Google or
+        /// email/password, the token looks the same either way — but who has no row yet.
+        /// Returns null when the address is not on an accepted domain, so outsiders cannot
+        /// self-register.
         /// </summary>
         /// <remarks>
-        /// Only the <c>Users</c> + <c>UserRoles</c> rows are written — no <c>Students</c> profile,
-        /// because a Google token carries no student code and that column is unique and required.
-        /// Note this means a later roster import will report the row as an issue instead of
-        /// completing it (<c>TryProvisionUserAsync</c> skips addresses that already exist).
+        /// Only the <c>Users</c> + <c>UserRoles</c> rows are written — no <c>Students</c> or
+        /// <c>Lecturers</c> profile, because a Firebase token carries no student/employee code and
+        /// those columns are unique and required. Note this means a later roster import will report
+        /// the row as an issue instead of completing it (<c>TryProvisionUserAsync</c> skips
+        /// addresses that already exist).
         /// </remarks>
-        private static async Task<User?> ProvisionFromGoogleAsync(
+        private static async Task<User?> ProvisionFromFirebaseAsync(
             IServiceProvider services,
             IUserRepository userRepo,
             string firebaseUid,
@@ -354,10 +357,10 @@ namespace TEDF.Infrastructure
         {
             var normalizedEmail = email.Trim().ToLowerInvariant();
 
-            // Checked here rather than relying on Email.Create throwing: a non-FPT sign-in is an
-            // expected outcome, not an exceptional one. The `hd` hint set by the SPA is only a UI
-            // filter and can be bypassed, so this is the real gate.
-            if (!normalizedEmail.EndsWith($"@{Email.AllowedDomain}", StringComparison.OrdinalIgnoreCase))
+            // Checked here rather than relying on Email.Create throwing: an address on an
+            // unaccepted domain is an expected outcome, not an exceptional one. The `hd` hint set
+            // by the SPA is only a UI filter and can be bypassed, so this is the real gate.
+            if (!Email.IsAllowed(normalizedEmail))
                 return null;
 
             var fullName = principal?.FindFirstValue("name")
@@ -371,7 +374,8 @@ namespace TEDF.Infrastructure
                 fullName: fullName.Trim(),
                 avatarUrl: principal?.FindFirstValue("picture"));
 
-            user.AssignRole(DomainRoleIds.Student, DomainRoleNames.Student);
+            var (roleId, roleName) = DefaultRoleForEmail(normalizedEmail);
+            user.AssignRole(roleId, roleName);
 
             await userRepo.AddAsync(user);
             await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
@@ -379,6 +383,22 @@ namespace TEDF.Infrastructure
             // Firebase custom claims are pushed by SyncFirebaseClaimsOnUserCreatedHandler /
             // SyncFirebaseClaimsOnRoleAssignedHandler once the domain events dispatch after save.
             return user;
+        }
+
+        /// <summary>
+        /// Role a self-provisioned account starts with, decided by the mail domain: @fe.edu.vn is
+        /// the lecturers' domain, every other accepted domain belongs to a student.
+        /// </summary>
+        /// <remarks>
+        /// Either way the account gains no actual access on its own: <c>AccountAccessMiddleware</c>
+        /// still rejects a Student who is not on the semester's eligible roster, and a Mentor who is
+        /// not on the assigned-lecturer roster.
+        /// </remarks>
+        private static (int Id, string Name) DefaultRoleForEmail(string normalizedEmail)
+        {
+            return normalizedEmail.EndsWith("@fe.edu.vn", StringComparison.OrdinalIgnoreCase)
+                ? (DomainRoleIds.Mentor, DomainRoleNames.Mentor)
+                : (DomainRoleIds.Student, DomainRoleNames.Student);
         }
 
         private static GoogleCredential BuildFirebaseCredential(FirebaseSettings settings)

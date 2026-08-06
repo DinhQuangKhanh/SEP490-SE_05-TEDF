@@ -11,6 +11,10 @@ public class DepartmentProjectDto
     public string Status { get; set; } = string.Empty;
     public int StatusValue { get; set; }
     public string? SubmittedAt { get; set; }
+
+    /// <summary>Fallback date for topics that have never been submitted, so the UI always has one.</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+
     public List<EvaluatorAssignmentDto> Evaluators { get; set; } = [];
     public List<MentorSummaryDto> Mentors { get; set; } = [];
     public bool HasConflict { get; set; }

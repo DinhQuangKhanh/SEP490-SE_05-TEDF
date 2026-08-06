@@ -67,9 +67,12 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         Task<bool> ExistsCodeAsync(ProjectCode code, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Gets the next sequence number for generating project codes.
+        /// Gets the next sequence number for a project code, i.e. one past the highest sequence
+        /// already used by a code starting with <paramref name="codePrefix"/> in that semester.
         /// </summary>
-        Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default);
+        /// <param name="semesterId">Semester the code belongs to.</param>
+        /// <param name="codePrefix">Prefix built by <c>ProjectCode.BuildPrefix</c>, e.g. "FA26-SE-".</param>
+        Task<int> GetNextSequenceAsync(int semesterId, string codePrefix, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets the count of projects by status for a semester.
