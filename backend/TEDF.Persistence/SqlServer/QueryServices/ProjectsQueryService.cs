@@ -10,6 +10,7 @@ using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.Project;
+using TEDF.Persistence.SqlServer.Extensions;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -425,9 +426,15 @@ public class ProjectsQueryService : IProjectsQueryService
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var term = filter.Search.Trim();
+
+            // Project code and name are value objects, so they are matched by id (see
+            // ProjectSearchExtensions); PerformedByName is a plain column and stays in SQL.
+            var matchedProjectIds = await _context.Projects.AsNoTracking()
+                .Where(p => majorIds.Contains(p.MajorId))
+                .MatchSearchTermAsync(term, cancellationToken);
+
             scoped = scoped.Where(x =>
-                x.Project.Code.Value.Contains(term) ||
-                x.Project.NameVi.Value.Contains(term) ||
+                matchedProjectIds.Contains(x.Project.Id) ||
                 (x.Log.PerformedByName != null && x.Log.PerformedByName.Contains(term)));
         }
 

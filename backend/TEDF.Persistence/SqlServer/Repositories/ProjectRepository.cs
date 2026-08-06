@@ -8,6 +8,7 @@ using TEDF.Domain.Enums.TopicPool;
 using TEDF.Domain.Specifications.Projects;
 using TEDF.Domain.Specifications.TopicPools;
 using TEDF.Persistence.Common;
+using TEDF.Persistence.SqlServer.Extensions;
 
 namespace TEDF.Persistence.SqlServer.Repositories
 {
@@ -312,7 +313,7 @@ namespace TEDF.Persistence.SqlServer.Repositories
             string? search, int? semesterId, ProjectStatus? status, int? majorId,
             int page, int pageSize, CancellationToken ct = default)
         {
-            var query = _dbSet.AsNoTracking().Include(p => p.Mentors).AsQueryable();
+            var query = _dbSet.AsNoTracking().AsQueryable();
 
             if (semesterId.HasValue)
                 query = query.Where(p => p.SemesterId == semesterId.Value);
@@ -325,17 +326,14 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var term = search.Trim();
-                query = query.Where(p =>
-                    p.NameVi.Value.Contains(term) ||
-                    p.NameEn.Value.Contains(term) ||
-                    p.Code.Value.Contains(term) ||
-                    p.NameAbbr.Contains(term));
+                var matchedIds = await query.MatchSearchTermAsync(search, ct);
+                query = query.Where(p => matchedIds.Contains(p.Id));
             }
 
             var totalCount = await query.CountAsync(ct);
 
             var items = await query
+                .Include(p => p.Mentors)
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
