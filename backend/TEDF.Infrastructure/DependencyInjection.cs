@@ -31,6 +31,7 @@ using TEDF.Infrastructure.Services;
 using TEDF.Infrastructure.Services.DomainServices;
 using TEDF.Infrastructure.Services.Excel;
 using TEDF.Infrastructure.Services.Email;
+using TEDF.Infrastructure.Services.Email.Firestore;
 using TEDF.Infrastructure.Services.Email.Templates;
 using TEDF.Infrastructure.Services.FileStorage;
 using TEDF.Infrastructure.Services.Notification;
@@ -257,11 +258,17 @@ namespace TEDF.Infrastructure
             // Evaluation Services
             services.AddScoped<ITitleSimilarityService, TitleSimilarityService>();
 
-            // Email
+            // Email — SMTP (admin "send test email" only)
             services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
             services.AddScoped<IEmailService, SmtpEmailService>();
             services.AddScoped<IEmailTemplateService, EmailTemplateService>();
             services.AddScoped<IEmailSender, EmailSenderAdapter>();
+
+            // Email — transactional mail via the Firestore "Trigger Email" extension.
+            // Singleton so the Firestore channel is built once and reused across jobs.
+            services.Configure<FirestoreMailOptions>(configuration.GetSection(FirestoreMailOptions.SectionName));
+            services.AddSingleton<IFirestoreMailQueue, FirestoreMailQueue>();
+            services.AddScoped<IProjectMailContextFactory, ProjectMailContextFactory>();
 
             // File Storage - Firebase Storage
             services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));
@@ -304,7 +311,8 @@ namespace TEDF.Infrastructure
             services.AddScoped<MeetingReminderJob>();
             services.AddScoped<GroupJoinRequestExpirationJob>();
             services.AddScoped<DataCleanupJob>();
-            services.AddScoped<SendEligibleStudentEmailsJob>();
+            services.AddScoped<SendRosterPublishedMailJob>();
+            services.AddScoped<MailDispatchJob>();
 
             var hangfireConn = configuration.GetConnectionString("HangfireConnection") ?? configuration.GetConnectionString("DefaultConnection");
             services.AddHangfire(c => c.SetDataCompatibilityLevel(CompatibilityLevel.Version_180).UseSimpleAssemblyNameTypeSerializer().UseRecommendedSerializerSettings().UseSqlServerStorage(hangfireConn));
