@@ -28,6 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Seeds\Data\capstone_SP26.json" />
+    <EmbeddedResource Include="Seeds\Data\capstone_SU26.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TEDF.Application\TEDF.Application.csproj" />
     <ProjectReference Include="..\TEDF.Domain\TEDF.Domain.csproj" />
   </ItemGroup>

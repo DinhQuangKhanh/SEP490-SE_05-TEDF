@@ -75,6 +75,13 @@ namespace TEDF.Infrastructure
             {
                 var projectId = firebaseSettings?.ProjectId;
 
+                // DEV-ONLY escape hatch (default OFF). When true, a still-pending imported account
+                // (FirebaseUid == "pending:<code>", never claimed) may be linked to a new Firebase UID
+                // even if the email is UNVERIFIED — so manually-created email/password mock accounts
+                // can sign in at demo time. Keep this false in production: it weakens the
+                // account-takeover guard below. Set via Auth__AllowUnverifiedPendingLink in .env.
+                var allowUnverifiedPendingLink = configuration.GetValue<bool>("Auth:AllowUnverifiedPendingLink");
+
                 if (firebaseSettings?.UseEmulator == true)
                 {
                     // Firebase Auth Emulator: tokens are self-signed, so we skip
@@ -135,10 +142,8 @@ namespace TEDF.Infrastructure
                             // The account can already exist while holding a placeholder FirebaseUid:
                             // imported accounts get "pending:<code>" and seeded ones get "test-*",
                             // because the real UID is only issued the first time the person signs in
-                            // with Google. Match on the email instead and re-point the row to the real
-                            // UID. The email claim is only trusted when Firebase reports it verified —
-                            // otherwise anyone able to create a Firebase account with someone's FPT
-                            // address could take that account over.
+                            // with Google. Match on the email and either re-point that row to the real
+                            // UID, or — if nobody owns the address yet — provision a new account.
                             var email = context.Principal?.FindFirstValue("email")
                                 ?? context.Principal?.FindFirstValue(ClaimTypes.Email);
                             var emailVerified = string.Equals(
@@ -146,15 +151,42 @@ namespace TEDF.Infrastructure
                                 "true",
                                 StringComparison.OrdinalIgnoreCase);
 
-                            if (!string.IsNullOrEmpty(email) && emailVerified)
+                            if (!string.IsNullOrEmpty(email))
                             {
                                 var existing = await userRepo.GetByEmailAsync(email);
 
-                                // A locked or disabled account is never linked: the row keeps its
-                                // placeholder UID until an admin reactivates it. The access gate would
-                                // block the request anyway, this just avoids writing to a dead account.
-                                if (existing is not null && existing.Status == UserStatus.Active)
+                                if (existing is null)
                                 {
+                                    // Nobody owns this address yet: create the account on the spot so a
+                                    // first-time signer-in isn't dead-ended on a 401. The role comes from
+                                    // the mail domain (see DefaultRoleForEmail): @fe.edu.vn -> Mentor,
+                                    // otherwise Student.
+                                    //
+                                    // This is allowed even for an UNVERIFIED email (e.g. an email/password
+                                    // account) because a brand-new account gains no access on its own —
+                                    // AccountAccessGate still rejects a Student not on the semester's
+                                    // eligible roster and a Mentor not on the assigned-lecturer roster.
+                                    // (Takeover protection below only matters when LINKING an existing row.)
+                                    user = await ProvisionFromFirebaseAsync(
+                                        context.HttpContext.RequestServices,
+                                        userRepo,
+                                        firebaseUid,
+                                        email,
+                                        context.Principal);
+                                }
+                                else if (existing.Status == UserStatus.Active &&
+                                         (emailVerified ||
+                                          (allowUnverifiedPendingLink && existing.IsPendingActivation)))
+                                {
+                                    // Re-point an EXISTING active account to the real UID — but only when
+                                    // Firebase reports the email verified, otherwise anyone able to create a
+                                    // Firebase account with someone's FPT address could take that account
+                                    // over. A locked/disabled row keeps its placeholder UID until an admin
+                                    // reactivates it (the access gate would block it anyway).
+                                    //
+                                    // Exception: the DEV-ONLY Auth:AllowUnverifiedPendingLink flag lets a
+                                    // still-pending (never-claimed) imported row link even with an unverified
+                                    // email, so email/password mock accounts work at demo time. See the flag.
                                     existing.LinkFirebaseAccount(firebaseUid);
                                     await userRepo.UpdateAsync(existing);
                                     await context.HttpContext.RequestServices
@@ -176,25 +208,6 @@ namespace TEDF.Infrastructure
                                     catch { /* claims sync is best-effort */ }
 
                                     user = existing;
-                                }
-                                else if (existing is null)
-                                {
-                                    // Nobody owns this verified address yet: create the account on
-                                    // the spot so a first-time signer-in is not dead-ended on a 401
-                                    // with no way to self-register.
-                                    //
-                                    // The role comes from the mail domain (see DefaultRoleForEmail)
-                                    // and is never a privileged one. That is safe because the
-                                    // account still has to pass AccountAccessGate: a Student who is
-                                    // not on the semester's eligible roster is rejected with
-                                    // NOT_ELIGIBLE, so this creates a row without granting access
-                                    // to anything.
-                                    user = await ProvisionFromFirebaseAsync(
-                                        context.HttpContext.RequestServices,
-                                        userRepo,
-                                        firebaseUid,
-                                        email,
-                                        context.Principal);
                                 }
                             }
                         }
@@ -256,6 +269,14 @@ namespace TEDF.Infrastructure
 
             // Evaluation Services
             services.AddScoped<ITitleSimilarityService, TitleSimilarityService>();
+
+            // External Python (DASSF) similarity service — typed HTTP client.
+            var similarityBaseUrl = configuration["SimilarityService:BaseUrl"] ?? "http://localhost:8000";
+            services.AddHttpClient<ISimilarityApiClient, SimilarityApiClient>(client =>
+            {
+                client.BaseAddress = new Uri(similarityBaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
 
             // Email — SMTP (admin "send test email" only)
             services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));

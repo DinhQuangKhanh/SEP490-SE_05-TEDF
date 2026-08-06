@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -57,6 +59,36 @@ public static class LoadTestDataSeeder
 
     private const int Fall25GroupCount = 50;
     private const int Spring26GroupCount = 40;
+
+    // ── Enriched topic content (title EN + 5 fields), shared with the Python seeder ──
+    // Loaded from the embedded capstone_SP26.json (Spring, "SP_01".."SP_40") and
+    // capstone_SU26.json (Summer, "SU_01".."SU_13", ordered to match Summer26RealGroups).
+    // Topics not present fall back to synthetic content.
+    private sealed record TopicContent(
+        string TitleEn, string Description, string Objective, string Scope, string Technology, string ExpectedResult);
+
+    private static readonly Dictionary<string, TopicContent> EnrichedTopics = LoadEnrichedTopics();
+
+    private static Dictionary<string, TopicContent> LoadEnrichedTopics()
+    {
+        var assembly = typeof(LoadTestDataSeeder).GetTypeInfo().Assembly;
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var merged = new Dictionary<string, TopicContent>();
+        foreach (var resource in new[]
+                 {
+                     "TEDF.Persistence.Seeds.Data.capstone_SP26.json",
+                     "TEDF.Persistence.Seeds.Data.capstone_SU26.json",
+                 })
+        {
+            using var stream = assembly.GetManifestResourceStream(resource);
+            if (stream is null) continue;
+            using var reader = new StreamReader(stream);
+            var part = JsonSerializer.Deserialize<Dictionary<string, TopicContent>>(reader.ReadToEnd(), options);
+            if (part is null) continue;
+            foreach (var (key, value) in part) merged[key] = value;
+        }
+        return merged;
+    }
     private const int Summer26GroupCount = 15;
 
     private static readonly DateTime SeedDate = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -1141,14 +1173,19 @@ public static class LoadTestDataSeeder
                 var grp = Summer26RealGroups[g];
                 var mentorId = DualRoleId((g % DualRoleCount) + 1);
 
+                // capstone_SU26 is ordered to match Summer26RealGroups, so group index g -> "SU_{g+1}".
+                var content = EnrichedTopics.GetValueOrDefault($"SU_{g + 1:D2}");
+                var nameEn = content?.TitleEn ?? grp.NameEn;
+
                 var pId = $"@p{pi++}"; var pCode = $"@p{pi++}"; var pVi = $"@p{pi++}"; var pEn = $"@p{pi++}";
-                var pAbbr = $"@p{pi++}"; var pDesc = $"@p{pi++}"; var pObj = $"@p{pi++}"; var pMajor = $"@p{pi++}";
+                var pAbbr = $"@p{pi++}"; var pDesc = $"@p{pi++}"; var pObj = $"@p{pi++}";
+                var pScope = $"@p{pi++}"; var pTech = $"@p{pi++}"; var pExpected = $"@p{pi++}"; var pMajor = $"@p{pi++}";
                 var pSemester = $"@p{pi++}"; var pGroup = $"@p{pi++}"; var pSubAt = $"@p{pi++}"; var pSubBy = $"@p{pi++}";
                 var pAppAt = $"@p{pi++}"; var pStart = $"@p{pi++}"; var pDeadline = $"@p{pi++}"; var pCreatedIn = $"@p{pi++}";
                 var pDate = $"@p{pi++}";
 
                 values.Add($@"({pId}, {pCode}, {pVi}, {pEn}, {pAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, {pGroup}, NULL, 5, 1, 0, 5, 0,
                     {pSubAt}, {pSubBy}, {pAppAt}, {pStart}, {pDeadline}, 0, NULL,
                     NULL, {pCreatedIn}, NULL, {pDate}, NULL)");
@@ -1156,10 +1193,13 @@ public static class LoadTestDataSeeder
                 parameters.Add(RealProjectId(g + 1));
                 parameters.Add($"KL-SU26-{g + 1:D3}");
                 parameters.Add(grp.NameVi);
-                parameters.Add(grp.NameEn);
+                parameters.Add(nameEn);
                 parameters.Add(grp.Name);
-                parameters.Add($"Mô tả đề tài: {grp.NameVi}");
-                parameters.Add($"Mục tiêu: {grp.NameEn}");
+                parameters.Add(content?.Description ?? $"Mô tả đề tài: {grp.NameVi}");
+                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add((object?)content?.Scope ?? DBNull.Value);
+                parameters.Add((object?)content?.Technology ?? DBNull.Value);
+                parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);
                 parameters.Add(MajorSE);
                 parameters.Add(Summer2026Id);
                 parameters.Add(RealGroupId(g + 1));
@@ -1326,6 +1366,11 @@ public static class LoadTestDataSeeder
                 var topic = Spring26Topics[i];
                 var isEvaluated = i < Spring26EvaluatedCount; // First 20 are evaluated & approved
 
+                // Enriched content (real title EN + 5 fields) when available; else keep the
+                // Vietnamese title and fall back to synthetic description/objectives.
+                var content = EnrichedTopics.GetValueOrDefault(topic.Code);
+                var nameEn = content?.TitleEn ?? topic.NameEn;
+
                 var pId = $"@p{paramIndex++}";
                 var pCode = $"@p{paramIndex++}";
                 var pNameVi = $"@p{paramIndex++}";
@@ -1333,6 +1378,9 @@ public static class LoadTestDataSeeder
                 var pNameAbbr = $"@p{paramIndex++}";
                 var pDesc = $"@p{paramIndex++}";
                 var pObj = $"@p{paramIndex++}";
+                var pScope = $"@p{paramIndex++}";
+                var pTech = $"@p{paramIndex++}";
+                var pExpected = $"@p{paramIndex++}";
                 var pMajor = $"@p{paramIndex++}";
                 var pSemester = $"@p{paramIndex++}";
                 var pSubmittedBy = $"@p{paramIndex++}";
@@ -1343,10 +1391,13 @@ public static class LoadTestDataSeeder
                 parameters.Add(ProjectId(projectIndex));
                 parameters.Add(topic.Code);
                 parameters.Add(topic.NameVi);
-                parameters.Add(topic.NameEn);
+                parameters.Add(nameEn);
                 parameters.Add(topic.Code);
-                parameters.Add($"Mô tả đề tài: {topic.NameVi}");
-                parameters.Add($"Mục tiêu: {topic.NameEn}");
+                parameters.Add(content?.Description ?? $"Mô tả đề tài: {topic.NameVi}");
+                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add((object?)content?.Scope ?? DBNull.Value);
+                parameters.Add((object?)content?.Technology ?? DBNull.Value);
+                parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);
                 parameters.Add(MajorSE);
                 parameters.Add(Spring2026Id);
                 parameters.Add(DualRoleId(((projectOffset + i) % DualRoleCount) + 1));
@@ -1362,7 +1413,7 @@ public static class LoadTestDataSeeder
                     var pDeadline = $"@p{paramIndex++}";
 
                     valueClauses.Add($@"({pId}, {pCode}, {pNameVi}, {pNameEn}, {pNameAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, {pGroup}, NULL, 5, 1, 0, 5, 0,
                     {pSubmittedAt}, {pSubmittedBy}, {pApprovedAt}, {pStartDate}, {pDeadline}, 3, 1,
                     NULL, NULL, NULL, {pDate}, NULL)");
@@ -1376,7 +1427,7 @@ public static class LoadTestDataSeeder
                 {
                     // PendingEvaluation: no group, no approval, awaiting evaluator review
                     valueClauses.Add($@"({pId}, {pCode}, {pNameVi}, {pNameEn}, {pNameAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, NULL, NULL, 5, 1, 0, 1, 0,
                     {pSubmittedAt}, {pSubmittedBy}, NULL, NULL, NULL, 1, NULL,
                     NULL, NULL, NULL, {pDate}, NULL)");

@@ -64,6 +64,17 @@ public class ExcelService : IExcelService
                 Program = FirstNonEmpty(r, ProgramKeys),
                 Division = FirstNonEmpty(r, DivisionKeys)
             })
+            // "Mã giảng viên" is optional: when the column is blank, derive the code from the
+            // email's local-part (e.g. vuongnl3@fe.edu.vn -> vuongnl3).
+            .Select(r => new
+            {
+                Code = string.IsNullOrWhiteSpace(r.Code) ? EmailLocalPart(r.Email) : r.Code,
+                r.Name,
+                r.Email,
+                r.Phone,
+                r.Program,
+                r.Division
+            })
             .Where(r => !string.IsNullOrWhiteSpace(r.Code))
             .GroupBy(r => r.Code!.ToUpperInvariant())
             .Select(g => g.First())
@@ -204,6 +215,15 @@ public class ExcelService : IExcelService
             if (record.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
                 return value.Trim();
         return null;
+    }
+
+    /// <summary>The part of an email before '@' (e.g. "vuongnl3@fe.edu.vn" → "vuongnl3"); null if empty.</summary>
+    private static string? EmailLocalPart(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+        var at = email.IndexOf('@');
+        var local = (at > 0 ? email[..at] : email).Trim();
+        return string.IsNullOrWhiteSpace(local) ? null : local;
     }
 
     /// <summary>Lowercases, strips Vietnamese diacritics and non-alphanumerics so headers match aliases.</summary>

@@ -30,22 +30,40 @@ export interface ProjectReviewResponse {
   existingResult: string | null;
 }
 
-/** Element of GET /api/evaluations/projects/{id}/similarity */
-export interface SimilarTitleDto {
-  projectId: string;
-  projectCode: string;
-  nameEn: string;
-  nameVi: string;
-  semesterName: string;
-  similarity: number;
-  commonKeywords: string[];
-  description: string;
-  objectives: string;
+/**
+ * Element of GET /api/evaluations/projects/{id}/similarity — one match from the DASSF
+ * similarity engine. The UI shows only the overall score and the reasons.
+ */
+export interface SimilarityMatchDto {
+  /** Id of the other topic in the pair (equals its project id). */
+  otherThesisId: string;
+  /** MDDM composite score in [0, 1]. */
+  overallScore: number;
+  /** Level bucket: Low | Moderate | High | Critical. */
+  level: string;
+  /** Explanations, e.g. "same tech stack with a different business domain". */
+  reasons: string[];
+  // Matched topic content (populated for the top matches) for the side-by-side comparison.
+  title: string | null;
+  description: string | null;
   scope: string | null;
-  technologies: string | null;
-  expectedResults: string | null;
-  mentorName: string;
-  studentName: string;
+  objectives: string | null;
+  expectedResult: string | null;
+  semester: string | null;
+  technologies: string[];
+}
+
+/** GET /api/evaluations/theses/{id}/translate — a matched topic translated to Vietnamese. */
+export interface TranslatedThesisDto {
+  otherThesisId: string;
+  title: string | null;
+  description: string | null;
+  scope: string | null;
+  objectives: string | null;
+  expectedResult: string | null;
+  technologies: string[];
+  /** False when the LLM was unavailable and the original (English) text was returned. */
+  translated: boolean;
 }
 
 /** POST /api/evaluations/projects/{id}/evaluate */

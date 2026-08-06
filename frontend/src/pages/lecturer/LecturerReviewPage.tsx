@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { evaluatorService, checklistService } from "@/lib";
 import type {
   ProjectReviewResponse,
-  SimilarTitleDto,
+  SimilarityMatchDto,
+  TranslatedThesisDto,
   ProjectChecklistResponse,
   ChecklistScoreItemInput,
 } from "@/types";
@@ -13,13 +14,146 @@ import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { EvaluationChecklistModal } from "@/components/lecturer";
 
-/** Similarity score → badge label/colours. */
-function getSimilarityBadge(similarity: number) {
-  if (similarity >= 70)
-    return { label: "Rất có khả năng trùng", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" };
-  if (similarity >= 40)
-    return { label: "Cần kiểm tra thêm", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" };
-  return { label: "Thấp", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" };
+/** Level bucket (from the DASSF engine) → colours + Vietnamese label for the score pill. */
+function levelStyle(level: string): { bg: string; text: string; border: string; ring: string; label: string } {
+  switch (level) {
+    case "Critical":
+      return { bg: "bg-red-50", text: "text-red-600", border: "border-red-200", ring: "ring-red-200", label: "Rất cao" };
+    case "High":
+      return { bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200", ring: "ring-orange-200", label: "Cao" };
+    case "Moderate":
+      return { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200", ring: "ring-amber-200", label: "Trung bình" };
+    default:
+      return { bg: "bg-green-50", text: "text-green-600", border: "border-green-200", ring: "ring-green-200", label: "Thấp" };
+  }
+}
+
+/** The comparable content fields shown side-by-side. */
+type FieldKey = "title" | "description" | "objectives" | "scope" | "technologies" | "expectedResults";
+const ALL_FIELDS: FieldKey[] = ["title", "description", "objectives", "scope", "technologies", "expectedResults"];
+const FIELD_LABEL: Record<FieldKey, string> = {
+  title: "Tên đề tài",
+  description: "Mô tả",
+  objectives: "Mục tiêu",
+  scope: "Phạm vi",
+  technologies: "Công nghệ",
+  expectedResults: "Kết quả mong đợi",
+};
+
+interface ReasonMeta {
+  icon: string;
+  label: string;
+  detail: string;
+  cls: string;
+  /** <mark> highlight classes for this reason's colour. */
+  mark: string;
+  /** Which content fields this reason is derived from (so we highlight the right text). */
+  fields: FieldKey[];
+}
+
+/**
+ * Maps each DASSF reason phrase (produced by the Python score_calculator) to an icon, a
+ * Vietnamese label, an explanation, and — crucially — the content fields it draws on, so
+ * clicking a reason highlights exactly the overlapping text behind it.
+ */
+const REASON_CATALOG: Record<string, ReasonMeta> = {
+  "same tech stack with a different business domain": {
+    icon: "layers",
+    label: "Cùng công nghệ · khác lĩnh vực",
+    detail: "Trùng ngăn xếp công nghệ / kiến trúc nhưng khác lĩnh vực nghiệp vụ — dấu hiệu “sao chép cấu trúc”.",
+    cls: "bg-amber-50 text-amber-700 border-amber-200",
+    mark: "bg-amber-200/70 text-amber-900",
+    fields: ["technologies", "scope"],
+  },
+  "same business domain": {
+    icon: "domain",
+    label: "Cùng lĩnh vực nghiệp vụ",
+    detail: "Hai đề tài cùng giải quyết một lĩnh vực / bài toán nghiệp vụ.",
+    cls: "bg-purple-50 text-purple-700 border-purple-200",
+    mark: "bg-purple-200/70 text-purple-900",
+    fields: ["description", "objectives"],
+  },
+  "similar architecture or scope": {
+    icon: "architecture",
+    label: "Kiến trúc · phạm vi tương tự",
+    detail: "Cùng kiểu kiến trúc, công nghệ hoặc phạm vi triển khai.",
+    cls: "bg-blue-50 text-blue-700 border-blue-200",
+    mark: "bg-blue-200/70 text-blue-900",
+    fields: ["scope", "description", "technologies"],
+  },
+  "shared weighted terms across fields": {
+    icon: "match_word",
+    label: "Trùng nhiều thuật ngữ trọng số",
+    detail: "Nhiều từ khoá quan trọng (TF-IDF) xuất hiện ở cả hai đề tài.",
+    cls: "bg-teal-50 text-teal-700 border-teal-200",
+    mark: "bg-teal-200/70 text-teal-900",
+    fields: ALL_FIELDS,
+  },
+  "similar semantic content": {
+    icon: "psychology",
+    label: "Ngữ nghĩa tương đồng",
+    detail: "Nội dung tổng thể của 5 trường mô tả tương đồng.",
+    cls: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    mark: "bg-indigo-200/70 text-indigo-900",
+    fields: ALL_FIELDS,
+  },
+};
+
+const pct = (score: number) => Math.round(score * 100);
+
+// ── Token overlap + highlighting ────────────────────────────────────────────────
+// Words to ignore when computing overlap — generic EN/VN terms that add noise, not signal.
+const STOPWORDS = new Set<string>([
+  "the", "and", "for", "with", "using", "use", "from", "are", "based", "into",
+  "system", "application", "app", "web", "website", "platform", "management", "managing",
+  "build", "building", "develop", "developing", "development", "project", "projects", "data",
+  "user", "users", "support", "supporting", "online", "service", "services", "software",
+  "và", "cho", "các", "một", "của", "với", "hệ", "thống", "xây", "dựng", "sử", "dụng",
+  "ứng", "quản", "lý", "dữ", "liệu", "người", "dùng", "trên", "theo", "được", "có",
+  "tại", "đề", "tài", "phần", "mềm", "nền", "tảng", "hỗ", "trợ", "giải", "pháp", "thông", "tin",
+]);
+
+const WORD_RE = /[\p{L}\p{N}][\p{L}\p{N}+#]*/gu;
+
+function tokenize(text: string | null | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const m of (text ?? "").toLowerCase().matchAll(WORD_RE)) {
+    if (m[0].length >= 3 && !STOPWORDS.has(m[0])) out.add(m[0]);
+  }
+  return out;
+}
+
+/** Significant tokens appearing in BOTH texts — the concrete overlap that drives similarity. */
+function sharedTokens(a: string | null | undefined, b: string | null | undefined): Set<string> {
+  const bs = tokenize(b);
+  const shared = new Set<string>();
+  for (const t of tokenize(a)) if (bs.has(t)) shared.add(t);
+  return shared;
+}
+
+/** Renders text with the shared tokens wrapped in a coloured <mark>. */
+function HighlightedText({
+  text,
+  tokens,
+  markCls,
+}: Readonly<{ text: string | null | undefined; tokens: Set<string>; markCls: string }>) {
+  if (!text) return <span className="text-slate-400">—</span>;
+  if (tokens.size === 0) return <>{text}</>;
+
+  const segments = text.split(/([\p{L}\p{N}+#]+)/gu);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        tokens.has(seg.toLowerCase()) ? (
+          <mark key={i} className={`rounded px-0.5 ${markCls}`}>
+            {seg}
+          </mark>
+        ) : (
+          <span key={i}>{seg}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 /** Why the "Duyệt" verdict is blocked — shared by the submit guard and the button tooltip. */
@@ -75,10 +209,9 @@ export function LecturerReviewPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Similarity state
-  const [similarTitles, setSimilarTitles] = useState<SimilarTitleDto[]>([]);
+  const [matches, setMatches] = useState<SimilarityMatchDto[]>([]);
   const [showSimilarity, setShowSimilarity] = useState(false);
   const [loadingSimilarity, setLoadingSimilarity] = useState(false);
-  const [expandedCompare, setExpandedCompare] = useState<string | null>(null);
 
   // Evaluation checklist state (gates the "Duyệt" verdict on the backend and here).
   const [checklist, setChecklist] = useState<ProjectChecklistResponse | null>(null);
@@ -172,8 +305,8 @@ export function LecturerReviewPage() {
     setLoadingSimilarity(true);
     setShowSimilarity(true);
     try {
-      const titles = await evaluatorService.checkSimilarity(id);
-      setSimilarTitles(titles);
+      const result = await evaluatorService.checkSimilarity(id);
+      setMatches(result);
     } catch {
       showError("Không thể kiểm tra trùng lặp. Vui lòng thử lại sau.");
     } finally {
@@ -320,7 +453,7 @@ export function LecturerReviewPage() {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="mx-auto w-full max-w-[1700px] space-y-6">
             {/* English Title */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -419,7 +552,7 @@ export function LecturerReviewPage() {
               </div>
             </motion.div>
 
-            {/* Similarity Results (inline) */}
+            {/* Similarity Results (inline) — DASSF overall score + reasons */}
             <AnimatePresence>
               {showSimilarity && (
                 <motion.div
@@ -432,10 +565,10 @@ export function LecturerReviewPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-amber-500">compare</span>
-                        <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp tiêu đề</h3>
+                        <h3 className="text-sm font-bold text-slate-900">Kết quả kiểm tra trùng lặp (AI)</h3>
                       </div>
                       <button type="button"
-                        onClick={() => { setShowSimilarity(false); setExpandedCompare(null); }}
+                        onClick={() => setShowSimilarity(false)}
                         className="size-7 rounded-lg hover:bg-gray-100 flex items-center justify-center"
                       >
                         <span className="material-symbols-outlined text-slate-400 text-[18px]">close</span>
@@ -447,171 +580,16 @@ export function LecturerReviewPage() {
                         <div className="size-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
                         <span className="ml-3 text-sm text-slate-500">Đang phân tích...</span>
                       </div>
-                    ) : similarTitles.length === 0 ? (
+                    ) : matches.length === 0 ? (
                       <div className="text-center py-8">
                         <span className="material-symbols-outlined text-4xl text-green-400 mb-2 block">verified</span>
-                        <p className="text-sm font-medium text-green-600">Không tìm thấy đề tài tương tự</p>
+                        <p className="text-sm font-medium text-green-600">Không tìm thấy đề tài trùng lặp đáng kể</p>
                         <p className="text-xs text-slate-500 mt-1">
-                          Tiêu đề không trùng với các đề tài trong 2 học kì gần nhất.
+                          Hệ thống AI không phát hiện đề tài nào tương đồng đủ cao với đề tài này.
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {similarTitles.map((item) => {
-                          const badge = getSimilarityBadge(item.similarity);
-                          const isExpanded = expandedCompare === item.projectId;
-                          return (
-                            <div key={item.projectId}>
-                              {/* Similarity card — clickable */}
-                              <button
-                                type="button"
-                                onClick={() => setExpandedCompare(isExpanded ? null : item.projectId)}
-                                className={`w-full text-left p-4 rounded-lg border transition-all ${
-                                  isExpanded
-                                    ? `${badge.border} ring-2 ring-offset-1 ring-primary/30 ${badge.bg}`
-                                    : `${badge.border} ${badge.bg} hover:shadow-md`
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className={`text-lg font-bold ${badge.text}`}>
-                                        {item.similarity}%
-                                      </span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.bg} ${badge.text}`}>
-                                        {badge.label}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm font-medium text-slate-800">{item.nameEn}</p>
-                                    <p className="text-xs text-slate-500">{item.nameVi}</p>
-                                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                                      <span className="font-mono">{item.projectCode}</span>
-                                      <span>•</span>
-                                      <span>{item.semesterName}</span>
-                                      {item.mentorName && (
-                                        <>
-                                          <span>•</span>
-                                          <span>GVHD: {item.mentorName}</span>
-                                        </>
-                                      )}
-                                    </div>
-                                    {item.commonKeywords.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-2">
-                                        {item.commonKeywords.map((kw) => (
-                                          <span
-                                            key={kw}
-                                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/80 text-slate-600 border border-slate-200"
-                                          >
-                                            {kw}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <span className={`material-symbols-outlined text-slate-400 text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>
-                                    expand_more
-                                  </span>
-                                </div>
-                              </button>
-
-                              {/* Expanded comparison panel */}
-                              <AnimatePresence>
-                                {isExpanded && (
-                                  <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                  >
-                                    <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-5">
-                                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
-                                        So sánh chi tiết
-                                      </h4>
-                                      <div className="grid md:grid-cols-2 gap-4">
-                                        {/* Left: Current project */}
-                                        <div className="bg-white rounded-lg border border-blue-200 p-4">
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200">
-                                              Đang thẩm định
-                                            </span>
-                                            <span className="text-xs font-mono text-slate-400">#{project.projectCode}</span>
-                                          </div>
-                                          <div className="space-y-3">
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Tên tiếng Anh</span>
-                                              <p className="text-xs text-slate-800 mt-0.5 font-medium">{project.nameEn}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mô tả</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{project.description}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mục tiêu</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{project.objectives}</p>
-                                            </div>
-                                            {project.technologies && (
-                                              <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Công nghệ</span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {project.technologies.split(",").map((t) => (
-                                                    <span key={t.trim()} className="px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">{t.trim()}</span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div className="text-[10px] text-slate-400">
-                                              GVHD: {project.mentorName || "—"} • SV: {project.studentName || "—"}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Right: Compared project */}
-                                        <div className={`bg-white rounded-lg border p-4 ${badge.border}`}>
-                                          <div className="flex items-center gap-2 mb-3">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${badge.bg} ${badge.text}`}>
-                                              {item.similarity}% trùng
-                                            </span>
-                                            <span className="text-xs font-mono text-slate-400">{item.projectCode}</span>
-                                            <span className="text-[10px] text-slate-400">{item.semesterName}</span>
-                                          </div>
-                                          <div className="space-y-3">
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Tên tiếng Anh</span>
-                                              <p className="text-xs text-slate-800 mt-0.5 font-medium">{item.nameEn}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mô tả</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{item.description || "—"}</p>
-                                            </div>
-                                            <div>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase">Mục tiêu</span>
-                                              <p className="text-xs text-slate-700 mt-0.5 line-clamp-4">{item.objectives || "—"}</p>
-                                            </div>
-                                            {item.technologies && (
-                                              <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Công nghệ</span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {item.technologies.split(",").map((t) => (
-                                                    <span key={t.trim()} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-slate-700">{t.trim()}</span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div className="text-[10px] text-slate-400">
-                                              GVHD: {item.mentorName || "—"} • SV: {item.studentName || "—"}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <SimilarityResults matches={matches} project={project} />
                     )}
                   </div>
                 </motion.div>
@@ -831,6 +809,277 @@ export function LecturerReviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Similarity sub-components ────────────────────────────────────────────────────
+
+/** The whole similarity panel body: a headline + the top-5 side-by-side comparisons. */
+function SimilarityResults({
+  matches,
+  project,
+}: Readonly<{ matches: SimilarityMatchDto[]; project: ProjectReviewResponse }>) {
+  const top = matches[0];
+  const topStyle = levelStyle(top.level);
+  const shown = matches.slice(0, 5);
+
+  return (
+    <div className="space-y-4">
+      {/* Headline: highest match */}
+      <div className={`flex items-center gap-4 rounded-xl border p-4 ${topStyle.bg} ${topStyle.border}`}>
+        <ScoreDial score={top.overallScore} level={top.level} />
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Mức độ trùng lặp cao nhất</p>
+          <p className={`text-lg font-extrabold ${topStyle.text}`}>
+            {pct(top.overallScore)}% · {topStyle.label}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Top {shown.length} trên {matches.length} đề tài tương đồng — bấm một{" "}
+            <span className="font-semibold">lý do</span> để tô sáng phần trùng tương ứng ở hai cột.
+          </p>
+        </div>
+      </div>
+
+      {shown.map((m, idx) => (
+        <MatchComparison key={m.otherThesisId} match={m} project={project} index={idx} />
+      ))}
+    </div>
+  );
+}
+
+/** One matched topic shown side-by-side with the one under review, with per-reason highlighting. */
+function MatchComparison({
+  match,
+  project,
+  index,
+}: Readonly<{ match: SimilarityMatchDto; project: ProjectReviewResponse; index: number }>) {
+  const s = levelStyle(match.level);
+  const [activeReason, setActiveReason] = useState<string | null>(null);
+  const [translated, setTranslated] = useState<TranslatedThesisDto | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [showTranslated, setShowTranslated] = useState(false);
+  const [translateError, setTranslateError] = useState(false);
+
+  const isVi = showTranslated && translated != null;
+
+  const current: Record<FieldKey, string | null> = {
+    title: project.nameEn || project.nameVi,
+    description: project.description,
+    objectives: project.objectives,
+    scope: project.scope,
+    technologies: project.technologies,
+    expectedResults: project.expectedResults,
+  };
+  const other: Record<FieldKey, string | null> = isVi
+    ? {
+        title: translated.title,
+        description: translated.description,
+        objectives: translated.objectives,
+        scope: translated.scope,
+        technologies: translated.technologies.length > 0 ? translated.technologies.join(", ") : null,
+        expectedResults: translated.expectedResult,
+      }
+    : {
+        title: match.title,
+        description: match.description,
+        objectives: match.objectives,
+        scope: match.scope,
+        technologies: match.technologies.length > 0 ? match.technologies.join(", ") : null,
+        expectedResults: match.expectedResult,
+      };
+
+  // Shared tokens per field — recomputed when the match changes or we switch VI/EN. Translating
+  // the matched topic to Vietnamese lets its domain terms overlap with the Vietnamese project.
+  const sharedByField = useMemo(() => {
+    const out = {} as Record<FieldKey, Set<string>>;
+    for (const f of ALL_FIELDS) out[f] = sharedTokens(current[f], other[f]);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.otherThesisId, isVi]);
+
+  const handleTranslate = async () => {
+    if (translated) {
+      setShowTranslated((v) => !v);
+      return;
+    }
+    setTranslating(true);
+    setTranslateError(false);
+    try {
+      const result = await evaluatorService.translateThesis(match.otherThesisId);
+      setTranslated(result);
+      setShowTranslated(true);
+      if (!result.translated) setTranslateError(true);
+    } catch {
+      setTranslateError(true);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const activeMeta = activeReason ? REASON_CATALOG[activeReason] : null;
+  // Default (no reason selected) highlights every field's overlap in a neutral colour.
+  const highlightFields = new Set<FieldKey>(activeMeta ? activeMeta.fields : ALL_FIELDS);
+  const markCls = activeMeta ? activeMeta.mark : "bg-amber-200/70 text-amber-900";
+
+  return (
+    <div className="rounded-xl border border-gray-200 overflow-hidden">
+      {/* Header: score + reason chips (toggle highlight) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-gray-200">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[10px] font-mono text-slate-400">Kết quả #{index + 1}</span>
+          <span className={`text-xl font-extrabold ${s.text}`}>{pct(match.overallScore)}%</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.bg} ${s.text} ${s.border}`}>
+            {s.label}
+          </span>
+          {match.semester && <span className="text-[10px] text-slate-400">{match.semester}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleTranslate}
+            disabled={translating}
+            title="Dịch đề tài trùng sang tiếng Việt để đối chiếu và tô sáng phần trùng theo lĩnh vực/ngữ nghĩa"
+            className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <span className={`material-symbols-outlined text-[14px] ${translating ? "animate-spin" : ""}`}>
+              {translating ? "progress_activity" : "translate"}
+            </span>
+            {translating ? "Đang dịch..." : translated ? (isVi ? "Xem bản gốc (EN)" : "Xem bản dịch (VI)") : "Dịch sang tiếng Việt"}
+          </button>
+          {match.reasons.length === 0 && <span className="text-[11px] text-slate-400">Không có lý do chi tiết</span>}
+          {match.reasons.map((r) => {
+            const meta = REASON_CATALOG[r];
+            const on = activeReason === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                title={meta?.detail ?? r}
+                onClick={() => setActiveReason(on ? null : r)}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                  meta?.cls ?? "bg-slate-50 text-slate-600 border-slate-200"
+                } ${on ? "ring-2 ring-offset-1 ring-primary/50" : "hover:brightness-95"}`}
+              >
+                {meta && <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>}
+                {meta?.label ?? r}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Active-reason hint */}
+      {activeMeta && (
+        <div className="px-4 py-2 text-[11px] text-slate-600 bg-white border-b border-gray-100">
+          <span className="font-semibold">{activeMeta.label}:</span> {activeMeta.detail} Đã tô sáng phần trùng ở{" "}
+          <span className="font-semibold">{activeMeta.fields.map((f) => FIELD_LABEL[f]).join(", ")}</span>.
+        </div>
+      )}
+
+      {/* Translation status */}
+      {translateError && (
+        <div className="px-4 py-2 text-[11px] text-amber-700 bg-amber-50 border-b border-amber-100">
+          Không dịch được (dịch vụ AI chưa sẵn sàng) — đang hiển thị bản gốc tiếng Anh.
+        </div>
+      )}
+      {isVi && !translateError && (
+        <div className="px-4 py-2 text-[11px] text-emerald-700 bg-emerald-50 border-b border-emerald-100">
+          Đã dịch đề tài trùng sang tiếng Việt — phần trùng về lĩnh vực/ngữ nghĩa giờ được tô sáng chính xác hơn.
+        </div>
+      )}
+
+      {/* Two columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+        <ThesisColumn
+          heading="Đề tài đang thẩm định"
+          tone="blue"
+          content={current}
+          shared={sharedByField}
+          highlightFields={highlightFields}
+          markCls={markCls}
+        />
+        <ThesisColumn
+          heading={isVi ? "Đề tài trùng · đã dịch (VI)" : "Đề tài trùng (EN)"}
+          tone="amber"
+          content={other}
+          shared={sharedByField}
+          highlightFields={highlightFields}
+          markCls={markCls}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** One column (a single topic's fields) inside a comparison, with shared tokens highlighted. */
+function ThesisColumn({
+  heading,
+  tone,
+  content,
+  shared,
+  highlightFields,
+  markCls,
+}: Readonly<{
+  heading: string;
+  tone: "blue" | "amber";
+  content: Record<FieldKey, string | null>;
+  shared: Record<FieldKey, Set<string>>;
+  highlightFields: Set<FieldKey>;
+  markCls: string;
+}>) {
+  const toneCls =
+    tone === "blue"
+      ? "bg-blue-50 text-blue-600 border-blue-200"
+      : "bg-amber-50 text-amber-700 border-amber-200";
+  return (
+    <div className="p-4 space-y-3 min-w-0">
+      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${toneCls}`}>{heading}</span>
+      {ALL_FIELDS.map((f) => (
+        <div key={f}>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{FIELD_LABEL[f]}</p>
+          <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line leading-relaxed break-words">
+            <HighlightedText
+              text={content[f]}
+              tokens={highlightFields.has(f) ? shared[f] : new Set()}
+              markCls={markCls}
+            />
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Circular gauge for a similarity score. */
+function ScoreDial({ score, level }: Readonly<{ score: number; level: string }>) {
+  const style = levelStyle(level);
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, score));
+  const offset = circumference * (1 - clamped);
+  const stroke =
+    level === "Critical" ? "#dc2626" : level === "High" ? "#ea580c" : level === "Moderate" ? "#d97706" : "#16a34a";
+
+  return (
+    <div className="relative shrink-0" style={{ width: 64, height: 64 }}>
+      <svg width="64" height="64" className="-rotate-90">
+        <circle cx="32" cy="32" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+        <circle
+          cx="32"
+          cy="32"
+          r={radius}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span className={`absolute inset-0 flex items-center justify-center text-sm font-extrabold ${style.text}`}>
+        {pct(score)}%
+      </span>
     </div>
   );
 }
