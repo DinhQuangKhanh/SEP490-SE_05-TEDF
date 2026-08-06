@@ -69,7 +69,17 @@ function normalizeRoles(raw: readonly string[] | undefined): UserRole[] {
  * granted (or revoked) server-side is not in the token the browser is already holding. The DB,
  * via GET /api/auth/session, is the source of truth for roles.
  */
-function parseRolesFromToken(token: string): UserRole[] {
+/**
+ * Default role when the Firebase token carries no role claim (a freshly-created account whose
+ * custom claims haven't been synced yet). Mirrors the backend's DefaultRoleForEmail: the
+ * @fe.edu.vn domain belongs to lecturers, every other accepted domain to students.
+ */
+function defaultRoleForEmail(email: string): UserRole {
+    return email.toLowerCase().endsWith('@fe.edu.vn') ? 'mentor' : 'student'
+}
+
+function parseRolesFromToken(token: string, email: string): UserRole[] {
+    const fallback: UserRole[] = [defaultRoleForEmail(email)]
     try {
         const payload = token.split('.')[1]
         const decoded = JSON.parse(atob(payload))
@@ -78,33 +88,23 @@ function parseRolesFromToken(token: string): UserRole[] {
             decoded.role ||
             decoded.roles ||
             decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']
-        if (!roleClaim) return ['student']
+        if (!roleClaim) return fallback
         const rawRoles: string[] = Array.isArray(roleClaim) ? roleClaim : [roleClaim]
         const validRoles: UserRole[] = rawRoles
             .map((r: string) => r.toLowerCase() as UserRole)
             .filter((r): r is UserRole =>
                 ['admin', 'mentor', 'evaluator', 'student', 'departmenthead'].includes(r),
             )
-        return validRoles.length > 0 ? validRoles : ['student']
+        return validRoles.length > 0 ? validRoles : fallback
     } catch (err) {
         console.error('Failed to parse roles from JWT:', err)
-        return ['student']
+        return fallback
     }
 }
 
 function firebaseUserToUser(fbUser: FirebaseUser, token: string): User {
     const email = fbUser.email || ''
-    const roles = parseRolesFromToken(token)
-    const account1 = {
-        id: fbUser.uid,
-        name: fbUser.displayName || email.split('@')[0],
-        email,
-        role: roles[0],
-        roles,
-        avatar: fbUser.photoURL || undefined,
-        firebaseToken: token,
-    }
-    console.log('firebaseUserToUser', account1)
+    const roles = parseRolesFromToken(token, email)
     return {
         id: fbUser.uid,
         name: fbUser.displayName || email.split('@')[0],
