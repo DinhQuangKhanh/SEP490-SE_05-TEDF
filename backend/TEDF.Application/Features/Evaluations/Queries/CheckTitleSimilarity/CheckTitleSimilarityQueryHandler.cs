@@ -4,17 +4,22 @@ using TEDF.Application.Features.Evaluations.DTOs;
 
 namespace TEDF.Application.Features.Evaluations.Queries.CheckTitleSimilarity;
 
-public class CheckTitleSimilarityQueryHandler : IQueryHandler<CheckTitleSimilarityQuery, List<SimilarTitleDto>>
+/// <summary>
+/// Delegates the duplicate check to the external Python (DASSF) similarity engine, keyed by the
+/// project id (which is also the thesis id). Returns each matching pair's overall score + reasons.
+/// </summary>
+public class CheckTitleSimilarityQueryHandler : IQueryHandler<CheckTitleSimilarityQuery, List<SimilarityMatchDto>>
 {
-    private readonly ITitleSimilarityService _similarityService;
+    private readonly ISimilarityApiClient _similarityApi;
 
-    public CheckTitleSimilarityQueryHandler(ITitleSimilarityService similarityService)
+    public CheckTitleSimilarityQueryHandler(ISimilarityApiClient similarityApi)
     {
-        _similarityService = similarityService;
+        _similarityApi = similarityApi;
     }
 
-    public async Task<List<SimilarTitleDto>> Handle(CheckTitleSimilarityQuery request, CancellationToken cancellationToken)
+    public async Task<List<SimilarityMatchDto>> Handle(CheckTitleSimilarityQuery request, CancellationToken cancellationToken)
     {
-        return await _similarityService.FindSimilarTitlesAsync(request.ProjectId, topN: 3, cancellationToken: cancellationToken);
+        var matches = await _similarityApi.RunSimilarityForNewAsync(request.ProjectId, cancellationToken);
+        return matches.ToList();
     }
 }

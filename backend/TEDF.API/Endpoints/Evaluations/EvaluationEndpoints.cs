@@ -30,7 +30,7 @@ public sealed class EvaluationEndpoints : IEndpoint
         group.MapGet("/history", GetEvaluatorHistory).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorHistory").Produces<ApiResponse<EvaluatorHistoryDto>>().Produces(401);
         group.MapGet("/projects", GetEvaluatorProjects).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorProjects").Produces<ApiResponse<EvaluatorProjectsDto>>().Produces(401);
         group.MapGet("/projects/{projectId:guid}/review", GetProjectForReview).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetProjectForReview").Produces<ApiResponse<ProjectReviewDetailDto>>().Produces(401).Produces(404);
-        group.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarTitleDto>>>().Produces(404);
+        group.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarityMatchDto>>>().Produces(404);
         group.MapPost("/projects/{projectId:guid}/evaluate", SubmitEvaluation).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("SubmitEvaluation").Produces<ApiResponse<string>>().Produces(400).Produces(401);
 
         // ── Department-head evaluation management (moved from the DepartmentHead role folder) ──

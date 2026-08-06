@@ -257,6 +257,14 @@ namespace TEDF.Infrastructure
             // Evaluation Services
             services.AddScoped<ITitleSimilarityService, TitleSimilarityService>();
 
+            // External Python (DASSF) similarity service — typed HTTP client.
+            var similarityBaseUrl = configuration["SimilarityService:BaseUrl"] ?? "http://localhost:8000";
+            services.AddHttpClient<ISimilarityApiClient, SimilarityApiClient>(client =>
+            {
+                client.BaseAddress = new Uri(similarityBaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
+
             // Email
             services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
             services.AddScoped<IEmailService, SmtpEmailService>();
