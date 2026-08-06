@@ -7,6 +7,7 @@ using TEDF.Domain.Aggregates.SemesterAggregate.Entities;
 using TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
+using DomainEmail = TEDF.Domain.Aggregates.UserAggregate.ValueObjects.Email;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
@@ -283,10 +284,9 @@ public class SemestersDomainService : ISemestersDomainService
             return new MentorResolution(existing, row.EmployeeCode, row.Email);
 
         // Trùng mã nhưng KHÁC SĐT ⇒ người khác ⇒ thêm số thứ tự cho cả mã lẫn email.
-        if (string.IsNullOrWhiteSpace(row.Email) ||
-            !row.Email.Trim().EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(row.Email) || !DomainEmail.IsAllowed(row.Email.Trim()))
         {
-            issues.Add(new ImportRowIssue(row.EmployeeCode, "Trùng mã GV nhưng khác người, thiếu email @fpt.edu.vn để tạo tài khoản mới"));
+            issues.Add(new ImportRowIssue(row.EmployeeCode, "Trùng mã GV nhưng khác người, thiếu email hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) để tạo tài khoản mới"));
             return null;
         }
 
@@ -358,7 +358,7 @@ public class SemestersDomainService : ISemestersDomainService
         return poolMentors.Any(p => p.MentorId == mentorId);
     }
 
-    private const string EmailIssueReason = "Email không hợp lệ (@fpt.edu.vn) hoặc trùng";
+    private const string EmailIssueReason = "Email không hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) hoặc trùng";
 
     /// <summary>So sánh từng trường: chỉ coi là LỆCH khi cả 2 bên đều có giá trị và khác nhau.</summary>
     private static bool FieldMatches(string? dbValue, string? fileValue)
@@ -434,14 +434,15 @@ public class SemestersDomainService : ISemestersDomainService
 
     /// <summary>
     /// Tạo User mới với FirebaseUid tạm ("pending:&lt;mã&gt;") để liên kết khi đăng nhập Google lần đầu.
-    /// Yêu cầu email @fpt.edu.vn hợp lệ và không trùng (trong file lẫn trong DB); trả null nếu vi phạm.
+    /// Yêu cầu email thuộc domain hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) và không trùng
+    /// (trong file lẫn trong DB); trả null nếu vi phạm.
     /// </summary>
     private async Task<User?> TryProvisionUserAsync(
         UserProvisionRequest req, HashSet<string> seenEmails, CancellationToken cancellationToken)
     {
         var trimmed = req.Email?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed) ||
-            !trimmed.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
+        // Accept any allowed domain (@fpt.edu.vn / @fe.edu.vn / @gmail.com) — same rule as Email.Create.
+        if (string.IsNullOrWhiteSpace(trimmed) || !DomainEmail.IsAllowed(trimmed))
             return null;
 
         var normalized = trimmed.ToLowerInvariant();
