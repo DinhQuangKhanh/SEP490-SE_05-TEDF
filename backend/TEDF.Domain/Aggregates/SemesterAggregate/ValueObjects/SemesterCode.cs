@@ -3,7 +3,7 @@ using TEDF.Domain.Common.Primitives;
 
 namespace TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects
 {
-    public sealed class SemesterCode : ValueObject
+    public sealed partial class SemesterCode : ValueObject
     {
         public const int MaxLength = 20;
         public string Value { get; }
@@ -29,7 +29,7 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects
         {
             get
             {
-                var match = Regex.Match(Value, @"^(FALL|SUMMER|SPRING|FA|SU|SP)[-_ ]?(\d{2}|\d{4})$");
+                var match = SeasonYearPattern().Match(Value);
                 if (!match.Success) return Value;
 
                 var season = match.Groups[1].Value[..2];
@@ -37,6 +37,13 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects
                 return $"{season}{year[^2..]}";
             }
         }
+
+        /// <summary>Season + year of a semester code, e.g. "FALL2025" or "FA26".</summary>
+        [GeneratedRegex(
+            @"^(FALL|SUMMER|SPRING|FA|SU|SP)[-_ ]?(\d{2}|\d{4})$",
+            RegexOptions.None,
+            matchTimeoutMilliseconds: 200)]
+        private static partial Regex SeasonYearPattern();
 
         protected override IEnumerable<object?> GetEqualityComponents() { yield return Value; }
         public override string ToString() => Value;

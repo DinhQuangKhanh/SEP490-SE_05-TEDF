@@ -34,15 +34,15 @@ namespace TEDF.Infrastructure.Services.DomainServices
         }
 
         /// <inheritdoc/>
-        public async Task<ProjectCode> GenerateProjectCodeAsync(int semesterId, int majorId, CancellationToken ct = default)
+        public async Task<ProjectCode> GenerateProjectCodeAsync(int semesterId, int majorId, CancellationToken cancellationToken = default)
         {
-            var semester = await _semesterRepository.GetByIdAsync(semesterId, ct)
+            var semester = await _semesterRepository.GetByIdAsync(semesterId, cancellationToken)
                 ?? throw new EntityNotFoundException(nameof(Semester), semesterId);
-            var major = await _majorRepository.GetByIdAsync(majorId, ct)
+            var major = await _majorRepository.GetByIdAsync(majorId, cancellationToken)
                 ?? throw new EntityNotFoundException(nameof(Major), majorId);
 
             var prefix = ProjectCode.BuildPrefix(semester.Code.ShortValue, major.Code);
-            var sequence = await _projectRepository.GetNextSequenceAsync(semesterId, prefix, ct);
+            var sequence = await _projectRepository.GetNextSequenceAsync(semesterId, prefix, cancellationToken);
 
             return ProjectCode.Generate(semester.Code.ShortValue, major.Code, sequence);
         }

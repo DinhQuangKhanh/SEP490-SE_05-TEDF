@@ -75,7 +75,7 @@ function ViewDetailButton({ onClick }: Readonly<{ onClick: () => void }>) {
       className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors bg-white border rounded-lg border-slate-200 text-slate-700 hover:border-primary/50 hover:text-primary"
     >
       <span className="material-symbols-outlined text-[18px]">visibility</span>
-      Xem chi tiết
+      <span>Xem chi tiết</span>
     </button>
   );
 }
