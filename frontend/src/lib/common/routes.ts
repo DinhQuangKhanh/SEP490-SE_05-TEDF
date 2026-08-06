@@ -93,7 +93,6 @@ export const routes = {
     topicUpdate: (projectId: string) => `/api/topic-pools/topics/${projectId}/update`,
     topicResubmit: (projectId: string) => `/api/topic-pools/topics/${projectId}/resubmit`,
     studentGroups: "/api/groups/mentor",
-    directRegistrationReview: (projectId: string) => `/api/direct-topics/${projectId}/review`,
     supervisedProjects: "/api/projects/supervised",
   },
   studentGroups: {
@@ -112,11 +111,6 @@ export const routes = {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
     myRegistrations: (groupId: string) => `/api/topic-pools/groups/${groupId}/registrations`,
     cancelRegistration: (registrationId: string) => `/api/topic-pools/registrations/${registrationId}/cancel`,
-    createDirectTopic: (groupId: string) => `/api/direct-topics/${groupId}`,
-    updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
-    submitDirectTopicToMentor: (groupId: string, projectId: string) =>
-      `/api/direct-topics/${projectId}/submit-to-mentor/${groupId}`,
-    availableMentors: (groupId: string) => `/api/direct-topics/available-mentors?groupId=${groupId}`,
   },
   topics: {
     list: "/api/topics",

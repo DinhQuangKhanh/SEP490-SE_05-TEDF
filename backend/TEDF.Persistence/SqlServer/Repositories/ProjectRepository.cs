@@ -8,6 +8,7 @@ using TEDF.Domain.Enums.TopicPool;
 using TEDF.Domain.Specifications.Projects;
 using TEDF.Domain.Specifications.TopicPools;
 using TEDF.Persistence.Common;
+using TEDF.Persistence.SqlServer.Extensions;
 
 namespace TEDF.Persistence.SqlServer.Repositories
 {
@@ -37,11 +38,21 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Project?> GetWithProposedMembersAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Include(p => p.ProposedMembers)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        }
+
         public async Task<Project?> GetWithAllAsync(Guid id, CancellationToken cancellationToken = default)
         {
+            // Two collection includes in one query multiply rows (mentors x documents),
+            // so the load is split into separate queries.
             return await _dbSet
                 .Include(p => p.Mentors)
                 .Include(p => p.Documents)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
@@ -88,24 +99,24 @@ namespace TEDF.Persistence.SqlServer.Repositories
             return await _dbSet.AnyAsync(p => p.Code == code, cancellationToken);
         }
 
-        public async Task<int> GetNextSequenceAsync(int year, CancellationToken cancellationToken = default)
+        public async Task<int> GetNextSequenceAsync(int semesterId, string codePrefix, CancellationToken cancellationToken = default)
         {
+            // Code goes through a value converter, so the prefix match cannot run in SQL. Narrowing
+            // by semester first keeps the client-side scan to one semester's topics. Soft-deleted
+            // rows count too: their codes still occupy the unique index.
             var codes = await _dbSet
-                .Where(g => g.CreatedAt.Year == year)
-                .Select(g => g.Code)
+                .IgnoreQueryFilters()
+                .Where(p => p.SemesterId == semesterId)
+                .Select(p => p.Code)
                 .ToListAsync(cancellationToken);
 
-            var prefix = $"PROJ-{year}-";
+            var highest = codes
+                .Where(c => c.Value.StartsWith(codePrefix, StringComparison.OrdinalIgnoreCase))
+                .Select(c => int.TryParse(c.Value[codePrefix.Length..], out var seq) ? seq : 0)
+                .DefaultIfEmpty(0)
+                .Max();
 
-            var lastCode = codes
-                .Where(c => c.Value.StartsWith(prefix))
-                .OrderByDescending(c => c.Value)
-                .FirstOrDefault();
-
-            if (lastCode == null) return 1;
-
-            var sequencePart = lastCode.Value.Replace(prefix, "");
-            return int.TryParse(sequencePart, out var seq) ? seq + 1 : 1;
+            return highest + 1;
         }
 
         public async Task<Dictionary<ProjectStatus, int>> GetStatusCountBySemesterAsync(int semesterId, CancellationToken cancellationToken = default)
@@ -302,7 +313,7 @@ namespace TEDF.Persistence.SqlServer.Repositories
             string? search, int? semesterId, ProjectStatus? status, int? majorId,
             int page, int pageSize, CancellationToken ct = default)
         {
-            var query = _dbSet.AsNoTracking().Include(p => p.Mentors).AsQueryable();
+            var query = _dbSet.AsNoTracking().AsQueryable();
 
             if (semesterId.HasValue)
                 query = query.Where(p => p.SemesterId == semesterId.Value);
@@ -315,17 +326,14 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var term = search.Trim();
-                query = query.Where(p =>
-                    p.NameVi.Value.Contains(term) ||
-                    p.NameEn.Value.Contains(term) ||
-                    p.Code.Value.Contains(term) ||
-                    p.NameAbbr.Contains(term));
+                var matchedIds = await query.MatchSearchTermAsync(search, ct);
+                query = query.Where(p => matchedIds.Contains(p.Id));
             }
 
             var totalCount = await query.CountAsync(ct);
 
             var items = await query
+                .Include(p => p.Mentors)
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)

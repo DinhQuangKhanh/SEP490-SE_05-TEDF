@@ -56,7 +56,7 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
     // ── Write operations ──
     // Parameter is spelled out to match IStudentGroupsDomainService; the rest of this file still
     // uses the shorter `ct`, which predates that convention.
-    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateGroupAsync(Guid studentId, CancellationToken cancellationToken = default)
     {
         var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, cancellationToken)
             ?? throw new BusinessRuleValidationException("No next semester found.");
@@ -73,7 +73,7 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         var code = GroupCode.Generate(nextSemester.Code.Value, seq);
 
         var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, cancellationToken);
-        var group = Group.Create(code, nextSemester.Id, studentId, displayName, maxMembers);
+        var group = Group.Create(code, nextSemester.Id, studentId, maxMembers: maxMembers);
 
         await _groupRepository.AddAsync(group, cancellationToken);
 

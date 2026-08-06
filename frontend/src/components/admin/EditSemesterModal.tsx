@@ -22,11 +22,12 @@ interface PhaseInput {
   endDate: string;
 }
 
+// The defense phase was dropped from the process, so it is no longer offered for editing. A
+// semester created before that still has the row: it stays untouched and is simply not shown.
 const PHASES_TEMPLATE = [
   { label: "1. Đăng ký", name: "Đăng ký đề tài", type: "Registration", color: "text-primary" },
   { label: "2. Thẩm định", name: "Thẩm định đề tài", type: "Evaluation", color: "text-orange-600" },
   { label: "3. Thực hiện", name: "Thực hiện đồ án", type: "Implementation", color: "text-emerald-600" },
-  { label: "4. Bảo vệ", name: "Bảo vệ đồ án", type: "Defense", color: "text-purple-600" },
 ];
 
 export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, semesters }: EditSemesterModalProps) {
@@ -98,7 +99,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
     if (semEnd <= semStart) return showError("Ngày kết thúc phải sau ngày bắt đầu.");
 
     // Validate phases (shared with the Create modal): Registration/Evaluation fall within the
-    // current semester; Implementation/Defense fall within this semester.
+    // current semester; Implementation falls within this semester.
     const validPhases = phases.filter((p) => p.startDate && p.endDate);
     const labelFor = (p: PhaseInput) => PHASES_TEMPLATE.find((t) => t.type === p.type)?.label ?? p.name;
     const today = new Date();
@@ -261,7 +262,7 @@ export function EditSemesterModal({ isOpen, onClose, onUpdated, initialData, sem
                   <h3 className="font-bold text-slate-700">Thiết lập giai đoạn (Timeline)</h3>
                 </div>
                 <div className="p-4 border rounded-lg bg-slate-50 border-slate-100">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {displayPhases.map((phase) => (
                       <div
                         key={phase.type}

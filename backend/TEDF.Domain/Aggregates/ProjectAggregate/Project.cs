@@ -14,6 +14,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
     {
         private readonly List<ProjectMentor> _mentors = [];
         private readonly List<Document> _documents = [];
+        private readonly List<ProposedGroupMember> _proposedMembers = [];
 
         #region Properties
 
@@ -42,7 +43,11 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public DateTime? Deadline { get; private set; }
         public int EvaluationCount { get; private set; }
         public EvaluationResult? LastEvaluationResult { get; private set; }
-        /// <summary>The mentor's most recent modification request note, shown to the student. Cleared on resubmit/approve.</summary>
+        /// <summary>
+        /// A mentor review note from the retired student-proposal flow. Nothing writes it any more,
+        /// but the setter has to stay: EF drops the column without it, and historical projects
+        /// still surface their note.
+        /// </summary>
         public string? MentorFeedback { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }
@@ -54,6 +59,12 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public IReadOnlyCollection<Document> Documents => _documents.AsReadOnly();
 
         /// <summary>
+        /// Students listed on the register form the mentor attached when proposing this topic.
+        /// Empty when no roster was supplied — the topic then follows the normal pool flow.
+        /// </summary>
+        public IReadOnlyCollection<ProposedGroupMember> ProposedMembers => _proposedMembers.AsReadOnly();
+
+        /// <summary>
         /// Gets the count of currently active mentors (avoids materializing a list).
         /// </summary>
         public int ActiveMentorCount => _mentors.Count(m => m.IsActive);
@@ -63,31 +74,6 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         #region Constructors
 
         private Project() { }
-
-        private Project(Guid id, ProjectCode code, ProjectName nameVi, ProjectName nameEn, string nameAbbr, string description, string objectives,
-            string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, ProjectSourceType sourceType, Guid? groupId = null, Guid? topicPoolId = null) : base(id)
-        {
-            Code = code;
-            NameVi = nameVi;
-            NameEn = nameEn;
-            NameAbbr = nameAbbr;
-            Description = description;
-            Objectives = objectives;
-            Scope = scope;
-            Technologies = technologyStack;
-            ExpectedResults = expectedResults;
-            MajorId = majorId;
-            SemesterId = semesterId;
-            MaxStudents = maxStudents;
-            SourceType = sourceType;
-            GroupId = groupId;
-            TopicPoolId = topicPoolId;
-            Status = ProjectStatus.Draft;
-            Priority = ProjectPriority.Normal;
-            RegistrationType = RegistrationType.Public;
-            EvaluationCount = 0;
-            CreatedAt = DateTime.UtcNow;
-        }
 
         #endregion
 
@@ -127,12 +113,32 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             return project;
         }
 
-        public static Project CreateDirect(ProjectCode code, ProjectName nameVi, ProjectName nameEn, string nameAbbr, string description, string objectives,
-             string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, Guid? groupId = null)
+        /// <summary>
+        /// Records the students listed on the register form attached at proposal time.
+        /// Replaces any previously recorded roster. Passing an empty roster clears it, which
+        /// leaves the topic on the normal pool flow.
+        /// </summary>
+        /// <param name="members">Student ids paired with whether they are the group leader.</param>
+        public void SetProposedRoster(IEnumerable<(Guid StudentId, bool IsLeader)> members)
         {
-            var project = new Project(Guid.NewGuid(), code, nameVi, nameEn, nameAbbr, description, objectives, scope, technologyStack, expectedResults, majorId, semesterId, maxStudents, ProjectSourceType.DirectRegistration, groupId: groupId);
-            project.RaiseDomainEvent(new ProjectCreatedEvent(project.Id, project.Code.Value, ProjectSourceType.DirectRegistration));
-            return project;
+            ArgumentNullException.ThrowIfNull(members);
+
+            var roster = members
+                .GroupBy(m => m.StudentId)
+                .Select(g => (StudentId: g.Key, IsLeader: g.Any(m => m.IsLeader)))
+                .ToList();
+
+            if (roster.Count > MaxStudents)
+                throw new BusinessRuleValidationException($"Danh sách sinh viên vượt quá số lượng tối đa ({MaxStudents}).");
+
+            if (roster.Count(m => m.IsLeader) > 1)
+                throw new BusinessRuleValidationException("Chỉ được chỉ định một nhóm trưởng.");
+
+            _proposedMembers.Clear();
+            foreach (var (studentId, isLeader) in roster)
+                _proposedMembers.Add(ProposedGroupMember.Create(Id, studentId, isLeader));
+
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>
@@ -253,80 +259,6 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             EvaluationCount++;
             UpdatedAt = DateTime.UtcNow;
             RaiseDomainEvent(new ProjectResubmittedEvent(Id, submittedBy, EvaluationCount));
-        }
-
-        #endregion
-
-        #region Mentor Review Workflow (Direct Registration)
-
-        /// <summary>
-        /// Student submits a direct-registration project to their mentor for review.
-        /// Transitions: Draft → PendingMentorReview
-        /// </summary>
-        public void SubmitToMentor(Guid submittedBy)
-        {
-            if (Status != ProjectStatus.Draft)
-                throw new BusinessRuleValidationException("Project can only be submitted to mentor when in Draft status.");
-            if (SourceType != ProjectSourceType.DirectRegistration)
-                throw new BusinessRuleValidationException("Only direct registration projects can be submitted to mentor for review.");
-
-            Status = ProjectStatus.PendingMentorReview;
-            SubmittedAt = DateTime.UtcNow;
-            SubmittedBy = submittedBy;
-            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
-        }
-
-        /// <summary>
-        /// Student re-submits a modified direct-registration project back to mentor.
-        /// Transitions: NeedsModification → PendingMentorReview
-        /// </summary>
-        public void ResubmitToMentor(Guid submittedBy)
-        {
-            if (Status != ProjectStatus.NeedsModification)
-                throw new BusinessRuleValidationException("Project can only be resubmitted when in NeedsModification status.");
-            if (SourceType != ProjectSourceType.DirectRegistration)
-                throw new BusinessRuleValidationException("Only direct registration projects can be resubmitted to mentor.");
-
-            Status = ProjectStatus.PendingMentorReview;
-            SubmittedAt = DateTime.UtcNow;
-            SubmittedBy = submittedBy;
-            MentorFeedback = null; // fresh submission to mentor; clear any prior modification note
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectSubmittedToMentorEvent(Id, submittedBy));
-        }
-
-        /// <summary>
-        /// Mentor approves the project and submits it for formal evaluation.
-        /// Transitions: PendingMentorReview → PendingEvaluation
-        /// </summary>
-        public void MentorApproveAndSubmit(Guid mentorId)
-        {
-            if (Status != ProjectStatus.PendingMentorReview)
-                throw new BusinessRuleValidationException("Only projects pending mentor review can be approved by mentor.");
-
-            Status = ProjectStatus.PendingEvaluation;
-            EvaluationCount++;
-            MentorFeedback = null; // approved; the modification note no longer applies
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectMentorApprovedEvent(Id, mentorId));
-        }
-
-        /// <summary>
-        /// Mentor requests modifications to the project before it can be submitted for evaluation.
-        /// Transitions: PendingMentorReview → NeedsModification
-        /// </summary>
-        public void MentorRequestModification(string? feedback = null)
-        {
-            if (Status != ProjectStatus.PendingMentorReview)
-                throw new BusinessRuleValidationException("Only projects pending mentor review can request modification.");
-
-            Status = ProjectStatus.NeedsModification;
-            LastEvaluationResult = EvaluationResult.NeedsModification;
-            MentorFeedback = feedback; // surfaced to the student on the my-topic page
-            UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new ProjectMentorRequestedModificationEvent(Id, feedback));
         }
 
         #endregion

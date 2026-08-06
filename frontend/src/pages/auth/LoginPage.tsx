@@ -41,6 +41,11 @@ export function LoginPage() {
   const [role, setRole] = useState<LoginRole>("student");
   const [serial, setSerial] = useState("");
 
+  // Real-Firebase email/password credentials (the emulator form above builds its own email).
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   const { user, loginWithGoogle, loginWithEmailPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,6 +93,31 @@ export function LoginPage() {
       } else {
         setError("Email hoặc mật khẩu không đúng.");
       }
+    } catch {
+      setError("Đã có lỗi xảy ra khi đăng nhập");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCredentialsLogin = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Vui lòng nhập email và mật khẩu.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const success = await loginWithEmailPassword(trimmedEmail, password);
+      if (!success) {
+        setError("Email hoặc mật khẩu không đúng.");
+      }
+      // On success the redirect happens in the effect below, once the user state settles.
     } catch {
       setError("Đã có lỗi xảy ra khi đăng nhập");
     } finally {
@@ -211,6 +241,63 @@ export function LoginPage() {
                   </>
                 )}
               </motion.button>
+            </>
+          )}
+
+          {/* Email/Password Login against the real Firebase project */}
+          {!isEmulatorMode && (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-medium text-slate-400">hoặc</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+
+              <form onSubmit={handleCredentialsLogin} className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-slate-600">Email</span>
+                  <input
+                    type="email"
+                    autoComplete="username"
+                    placeholder="you@fpt.edu.vn"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 text-sm border rounded-lg h-11 border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-slate-600">Mật khẩu</span>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-4 pr-11 text-sm border rounded-lg h-11 border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      className="absolute -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {showPassword ? "visibility_off" : "visibility"}
+                      </span>
+                    </button>
+                  </div>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full font-semibold text-white transition-colors rounded-lg h-11 bg-primary hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "Đang đăng nhập..." : "Đăng nhập bằng Email"}
+                </button>
+              </form>
             </>
           )}
 

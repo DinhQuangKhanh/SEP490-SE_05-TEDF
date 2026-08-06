@@ -1,0 +1,212 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required}"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: "no"
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - tedf-production
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /opt/mssql-tools18/bin/sqlcmd \
+          -S sqlserver,1433 \
+          -U sa \
+          -P "$$MSSQL_SA_PASSWORD" \
+          -C \
+          -b \
+          -Q "
+          IF DB_ID(N'UniThesisDB') IS NULL
+          BEGIN
+              CREATE DATABASE [UniThesisDB];
+          END;
+
+          IF DB_ID(N'UniThesisBackgroundService') IS NULL
+          BEGIN
+              CREATE DATABASE [UniThesisBackgroundService];
+          END;
+          "
+
+  mongodb:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  clamav:
+    image: clamav/clamav-debian:1.5.2
+    restart: unless-stopped
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z -w 5 localhost 3310 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: truongnhat2102/tedf-backend:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=UniThesisDB;User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required};MultipleActiveResultSets=true;TrustServerCertificate=true"
+      ConnectionStrings__HangfireConnection: "Server=sqlserver,1433;Database=UniThesisBackgroundService;User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required};MultipleActiveResultSets=true;TrustServerCertificate=true"
+      MongoDbSettings__ConnectionString: "mongodb://mongodb:27017"
+      MongoDbSettings__DatabaseName: "${MONGODB_DATABASE_NAME:-UniThesisLogs}"
+      JwtSettings__Secret: "${JWT_SECRET:?JWT_SECRET is required}"
+      JwtSettings__Issuer: "${JWT_ISSUER:-TEDF.API}"
+      JwtSettings__Audience: "${JWT_AUDIENCE:-TEDF.Client}"
+      JwtSettings__ExpirationInMinutes: "${JWT_EXPIRATION_IN_MINUTES:-60}"
+      JwtSettings__RefreshTokenExpirationInDays: "${JWT_REFRESH_TOKEN_EXPIRATION_IN_DAYS:-7}"
+      Cors__AllowedOrigins__0: "${FRONTEND_PUBLIC_ORIGIN:-https://tedf.io.vn}"
+      Firebase__ProjectId: "${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID is required}"
+      Firebase__UseEmulator: "false"
+      Firebase__ServiceAccountKeyPath: "/app/secrets/service-account.json"
+      FirebaseStorage__BucketName: "${FIREBASE_STORAGE_BUCKET_NAME:?FIREBASE_STORAGE_BUCKET_NAME is required}"
+      FirebaseStorage__MaxFileSizeBytes: "${FIREBASE_STORAGE_MAX_FILE_SIZE_BYTES:-52428800}"
+      FirebaseStorage__SignedUrlExpirationMinutes: "${FIREBASE_STORAGE_SIGNED_URL_EXPIRATION_MINUTES:-60}"
+      FirebaseStorage__MakePublicByDefault: "${FIREBASE_STORAGE_MAKE_PUBLIC_BY_DEFAULT:-true}"
+      CacheSettings__Provider: "Hybrid"
+      CacheSettings__DefaultExpirationInMinutes: "${CACHE_DEFAULT_EXPIRATION_IN_MINUTES:-30}"
+      CacheSettings__RedisConnectionString: "redis:6379,abortConnect=false"
+      CacheSettings__L1ExpirationMinutes: "${CACHE_L1_EXPIRATION_IN_MINUTES:-2}"
+      CacheSettings__L2ExpirationInMinutes: "${CACHE_L2_EXPIRATION_IN_MINUTES:-15}"
+      CacheSettings__InvalidationChannel: "${CACHE_INVALIDATION_CHANNEL:-cache:invalidate}"
+      Security__MalwareScan__Enabled: "${MALWARE_SCAN_ENABLED:-true}"
+      Security__MalwareScan__FailClosed: "${MALWARE_SCAN_FAIL_CLOSED:-true}"
+      Security__MalwareScan__ClamAvHost: "clamav"
+      Security__MalwareScan__ClamAvPort: "3310"
+      EmailSettings__SmtpServer: "${SMTP_SERVER:-}"
+      EmailSettings__SmtpPort: "${SMTP_PORT:-0}"
+      EmailSettings__SenderName: "${SMTP_SENDER_NAME:-TEDF System}"
+      EmailSettings__SenderEmail: "${SMTP_SENDER_EMAIL:-}"
+      EmailSettings__Username: "${SMTP_USERNAME:-}"
+      EmailSettings__Password: "${SMTP_PASSWORD:-}"
+      EmailSettings__EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      UNITHESIS_RESET_LOADTEST_ON_STARTUP: "${UNITHESIS_RESET_LOADTEST_ON_STARTUP:-false}"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${FIREBASE_SERVICE_ACCOUNT_HOST_PATH:-./secrets/service-account.json}:/app/secrets/service-account.json:ro
+      - backend-uploads:/app/wwwroot/uploads
+      - backend-logs:/app/logs
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+        VITE_FIREBASE_API_KEY: "${VITE_FIREBASE_API_KEY:?VITE_FIREBASE_API_KEY is required}"
+        VITE_FIREBASE_PROJECT_ID: "${VITE_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID is required}}"
+        VITE_FIREBASE_AUTH_DOMAIN: "${VITE_FIREBASE_AUTH_DOMAIN:?VITE_FIREBASE_AUTH_DOMAIN is required}"
+        VITE_FIREBASE_STORAGE_BUCKET: "${VITE_FIREBASE_STORAGE_BUCKET:-${FIREBASE_STORAGE_BUCKET_NAME:?FIREBASE_STORAGE_BUCKET_NAME is required}}"
+        VITE_FIREBASE_MESSAGING_SENDER_ID: "${VITE_FIREBASE_MESSAGING_SENDER_ID:?VITE_FIREBASE_MESSAGING_SENDER_ID is required}"
+        VITE_FIREBASE_APP_ID: "${VITE_FIREBASE_APP_ID:?VITE_FIREBASE_APP_ID is required}"
+        VITE_ENABLE_EMULATOR_LOGIN: "${VITE_ENABLE_EMULATOR_LOGIN:-false}"
+    image: truongnhat2102/tedf-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - tedf-production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  tedf-production:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
+  mongodb-data:
+  redis-data:
+  clamav-data:
+  backend-uploads:
+  backend-logs:

@@ -105,7 +105,15 @@ public interface ITopicPoolsDomainService
     // ── TopicPools feature write operations (moved in from command handlers) ──
 
     /// <summary>Mentor proposes a new topic into a pool; returns the new project id.</summary>
-    Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Mentor proposes a topic into a pool.
+    /// </summary>
+    /// <param name="registerFormPdf">
+    /// Optional capstone register form. When it lists students, they are recorded as the topic's
+    /// proposed roster and become a group once the topic passes evaluation. A form with an empty
+    /// student table (or no form at all) leaves the topic on the normal pool flow.
+    /// </param>
+    Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, byte[]? registerFormPdf = null, CancellationToken cancellationToken = default);
 
     /// <summary>Mentor edits a pool topic (allowed only while Draft/NeedsModification).</summary>
     Task UpdatePoolTopicAsync(Guid projectId, PoolTopicContent content, CancellationToken cancellationToken = default);

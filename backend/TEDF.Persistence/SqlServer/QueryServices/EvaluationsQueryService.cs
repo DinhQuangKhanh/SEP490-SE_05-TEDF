@@ -8,6 +8,7 @@ using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
 using TEDF.Domain.Enums.Evaluation;
 using TEDF.Domain.Enums.Mentor;
+using TEDF.Persistence.SqlServer.Extensions;
 
 namespace TEDF.Persistence.SqlServer.QueryServices;
 
@@ -226,9 +227,9 @@ public class EvaluationsQueryService : IEvaluationsQueryService
 
         if (!string.IsNullOrEmpty(search))
         {
-            query = query.Where(x =>
-                x.p.NameVi.ToString().Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.p.Code.ToString().Contains(search, StringComparison.CurrentCultureIgnoreCase));
+            // Code/NameVi are value objects and cannot be searched in SQL — see ProjectSearchExtensions.
+            var matchedProjectIds = await query.Select(x => x.p).MatchSearchTermAsync(search, cancellationToken);
+            query = query.Where(x => matchedProjectIds.Contains(x.p.Id));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -476,12 +477,12 @@ public class EvaluationsQueryService : IEvaluationsQueryService
             }
         }
 
-        // Filter by search (project code or name)
+        // Filter by search (project code or name).
+        // Code/NameVi are value objects and cannot be searched in SQL — see ProjectSearchExtensions.
         if (!string.IsNullOrEmpty(search))
         {
-            query = query.Where(x =>
-                x.p.NameVi.ToString().Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                x.p.Code.ToString().Contains(search, StringComparison.CurrentCultureIgnoreCase));
+            var matchedProjectIds = await query.Select(x => x.p).MatchSearchTermAsync(search, cancellationToken);
+            query = query.Where(x => matchedProjectIds.Contains(x.p.Id));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

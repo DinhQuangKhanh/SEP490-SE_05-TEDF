@@ -3,8 +3,10 @@ using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
+using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.TopicPoolAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
+using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Entities;
@@ -25,7 +27,10 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
     private readonly IProjectRepository _projectRepository;
     private readonly IGroupRepository _groupRepository;
     private readonly IMajorReadRepository _majorRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IRegisterFormParser _registerFormParser;
     private readonly ISemestersDomainService _semesterDomainService;
+    private readonly IProjectsDomainService _projectsDomainService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TopicPoolsDomainService> _logger;
 
@@ -35,15 +40,21 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         IProjectRepository projectRepository,
         IGroupRepository groupRepository,
         IMajorReadRepository majorRepository,
+        IUserRepository userRepository,
+        IRegisterFormParser registerFormParser,
         ISemestersDomainService semesterDomainService,
+        IProjectsDomainService projectsDomainService,
         IUnitOfWork unitOfWork,
         ILogger<TopicPoolsDomainService> logger)
     {
+        _projectsDomainService = projectsDomainService;
         _topicPoolRepository = topicPoolRepository;
         _registrationRepository = registrationRepository;
         _projectRepository = projectRepository;
         _groupRepository = groupRepository;
         _majorRepository = majorRepository;
+        _userRepository = userRepository;
+        _registerFormParser = registerFormParser;
         _semesterDomainService = semesterDomainService;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -418,7 +429,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
 
     // ── TopicPools feature write operations (moved in from command handlers) ──
 
-    public async Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, CancellationToken cancellationToken = default)
+    public async Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, byte[]? registerFormPdf = null, CancellationToken cancellationToken = default)
     {
         var pool = await _topicPoolRepository.GetByIdAsync(poolId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(TopicPool), poolId);
@@ -426,12 +437,10 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (!pool.IsAcceptingProposals())
             throw new BusinessRuleValidationException("This topic pool is not currently accepting new topic proposals.");
 
-        var year = DateTime.UtcNow.Year;
-        var sequence = await _projectRepository.GetNextSequenceAsync(year, cancellationToken);
-        var code = ProjectCode.Generate(year, sequence);
-
         var createdSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken)
             ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ đang hoạt động để tạo đề tài từ topic pool.");
+
+        var code = await _projectsDomainService.GenerateProjectCodeAsync(createdSemesterId, pool.MajorId, cancellationToken);
 
         var expirationOffset = Math.Max(1, pool.ExpirationSemesters);
         var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(createdSemesterId, expirationOffset, cancellationToken);
@@ -454,10 +463,74 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
 
         project.AddMentor(mentorId, assignedBy: mentorId);
 
+        var roster = await ResolveRosterAsync(registerFormPdf, project.MaxStudents, cancellationToken);
+        if (roster.Count > 0)
+            project.SetProposedRoster(roster);
+
         await _projectRepository.AddAsync(project, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return project.Id;
+    }
+
+    /// <summary>
+    /// Turns the attached register form into student ids. Rows that cannot be matched to a user are
+    /// skipped rather than rejected — the roster is an optional convenience, not a gate on proposing.
+    /// </summary>
+    private async Task<List<(Guid StudentId, bool IsLeader)>> ResolveRosterAsync(
+        byte[]? registerFormPdf, int maxStudents, CancellationToken cancellationToken)
+    {
+        var roster = new List<(Guid StudentId, bool IsLeader)>();
+        if (registerFormPdf is null || registerFormPdf.Length == 0)
+            return roster;
+
+        using var stream = new MemoryStream(registerFormPdf, writable: false);
+        var rows = _registerFormParser.ExtractRoster(stream);
+        if (rows.Count == 0)
+            return roster;
+
+        foreach (var row in rows)
+        {
+            var user = await FindStudentAsync(row, cancellationToken);
+            if (user is null)
+            {
+                _logger.LogWarning(
+                    "Register form lists a student that is not in the system (code {Code}); skipping the row.",
+                    row.StudentCode ?? row.Email);
+                continue;
+            }
+
+            if (roster.Any(r => r.StudentId == user.Id))
+                continue;
+
+            roster.Add((user.Id, row.IsLeader));
+        }
+
+        if (roster.Count > maxStudents)
+        {
+            _logger.LogWarning(
+                "Register form lists {Count} students but the topic allows {Max}; ignoring the roster.",
+                roster.Count, maxStudents);
+            return [];
+        }
+
+        return roster;
+    }
+
+    private async Task<Domain.Aggregates.UserAggregate.User?> FindStudentAsync(
+        RegisterRosterRow row, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(row.StudentCode))
+        {
+            var byCode = await _userRepository.GetByStudentCodeAsync(row.StudentCode, cancellationToken);
+            if (byCode is not null)
+                return byCode;
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.Email))
+            return await _userRepository.GetByEmailAsync(row.Email, cancellationToken);
+
+        return null;
     }
 
     public async Task UpdatePoolTopicAsync(Guid projectId, PoolTopicContent content, CancellationToken cancellationToken = default)
