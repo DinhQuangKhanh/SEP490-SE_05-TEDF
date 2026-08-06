@@ -9,7 +9,14 @@ namespace TEDF.Domain.Aggregates.UserAggregate.ValueObjects
     /// </summary>
     public sealed class Email : ValueObject
     {
-        public const string AllowedDomain = "fpt.edu.vn";
+        /// <summary>Domains an address may belong to; see <see cref="EmailMustBeFptDomainRule"/>.</summary>
+        public static IReadOnlyList<string> AllowedDomains => EmailMustBeFptDomainRule.AllowedDomains;
+
+        /// <summary>
+        /// Whether <paramref name="value"/> would be accepted by <see cref="Create"/>, without
+        /// throwing. Use this where a rejected address is an expected outcome rather than an error.
+        /// </summary>
+        public static bool IsAllowed(string? value) => !new EmailMustBeFptDomainRule(value ?? string.Empty).IsBroken();
 
         public string Value { get; }
 
