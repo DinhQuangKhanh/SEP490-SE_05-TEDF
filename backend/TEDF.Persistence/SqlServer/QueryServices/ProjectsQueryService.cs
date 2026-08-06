@@ -152,7 +152,10 @@ public class ProjectsQueryService : IProjectsQueryService
                         p.Status == ProjectStatus.Approved ||
                         p.Status == ProjectStatus.NeedsModification ||
                         p.Status == ProjectStatus.Rejected))
-            .OrderByDescending(p => p.SubmittedAt)
+            // A topic that has not been submitted yet has no SubmittedAt, and in SQL Server those
+            // NULLs sort last on a descending order — which buried freshly created topics at the
+            // bottom of the list. Fall back to CreatedAt so newest always comes first.
+            .OrderByDescending(p => p.SubmittedAt ?? p.CreatedAt)
             .ToListAsync(cancellationToken);
 
         var projectIds = projects.Select(p => p.Id).ToList();
@@ -208,6 +211,7 @@ public class ProjectsQueryService : IProjectsQueryService
                 Status = p.Status.ToString(),
                 StatusValue = (int)p.Status,
                 SubmittedAt = p.SubmittedAt?.ToString("o"),
+                CreatedAt = p.CreatedAt.ToString("o"),
                 AssignedEvaluatorCount = projectAssignments.Count,
                 HasConflict = hasConflict,
                 NeedsFinalDecision = needsDecision,

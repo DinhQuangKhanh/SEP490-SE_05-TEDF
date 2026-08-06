@@ -159,6 +159,8 @@ export interface DepartmentProject {
   status: string;
   statusValue: number;
   submittedAt: string | null;
+  /** Fallback date for topics never submitted — `submittedAt` is null for those. */
+  createdAt: string;
   evaluators: EvaluatorAssignment[];
   mentors: MentorSummary[];
   hasConflict: boolean;
@@ -238,7 +240,12 @@ export function reviewedAt(project: DepartmentProject): string | null {
     .map((e) => e.evaluatedAt)
     .filter((d): d is string => !!d)
     .sort((a, b) => a.localeCompare(b));
-  return dates.length > 0 ? dates[dates.length - 1] : (project.submittedAt ?? null);
+  return dates.length > 0 ? dates[dates.length - 1] : (project.submittedAt ?? project.createdAt ?? null);
+}
+
+/** Date shown as "Ngày gửi": the submission date, or the creation date for a topic never submitted. */
+export function submittedOrCreatedAt(project: DepartmentProject): string | null {
+  return project.submittedAt ?? project.createdAt ?? null;
 }
 
 /** Sort comparator: most recently reviewed first, topics without any date last. */
