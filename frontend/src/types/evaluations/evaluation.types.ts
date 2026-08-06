@@ -43,6 +43,14 @@ export interface SimilarityMatchDto {
   level: string;
   /** Explanations, e.g. "same tech stack with a different business domain". */
   reasons: string[];
+  // Matched topic content (populated for the top matches) for the side-by-side comparison.
+  title: string | null;
+  description: string | null;
+  scope: string | null;
+  objectives: string | null;
+  expectedResult: string | null;
+  semester: string | null;
+  technologies: string[];
 }
 
 /** POST /api/evaluations/projects/{id}/evaluate */

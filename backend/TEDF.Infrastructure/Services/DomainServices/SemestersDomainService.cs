@@ -176,14 +176,14 @@ public class SemestersDomainService : ISemestersDomainService
         var successCount = 0;
         var issues = new List<ImportRowIssue>();
         var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var majorLookup = await LoadMajorLookupAsync(cancellationToken);
 
         foreach (var row in rows)
         {
             var student = await _userRepository.GetByStudentCodeAsync(row.StudentCode, cancellationToken);
 
-            var major = string.IsNullOrWhiteSpace(row.MajorName)
-                ? null
-                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
+            // Resolve the major by name or code (loaded once, in-memory — no per-row DB query).
+            var major = ResolveMajorFor(majorLookup, row.MajorName);
 
             if (student is null)
             {
@@ -233,12 +233,14 @@ public class SemestersDomainService : ISemestersDomainService
         var issues = new List<ImportRowIssue>();
         var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var majorLookup = await LoadMajorLookupAsync(cancellationToken);
 
         foreach (var row in rows)
         {
-            var major = string.IsNullOrWhiteSpace(row.MajorName)
-                ? null
-                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
+            // Resolve the advising major from the file's "Ngành" column, falling back to the
+            // "Bộ môn" (division) column — its code (SE/IA/AI/IC) matches a major code — so the
+            // admin no longer has to pick "Ngành hướng dẫn" by hand for every imported row.
+            var major = ResolveMajorFor(majorLookup, row.MajorName, row.Division);
 
             var resolved = await ResolveMentorIdentityAsync(row, major, seenCodes, seenEmails, issues, cancellationToken);
             if (resolved is null) continue;
@@ -373,6 +375,30 @@ public class SemestersDomainService : ISemestersDomainService
         => !string.IsNullOrWhiteSpace(existing.PhoneNumber)
         && !string.IsNullOrWhiteSpace(filePhone)
         && !string.Equals(existing.PhoneNumber.Trim(), filePhone.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Loads every major once, keyed by both Code (e.g. "SE") and Name ("Kỹ thuật phần mềm"),
+    /// case-insensitive — so imports resolve majors in-memory instead of one DB query per row.
+    /// </summary>
+    private async Task<Dictionary<string, Major>> LoadMajorLookupAsync(CancellationToken cancellationToken)
+    {
+        var lookup = new Dictionary<string, Major>(StringComparer.OrdinalIgnoreCase);
+        foreach (var major in await _majorRepository.GetAllAsync(cancellationToken))
+        {
+            if (!string.IsNullOrWhiteSpace(major.Code)) lookup.TryAdd(major.Code.Trim(), major);
+            if (!string.IsNullOrWhiteSpace(major.Name)) lookup.TryAdd(major.Name.Trim(), major);
+        }
+        return lookup;
+    }
+
+    /// <summary>Returns the major for the first candidate that matches a major Code or Name.</summary>
+    private static Major? ResolveMajorFor(Dictionary<string, Major> lookup, params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+            if (!string.IsNullOrWhiteSpace(candidate) && lookup.TryGetValue(candidate.Trim(), out var major))
+                return major;
+        return null;
+    }
 
     /// <summary>Tìm (mã, email) còn trống bằng cách thêm số thứ tự: LamDQ/lamdq@… → LamDQ1/lamdq1@…, LamDQ2/…</summary>
     private async Task<(string Code, string Email)> NextAvailableSuffixAsync(

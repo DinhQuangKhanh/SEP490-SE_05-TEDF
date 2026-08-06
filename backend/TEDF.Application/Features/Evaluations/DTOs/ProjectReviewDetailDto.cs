@@ -75,4 +75,13 @@ public record SimilarityMatchDto
 
     /// <summary>Explanations, e.g. "same tech stack with a different business domain".</summary>
     public List<string> Reasons { get; init; } = [];
+
+    // ── Matched topic content (populated for the top matches, for the side-by-side view) ──
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public string? Scope { get; init; }
+    public string? Objectives { get; init; }
+    public string? ExpectedResult { get; init; }
+    public string? Semester { get; init; }
+    public List<string> Technologies { get; init; } = [];
 }

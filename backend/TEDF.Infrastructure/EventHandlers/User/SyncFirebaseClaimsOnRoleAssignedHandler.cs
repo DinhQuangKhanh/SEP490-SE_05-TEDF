@@ -33,6 +33,12 @@ public class SyncFirebaseClaimsOnRoleAssignedHandler : INotificationHandler<User
                 return;
             }
 
+            // "Pending" accounts created during roster import have no real Firebase user yet, so
+            // SetCustomClaims would make a failing network round-trip per user (a big drag on bulk
+            // imports). Claims are synced when the account is linked on first Google sign-in.
+            if (user.IsPendingActivation)
+                return;
+
             var activeRoles = user.GetActiveRoles().ToArray();
 
             var claims = new Dictionary<string, object>
