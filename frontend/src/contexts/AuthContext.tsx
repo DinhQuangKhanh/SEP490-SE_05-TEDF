@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '@/config/firebase'
 import { authService } from '@/lib/auth/authService'
+import { ApiError } from '@/lib/common/apiClient'
 import type { SessionAccess } from '@/types'
 
 type UserRole = 'admin' | 'mentor' | 'evaluator' | 'student' | 'departmenthead'
@@ -43,7 +44,42 @@ const useFirebase = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' ||
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-function parseRolesFromToken(token: string): UserRole[] {
+/**
+ * Most-privileged first. roles[0] decides the landing page, and the database returns roles in
+ * insertion order — an account that was auto-provisioned as Student before being granted Admin
+ * would otherwise keep landing on the student UI.
+ */
+const ROLE_PRIORITY: UserRole[] = ['admin', 'departmenthead', 'mentor', 'evaluator', 'student']
+
+/** Keeps only roles the SPA knows how to route, lower-cased ("Admin" -> "admin"), most-privileged first. */
+function normalizeRoles(raw: readonly string[] | undefined): UserRole[] {
+    if (!raw) return []
+    const seen = new Set(
+        raw
+            .map((r) => r.toLowerCase() as UserRole)
+            .filter((r): r is UserRole => ROLE_PRIORITY.includes(r)),
+    )
+    return ROLE_PRIORITY.filter((r) => seen.has(r))
+}
+
+/**
+ * Fallback only — used before the server session arrives, and when it cannot be reached.
+ *
+ * Firebase custom claims are a cache that lags one token refresh behind the database: a role
+ * granted (or revoked) server-side is not in the token the browser is already holding. The DB,
+ * via GET /api/auth/session, is the source of truth for roles.
+ */
+/**
+ * Default role when the Firebase token carries no role claim (a freshly-created account whose
+ * custom claims haven't been synced yet). Mirrors the backend's DefaultRoleForEmail: the
+ * @fe.edu.vn domain belongs to lecturers, every other accepted domain to students.
+ */
+function defaultRoleForEmail(email: string): UserRole {
+    return email.toLowerCase().endsWith('@fe.edu.vn') ? 'mentor' : 'student'
+}
+
+function parseRolesFromToken(token: string, email: string): UserRole[] {
+    const fallback: UserRole[] = [defaultRoleForEmail(email)]
     try {
         const payload = token.split('.')[1]
         const decoded = JSON.parse(atob(payload))
@@ -52,23 +88,23 @@ function parseRolesFromToken(token: string): UserRole[] {
             decoded.role ||
             decoded.roles ||
             decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']
-        if (!roleClaim) return ['student']
+        if (!roleClaim) return fallback
         const rawRoles: string[] = Array.isArray(roleClaim) ? roleClaim : [roleClaim]
         const validRoles: UserRole[] = rawRoles
             .map((r: string) => r.toLowerCase() as UserRole)
             .filter((r): r is UserRole =>
                 ['admin', 'mentor', 'evaluator', 'student', 'departmenthead'].includes(r),
             )
-        return validRoles.length > 0 ? validRoles : ['student']
+        return validRoles.length > 0 ? validRoles : fallback
     } catch (err) {
         console.error('Failed to parse roles from JWT:', err)
-        return ['student']
+        return fallback
     }
 }
 
 function firebaseUserToUser(fbUser: FirebaseUser, token: string): User {
     const email = fbUser.email || ''
-    const roles = parseRolesFromToken(token)
+    const roles = parseRolesFromToken(token, email)
     return {
         id: fbUser.uid,
         name: fbUser.displayName || email.split('@')[0],
@@ -99,15 +135,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const navigate = useNavigate()
     const [access, setAccess] = useState<SessionAccess | null>(null)
 
-    // Fetch the server access gate (account status + student eligibility) after sign-in.
-    const refreshAccess = async () => {
+    /**
+     * Reconciles the signed-in Firebase user against the TEDF database.
+     *
+     * Signing in with Google only proves who the person is; it says nothing about what they are
+     * in this system. GET /api/auth/session is what resolves that — it returns the roles held in
+     * the database, plus the access gate. Roles from the Firebase token are only a stale cache,
+     * so whatever the server says wins.
+     *
+     * Returns the user with server roles applied; on a network failure it returns the input
+     * unchanged rather than locking the person out.
+     */
+    const syncWithServer = async (appUser: User): Promise<User> => {
         try {
             const session = await authService.getSession()
             setAccess(session.access)
-        } catch {
-            // Fail-open on transient errors; the server middleware still enforces access.
+
+            const roles = normalizeRoles(session.roles)
+            if (roles.length === 0) return appUser
+
+            return {
+                ...appUser,
+                roles,
+                role: roles[0],
+                name: session.fullName || appUser.name,
+                email: session.email || appUser.email,
+            }
+        } catch (err) {
+            // Never swallow this silently: when the session lookup fails the SPA falls back to the
+            // Firebase token, whose default is 'student' — so a failure here looks exactly like a
+            // successful login with the wrong role, which is impossible to diagnose from the UI.
+            const status = err instanceof ApiError ? err.status : null
+            if (status === 401 || status === 403) {
+                console.error(
+                    `[auth] GET /api/auth/session -> ${status}. The Firebase sign-in worked, but the ` +
+                    `backend did not accept it: no TEDF account is linked to this user, or the account ` +
+                    `is locked. Roles fall back to the Firebase token. Server said: ${(err as ApiError).message}`,
+                )
+            } else if (status !== null) {
+                console.error(`[auth] GET /api/auth/session -> ${status}: ${(err as ApiError).message}`)
+            } else {
+                console.error(
+                    '[auth] GET /api/auth/session could not be reached at all ' +
+                    `(${import.meta.env.VITE_API_BASE_URL || 'same origin'}). Typical causes: the API is ` +
+                    'not running, CORS, or an untrusted https dev certificate. Original error:',
+                    err,
+                )
+            }
+
+            // Fail-open on the access gate; the server middleware still enforces it on every request.
             setAccess({ allowed: true, kind: null, reason: null })
+            return appUser
         }
+    }
+
+    /**
+     * Stores the bearer token before any authenticated call is made.
+     *
+     * apiClient reads the token out of localStorage["user"], so the session lookup in
+     * syncWithServer only authenticates if the freshly minted token is already there. Writing
+     * React state here as well would briefly publish the fallback role and bounce the user
+     * through the wrong dashboard, so this deliberately touches storage only.
+     */
+    const persistToken = (appUser: User) => {
+        localStorage.setItem('user', JSON.stringify(appUser))
+    }
+
+    /** Persists the user and keeps activeRole valid for the roles they actually hold. */
+    const commitUser = (appUser: User) => {
+        setUser(appUser)
+        localStorage.setItem('user', JSON.stringify(appUser))
+
+        // A role stored from an earlier session may no longer be granted — fall back instead of
+        // leaving the SPA on a tab the account cannot use.
+        console.log('commitUser', appUser)
+        const stored = localStorage.getItem('activeRole') as UserRole | null
+        const nextRole = stored && appUser.roles.includes(stored) ? stored : appUser.role
+        setActiveRole(nextRole)
+        localStorage.setItem('activeRole', nextRole)
     }
 
     // Listen for Firebase auth state changes
@@ -118,13 +223,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (fbUser) {
                 const token = await fbUser.getIdToken()
                 const appUser = firebaseUserToUser(fbUser, token)
-                setUser(appUser)
-                localStorage.setItem('user', JSON.stringify(appUser))
-                if (!localStorage.getItem('activeRole')) {
-                    setActiveRole(appUser.role)
-                    localStorage.setItem('activeRole', appUser.role)
-                }
-                await refreshAccess()
+                persistToken(appUser)
+                commitUser(await syncWithServer(appUser))
             } else {
                 setUser(null)
                 setActiveRole(null)
@@ -143,11 +243,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const result = await signInWithEmailAndPassword(auth, email, password)
             const token = await result.user.getIdToken()
             const appUser = firebaseUserToUser(result.user, token)
-            setUser(appUser)
-            setActiveRole(appUser.role)
-            localStorage.setItem('user', JSON.stringify(appUser))
-            localStorage.setItem('activeRole', appUser.role)
-            await refreshAccess()
+            persistToken(appUser)
+            commitUser(await syncWithServer(appUser))
             return true
         } catch (err) {
             console.error('Email/password login failed:', err)
@@ -162,11 +259,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const result = await signInWithPopup(auth, provider)
             const token = await result.user.getIdToken()
             const appUser = firebaseUserToUser(result.user, token)
-            setUser(appUser)
-            setActiveRole(appUser.role)
-            localStorage.setItem('user', JSON.stringify(appUser))
-            localStorage.setItem('activeRole', appUser.role)
-            await refreshAccess()
+            persistToken(appUser)
+            commitUser(await syncWithServer(appUser))
             return true
         } catch (err) {
             console.error('Google login failed:', err)

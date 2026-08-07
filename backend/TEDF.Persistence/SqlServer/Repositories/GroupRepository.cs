@@ -73,6 +73,16 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .AnyAsync(g => g.Members.Any(m => m.StudentId == studentId && m.Status == GroupMemberStatus.Active), cancellationToken);
         }
 
+        /// <inheritdoc/>
+        public async Task<bool> HadGroupInSemesterAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)
+        {
+            // Disbanded groups are excluded on purpose: the student ended the semester without a
+            // group, so nothing was consumed and they stay eligible for the next one.
+            return await _dbSet
+                .Where(g => g.SemesterId == semesterId && g.Status != GroupStatus.Disbanded)
+                .AnyAsync(g => g.Members.Any(m => m.StudentId == studentId && m.Status == GroupMemberStatus.Active), cancellationToken);
+        }
+
         public async Task<bool> HasPendingJoinRequestAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default)
         {
             return await _context.GroupJoinRequests

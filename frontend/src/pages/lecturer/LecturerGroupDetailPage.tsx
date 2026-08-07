@@ -1,233 +1,308 @@
-import { motion } from 'framer-motion'
-import { NotificationDropdown } from '@/components/layout'
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { NotificationDropdown } from "@/components/layout";
+import { MemberProfileModal } from "@/components/common/MemberProfileModal";
+import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
+import { useSystemError } from "@/contexts/SystemErrorContext";
+import { statusConfig, studentGroupService, topicPoolService, topicService } from "@/lib";
+import type { GroupMemberDto, GroupRegistrationDto, MentorGroupDto, TopicDetail, TopicDocument } from "@/types";
 
 const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.05 } }
-}
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+};
 
 const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
+
+// MentorGroupDto.projectStatus is the backend ProjectStatus enum stringified; map it back to the
+// numeric code so we can reuse the shared statusConfig() label/colour helper.
+const PROJECT_STATUS_CODE: Record<string, number> = {
+  Draft: 0,
+  PendingEvaluation: 1,
+  NeedsModification: 2,
+  Approved: 3,
+  Rejected: 4,
+  InProgress: 5,
+  Completed: 6,
+  Cancelled: 7,
+  PendingMentorReview: 8,
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const members = [
-    { name: 'Trần Hoàng Nam (Trưởng nhóm)', mssv: '20150231 - CNTT-01' },
-    { name: 'Lê Thị Thanh Mai', mssv: '20150452 - CNTT-02' },
-    { name: 'Nguyễn Minh Quân', mssv: '20150118 - CNTT-01' },
-]
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("vi-VN");
+}
 
-const files = [
-    { name: 'Bao_cao_de_cuong_v1.pdf', type: 'pdf', size: '1.2 MB', time: '2 ngày trước' },
-    { name: 'Phan_tich_yeu_cau_nguoi_dung.docx', type: 'doc', size: '450 KB', time: 'Hôm nay' },
-    { name: 'Ban_thao_giao_dien_UI.png', type: 'image', size: '2.8 MB', time: '5 giờ trước' },
-]
-
-const messages = [
-    { author: 'Mentor Nguyễn Văn A', time: '08:30 - 20/10', content: 'Nhóm nên bổ sung thêm phần phân tích tính khả thi khi tích hợp AI vào mobile app nhé. Hiện tại phần mô tả còn hơi sơ sài.', isMentor: true },
-    { author: 'Nam (Trưởng nhóm)', time: '09:15 - 20/10', content: 'Dạ vâng ạ, chúng em đang bổ sung và sẽ nộp bản thảo mới vào chiều nay ạ.', isMentor: false },
-]
+function docIcon(fileType: string): { icon: string; cls: string } {
+  const t = (fileType ?? "").toLowerCase();
+  if (t.includes("pdf")) return { icon: "picture_as_pdf", cls: "bg-rose-50 text-rose-600" };
+  if (t.includes("doc") || t.includes("word")) return { icon: "description", cls: "bg-blue-50 text-blue-600" };
+  if (t.includes("png") || t.includes("jpg") || t.includes("jpeg") || t.includes("image"))
+    return { icon: "image", cls: "bg-amber-50 text-amber-600" };
+  return { icon: "draft", cls: "bg-slate-100 text-slate-500" };
+}
 
 export function LecturerGroupDetailPage() {
+  const { id: groupId } = useParams();
+  const navigate = useNavigate();
+  const { showError } = useSystemError();
 
-    return (
-        <>
-            {/* Header */}
-            <header className="h-16 flex items-center justify-between px-8 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-50 shadow-md">
-                <div className="flex items-center gap-2 text-white">
-                    <span className="text-slate-400 font-medium text-sm">Nhóm của tôi</span>
-                    <span className="material-symbols-outlined text-sm text-slate-500">chevron_right</span>
-                    <h2 className="text-lg font-bold">Chi tiết đề tài - Nhóm 01</h2>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors">
-                        <span className="material-symbols-outlined text-[20px]">download</span>
-                        <span>Tải xuống tất cả tài liệu</span>
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors">
-                        <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                        <span>Phê duyệt nội dung</span>
-                    </button>
-                    <div className="w-px h-6 bg-slate-700 mx-2" />
-                    <NotificationDropdown role="mentor" isNavy={true} />
-                </div>
-            </header>
+  const [group, setGroup] = useState<MentorGroupDto | null>(null);
+  const [detail, setDetail] = useState<TopicDetail | null>(null);
+  const [documents, setDocuments] = useState<TopicDocument[]>([]);
+  const [registration, setRegistration] = useState<GroupRegistrationDto | null>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMemberDto | null>(null);
+  const [loading, setLoading] = useState(true);
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
-                <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-12 gap-8">
-                    {/* Left Column - Topic Details */}
-                    <motion.div variants={item} className="col-span-12 lg:col-span-8 space-y-6">
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-primary text-[28px]">description</span>
-                                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">Mô tả chi tiết đề tài</h3>
-                                </div>
-                                <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full uppercase">
-                                    Đang chờ thẩm định
-                                </span>
-                            </div>
-                            <div className="p-8 space-y-10">
-                                <section>
-                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Tên đề tài</h4>
-                                    <p className="text-2xl font-bold text-slate-900 leading-tight">
-                                        Xây dựng nền tảng học trực tuyến E-Learning tích hợp trí tuệ nhân tạo (AI) hỗ trợ học tập cá nhân hóa
-                                    </p>
-                                </section>
+  useEffect(() => {
+    if (!groupId) return;
+    let cancelled = false;
+    setLoading(true);
 
-                                <section>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="size-2 rounded-full bg-primary" />
-                                        <h4 className="text-base font-bold text-slate-800">1. Mục tiêu đề tài</h4>
-                                    </div>
-                                    <div className="text-slate-600 space-y-3 leading-relaxed ml-4">
-                                        <p>Nghiên cứu và ứng dụng các thuật toán Machine Learning để phân tích hành vi học tập của sinh viên.</p>
-                                        <p>Phát triển hệ thống khuyến nghị nội dung học tập thông minh dựa trên lộ trình cá nhân hóa.</p>
-                                        <p>Tối ưu hóa trải nghiệm người dùng trên các thiết bị di động và máy tính thông qua giao diện hiện đại.</p>
-                                    </div>
-                                </section>
+    studentGroupService
+      .getMentorGroups()
+      .then(async (groups) => {
+        const g = groups.find((x) => x.groupId === groupId) ?? null;
+        if (cancelled) return;
+        setGroup(g);
+        if (g?.projectId) {
+          const [d, docs, reg] = await Promise.all([
+            topicService.getTopicDetail(g.projectId),
+            topicService.getTopicDocuments(g.projectId),
+            // A direct-registration topic has no confirmed pool registration → null; tolerate failure
+            // so a missing note never blocks the rest of the page.
+            topicPoolService.getProjectRegistration(g.projectId).catch(() => null),
+          ]);
+          if (cancelled) return;
+          setDetail(d);
+          setDocuments(docs);
+          setRegistration(reg);
+        }
+      })
+      .catch((err) => showError(err instanceof Error ? err.message : "Không thể tải chi tiết đề tài"))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-                                <section>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="size-2 rounded-full bg-primary" />
-                                        <h4 className="text-base font-bold text-slate-800">2. Phạm vi thực hiện</h4>
-                                    </div>
-                                    <div className="text-slate-600 space-y-3 leading-relaxed ml-4">
-                                        <p><strong className="text-slate-900">Về công nghệ:</strong> Sử dụng ReactJS cho Frontend, Node.js cho Backend, Python (TensorFlow/PyTorch) cho module AI, và PostgreSQL cho cơ sở dữ liệu.</p>
-                                        <p><strong className="text-slate-900">Về nội dung:</strong> Tập trung vào các khóa học thuộc lĩnh vực Công nghệ thông tin và Ngoại ngữ.</p>
-                                        <p><strong className="text-slate-900">Đối tượng:</strong> Thử nghiệm trên quy mô 500 sinh viên tại khoa CNTT của trường.</p>
-                                    </div>
-                                </section>
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, showError]);
 
-                                <section>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="size-2 rounded-full bg-primary" />
-                                        <h4 className="text-base font-bold text-slate-800">3. Kết quả dự kiến</h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-4">
-                                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                                            <div className="flex items-center gap-2 mb-2 text-primary">
-                                                <span className="material-symbols-outlined text-[20px]">inventory_2</span>
-                                                <span className="font-bold text-sm">Sản phẩm phần mềm</span>
-                                            </div>
-                                            <p className="text-sm text-slate-600">Ứng dụng Web hoàn chỉnh và Ứng dụng Mobile (Android &amp; iOS) có tích hợp Chatbot AI.</p>
-                                        </div>
-                                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                                            <div className="flex items-center gap-2 mb-2 text-primary">
-                                                <span className="material-symbols-outlined text-[20px]">article</span>
-                                                <span className="font-bold text-sm">Báo cáo khoa học</span>
-                                            </div>
-                                            <p className="text-sm text-slate-600">Quyển báo cáo chi tiết về quy trình xây dựng hệ thống và kết quả thử nghiệm thực tế.</p>
-                                        </div>
-                                    </div>
-                                </section>
-                            </div>
-                        </div>
-                    </motion.div>
+  const badge = group?.projectStatus ? statusConfig(PROJECT_STATUS_CODE[group.projectStatus] ?? -1) : null;
 
-                    {/* Right Column - Sidebar */}
-                    <motion.div variants={item} className="col-span-12 lg:col-span-4 space-y-6">
-                        {/* Team Info */}
-                        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-500 text-[20px]">groups</span>
-                                <h3 className="font-bold text-slate-900 text-sm">Thông tin nhóm thực hiện</h3>
-                            </div>
-                            <div className="p-4 space-y-4">
-                                {members.map((member) => (
-                                    <div key={member.mssv} className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg hover:border-primary/30 transition-colors">
-                                        <div className="size-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-bold">
-                                            {member.name.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-900 truncate">{member.name}</p>
-                                            <p className="text-xs text-slate-500">MSSV: {member.mssv}</p>
-                                        </div>
-                                        <span className="material-symbols-outlined text-slate-400 text-[18px]">contact_mail</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
+  const sections = detail
+    ? [
+        { label: "Tên tiếng Anh", value: detail.nameEn },
+        { label: "Tên viết tắt", value: detail.nameAbbr },
+        { label: "Mô tả", value: detail.description },
+        { label: "Mục tiêu đề tài", value: detail.objectives },
+        { label: "Phạm vi thực hiện", value: detail.scope },
+        { label: "Công nghệ sử dụng", value: detail.technologies },
+        { label: "Kết quả dự kiến", value: detail.expectedResults },
+        { label: "Ngày tạo", value: detail.createdAt ? formatDate(detail.createdAt) : "" },
+      ].filter((s) => s.value && s.value.trim().length > 0)
+    : [];
 
-                        {/* Files */}
-                        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-slate-500 text-[20px]">folder</span>
-                                    <h3 className="font-bold text-slate-900 text-sm">Kho tài liệu của nhóm</h3>
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{files.length} files</span>
-                            </div>
-                            <div className="p-4 space-y-2">
-                                {files.map((file) => (
-                                    <div key={file.name} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer group">
-                                        <div className={`size-9 rounded flex items-center justify-center ${file.type === 'pdf' ? 'bg-rose-50 text-rose-600' : file.type === 'doc' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
-                                            }`}>
-                                            <span className="material-symbols-outlined text-[20px]">{file.type === 'pdf' ? 'picture_as_pdf' : file.type === 'doc' ? 'description' : 'draft'}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
-                                            <p className="text-[10px] text-slate-400 uppercase font-medium">{file.size} • {file.time}</p>
-                                        </div>
-                                        <span className="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors text-[18px]">download</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="p-3 bg-slate-50 border-t border-slate-100">
-                                <button className="w-full py-2 text-primary hover:text-primary/80 text-xs font-bold transition-colors">
-                                    Xem tất cả tài liệu
-                                </button>
-                            </div>
-                        </section>
-
-                        {/* Comments */}
-                        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-slate-500 text-[20px]">forum</span>
-                                <h3 className="font-bold text-slate-900 text-sm">Nhận xét &amp; Hướng dẫn</h3>
-                            </div>
-                            <div className="p-4 flex-1 space-y-4 min-h-[200px] max-h-[300px] overflow-y-auto">
-                                {messages.map((msg, idx) => (
-                                    <div key={idx} className={`flex gap-3 ${!msg.isMentor ? 'flex-row-reverse' : ''}`}>
-                                        <div className="size-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-xs font-bold text-slate-500">
-                                            {msg.author.charAt(0)}
-                                        </div>
-                                        <div className={`rounded-2xl p-3 max-w-[90%] ${msg.isMentor ? 'bg-slate-100 rounded-tl-none' : 'bg-primary/10 rounded-tr-none'}`}>
-                                            <div className="flex items-center justify-between mb-1 gap-4">
-                                                <span className={`text-[11px] font-bold ${msg.isMentor ? 'text-slate-900' : 'text-primary'}`}>{msg.author}</span>
-                                                <span className={`text-[10px] ${msg.isMentor ? 'text-slate-400' : 'text-primary/60'}`}>{msg.time}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-700 leading-relaxed">{msg.content}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="p-4 border-t border-slate-100 bg-white">
-                                <div className="relative">
-                                    <textarea
-                                        className="w-full border-slate-200 rounded-lg text-sm focus:ring-primary focus:border-primary placeholder:text-slate-400 min-h-[80px] pr-10 resize-none"
-                                        placeholder="Để lại lời nhắn hoặc yêu cầu chỉnh sửa cho nhóm..."
-                                    />
-                                    <button className="absolute bottom-2 right-2 p-1.5 bg-primary hover:bg-primary/90 text-white rounded-md transition-colors">
-                                        <span className="material-symbols-outlined text-[18px]">send</span>
-                                    </button>
-                                </div>
-                                <div className="flex items-center gap-3 mt-3">
-                                    <button className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-primary transition-colors">
-                                        <span className="material-symbols-outlined text-[16px]">attach_file</span>
-                                        Đính kèm tài liệu
-                                    </button>
-                                    <button className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-700 transition-colors">
-                                        <span className="material-symbols-outlined text-[16px]">report</span>
-                                        Yêu cầu sửa gấp
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-                    </motion.div>
-                </motion.div>
+  return (
+    <>
+      {/* Header */}
+      <header className="z-10 px-8 py-5 shadow-lg bg-primary shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-white">
+            <button
+              type="button"
+              onClick={() => navigate("/lecturer/groups")}
+              className="flex items-center justify-center transition-colors rounded-lg size-9 hover:bg-white/10"
+              aria-label="Quay lại"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-blue-100/80">Nhóm của tôi</span>
+              <span className="material-symbols-outlined text-[18px] text-blue-100/60">chevron_right</span>
+              <h2 className="text-lg font-bold">
+                Chi tiết đề tài{group ? ` — ${group.displayName || group.groupName || group.groupCode}` : ""}
+              </h2>
             </div>
-        </>
-    )
+          </div>
+          <NotificationDropdown role="mentor" isNavy={true} />
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 p-8 overflow-y-auto bg-slate-100">
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-b-2 rounded-full animate-spin border-primary" />
+          </div>
+        )}
+
+        {!loading && !group && (
+          <div className="p-12 text-center bg-white border rounded-xl border-slate-200">
+            <span className="mb-3 text-5xl material-symbols-outlined text-slate-300">group_off</span>
+            <h3 className="mb-1 text-lg font-bold text-slate-700">Không tìm thấy nhóm</h3>
+            <p className="text-sm text-slate-500">Nhóm này không tồn tại hoặc bạn không hướng dẫn nhóm này.</p>
+          </div>
+        )}
+
+        {!loading && group && (
+          <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-12 gap-8">
+            {/* Left Column - Topic Details */}
+            <motion.div variants={item} className="col-span-12 space-y-6 lg:col-span-8">
+              <div className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200">
+                <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-primary text-[28px]">description</span>
+                    <h3 className="text-xl font-bold tracking-tight text-slate-900">Mô tả chi tiết đề tài</h3>
+                  </div>
+                  {badge && (
+                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${badge.bg} ${badge.text}`}>
+                      {badge.label}
+                    </span>
+                  )}
+                </div>
+
+                {detail ? (
+                  <div className="p-8 space-y-8">
+                    <section>
+                      <h4 className="mb-3 text-sm font-bold tracking-widest uppercase text-slate-400">Tên đề tài</h4>
+                      <p className="text-2xl font-bold leading-tight text-slate-900">{detail.nameVi}</p>
+                      {detail.code && <p className="mt-2 text-sm font-medium text-slate-400"># {detail.code}</p>}
+                    </section>
+
+                    {detail.mentorFeedback && (
+                      <div className="p-4 border rounded-lg border-amber-200 bg-amber-50">
+                        <p className="mb-1 text-xs font-bold tracking-wide uppercase text-amber-700">
+                          Phản hồi của giảng viên
+                        </p>
+                        <p className="text-sm whitespace-pre-line text-amber-800">{detail.mentorFeedback}</p>
+                      </div>
+                    )}
+
+                    {sections.map((s, idx) => (
+                      <section key={s.label}>
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="rounded-full size-2 bg-primary" />
+                          <h4 className="text-base font-bold text-slate-800">
+                            {idx + 1}. {s.label}
+                          </h4>
+                        </div>
+                        <p className="ml-4 leading-relaxed whitespace-pre-line text-slate-600">{s.value}</p>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-12 text-center">
+                    <span className="mb-3 text-5xl material-symbols-outlined text-slate-300">assignment</span>
+                    <h3 className="mb-1 text-lg font-bold text-slate-700">Chưa có đề tài</h3>
+                    <p className="text-sm text-slate-500">Nhóm này chưa đăng ký đề tài nào.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Right Column - Sidebar */}
+            <motion.div variants={item} className="col-span-12 space-y-6 lg:col-span-4">
+              {/* Team Info */}
+              <section className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200">
+                <div className="flex items-center gap-2 p-4 border-b border-slate-100 bg-slate-50/50">
+                  <span className="material-symbols-outlined text-slate-500 text-[20px]">groups</span>
+                  <h3 className="text-sm font-bold text-slate-900">Thông tin nhóm thực hiện</h3>
+                </div>
+                <div className="p-4 space-y-4">
+                  {group.members.length === 0 && (
+                    <p className="text-sm italic text-slate-400">Nhóm chưa có thành viên.</p>
+                  )}
+                  {group.members.map((member) => (
+                    <button
+                      key={member.studentId}
+                      type="button"
+                      onClick={() => setSelectedMember(member)}
+                      className="flex items-center w-full gap-3 p-3 text-left transition-colors border rounded-lg border-slate-100 hover:border-primary/30 hover:bg-slate-50"
+                    >
+                      <div className="flex items-center justify-center text-xs font-bold rounded-full size-10 bg-slate-200 text-slate-500">
+                        {member.fullName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate text-slate-900">
+                          {member.fullName}
+                          {member.role === "Leader" && (
+                            <span className="ml-1 text-xs font-medium text-primary">(Trưởng nhóm)</span>
+                          )}
+                        </p>
+                        {member.studentCode && <p className="text-xs text-slate-500">MSSV: {member.studentCode}</p>}
+                      </div>
+                      <span className="material-symbols-outlined text-slate-400 text-[18px]">contact_mail</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {/* Files (documents uploaded onto the project) */}
+              <section className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200">
+                <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-slate-500 text-[20px]">folder</span>
+                    <h3 className="text-sm font-bold text-slate-900">Kho tài liệu của nhóm</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    {documents.length} files
+                  </span>
+                </div>
+                <div className="p-4 space-y-2">
+                  {documents.length === 0 && (
+                    <p className="text-sm italic text-slate-400">Chưa có tài liệu nào.</p>
+                  )}
+                  {documents.map((file) => {
+                    const { icon, cls } = docIcon(file.fileType);
+                    return (
+                      <div
+                        key={file.id}
+                        className="flex items-center gap-3 p-2 transition-colors rounded-lg hover:bg-slate-50"
+                      >
+                        <div className={`flex items-center justify-center rounded size-9 ${cls}`}>
+                          <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate text-slate-800">{file.originalFileName}</p>
+                          <p className="text-[10px] text-slate-400 uppercase font-medium">
+                            {formatFileSize(file.fileSize)} • {formatDate(file.uploadedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* Registration reason + attachments the group submitted (pool topics) */}
+              {registration?.note && (
+                <section className="overflow-hidden bg-white border shadow-sm rounded-xl border-slate-200">
+                  <div className="flex items-center gap-2 p-4 border-b border-slate-100 bg-slate-50/50">
+                    <span className="material-symbols-outlined text-slate-500 text-[20px]">assignment</span>
+                    <h3 className="text-sm font-bold text-slate-900">Lý do đăng ký &amp; tài liệu đính kèm</h3>
+                  </div>
+                  <div className="p-4">
+                    <RegistrationNoteView note={registration.note} />
+                  </div>
+                </section>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </div>
+
+      {selectedMember && <MemberProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />}
+    </>
+  );
 }

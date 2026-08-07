@@ -98,6 +98,22 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .AnyAsync(e => e.StudentId == studentId && e.SemesterId == semesterId && e.IsEligible, cancellationToken);
         }
 
+        /// <inheritdoc/>
+        public async Task<Semester?> GetEligibleSemesterForStudentAsync(Guid studentId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            // Earliest first: a student rostered on both the running semester and the next one belongs
+            // to the running one — they only move on once it has ended.
+            return await _context.EligibleStudents
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentId && e.IsEligible)
+                .Join(_context.Semesters, e => e.SemesterId, s => s.Id, (e, s) => s)
+                .Where(s => s.EndDate >= now)
+                .OrderBy(s => s.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         public async Task<bool> IsMentorEligibleNowAsync(Guid mentorId, CancellationToken cancellationToken = default)
         {
             var now = DateTime.UtcNow;
@@ -159,6 +175,20 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .Where(s => s.StartDate > currentSemester.EndDate)
                 .OrderBy(s => s.StartDate)
                 .Skip(count - 1)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        /// <inheritdoc/>
+        public async Task<Semester?> GetPreviousSemesterAsync(int semesterId, CancellationToken cancellationToken = default)
+        {
+            var currentSemester = await _dbSet.FindAsync([semesterId], cancellationToken);
+            if (currentSemester == null) return null;
+
+            // Mirror of GetSemesterAfterAsync: semesters are ordered by their date range, not by Id,
+            // because Ids are assigned by creation order and a semester can be created out of order.
+            return await _dbSet
+                .Where(s => s.EndDate < currentSemester.StartDate)
+                .OrderByDescending(s => s.StartDate)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 

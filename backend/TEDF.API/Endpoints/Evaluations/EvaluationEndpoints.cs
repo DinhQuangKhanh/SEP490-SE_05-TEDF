@@ -12,6 +12,7 @@ using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorFilterOptions;
 using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorHistory;
 using TEDF.Application.Features.Evaluations.Queries.GetEvaluatorProjects;
 using TEDF.Application.Features.Evaluations.Queries.GetProjectForReview;
+using TEDF.Application.Features.Evaluations.Queries.TranslateThesis;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 
@@ -30,7 +31,8 @@ public sealed class EvaluationEndpoints : IEndpoint
         group.MapGet("/history", GetEvaluatorHistory).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorHistory").Produces<ApiResponse<EvaluatorHistoryDto>>().Produces(401);
         group.MapGet("/projects", GetEvaluatorProjects).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetEvaluatorProjects").Produces<ApiResponse<EvaluatorProjectsDto>>().Produces(401);
         group.MapGet("/projects/{projectId:guid}/review", GetProjectForReview).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("GetProjectForReview").Produces<ApiResponse<ProjectReviewDetailDto>>().Produces(401).Produces(404);
-        group.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarTitleDto>>>().Produces(404);
+        group.MapGet("/projects/{projectId:guid}/similarity", CheckTitleSimilarity).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("CheckTitleSimilarity").Produces<ApiResponse<List<SimilarityMatchDto>>>().Produces(404);
+        group.MapGet("/theses/{thesisId:guid}/translate", TranslateThesis).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("TranslateThesis").Produces<ApiResponse<TranslatedThesisDto>>().Produces(401);
         group.MapPost("/projects/{projectId:guid}/evaluate", SubmitEvaluation).RequireAuthorization(PolicyNames.RequireEvaluator).WithTags("Evaluations").WithName("SubmitEvaluation").Produces<ApiResponse<string>>().Produces(400).Produces(401);
 
         // ── Department-head evaluation management (moved from the DepartmentHead role folder) ──
@@ -53,6 +55,9 @@ public sealed class EvaluationEndpoints : IEndpoint
 
     private static async Task<IResult> CheckTitleSimilarity(Guid projectId, ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new CheckTitleSimilarityQuery(projectId), ct));
+
+    private static async Task<IResult> TranslateThesis(Guid thesisId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new TranslateThesisQuery(thesisId), ct));
 
     private static async Task<IResult> SubmitEvaluation(Guid projectId, [FromBody] SubmitEvaluationRequest body, ISender sender, CancellationToken ct)
     {

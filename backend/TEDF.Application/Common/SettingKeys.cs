@@ -9,7 +9,6 @@ public static class SettingKeys
     // Registration rules
     public const string MaxGroupMembers = "MaxGroupMembers";           // Int (existing seed id 2)
     public const string MaxTopicsPerMentor = "MaxTopicsPerMentor";     // Int
-    public const string AllowDirectRegistration = "AllowDirectRegistration"; // Bool
     public const string RequireOutlineApproval = "RequireOutlineApproval";   // Bool
 
     // Appearance / branding (publicly readable)

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/layout'
+import { AddUserModal } from '@/components/admin/AddUserModal'
+import { ImportUsersModal } from '@/components/admin/ImportUsersModal'
+import { Modal } from '@/components/common/Modal'
 import { useSystemError } from '@/contexts/SystemErrorContext'
 import { userService } from "@/lib";
 import type { UserListItem, UserListResponse } from "@/types";
@@ -22,6 +25,7 @@ const roleTabs = [
     { key: 'Student', label: 'Sinh viên' },
     { key: 'Mentor', label: 'Mentor' },
     { key: 'Evaluator', label: 'Evaluator' },
+    { key: 'DepartmentHead', label: 'Trưởng BM' },
     { key: 'Admin', label: 'Admin' },
 ]
 
@@ -89,6 +93,11 @@ export function UsersPage() {
     const [data, setData] = useState<UserListResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const [lockingUserId, setLockingUserId] = useState<string | null>(null)
+    const [showCreateModal, setShowCreateModal] = useState(false)
+    const [showImportModal, setShowImportModal] = useState(false)
+    // Lecturer awaiting confirmation for a Department Head grant/revoke, plus the row being saved.
+    const [headTarget, setHeadTarget] = useState<UserListItem | null>(null)
+    const [savingHeadId, setSavingHeadId] = useState<string | null>(null)
     const { showError } = useSystemError()
 
     // Debounced search (400ms)
@@ -141,6 +150,29 @@ export function UsersPage() {
         }
     }
 
+    // Grant / revoke Department Head. Only one lecturer holds the role, so granting it is a
+    // transfer: the server takes it off the previous holder in the same request.
+    const handleConfirmDepartmentHead = async () => {
+        if (!headTarget) return
+        const target = headTarget
+        const isRevoking = target.roles.includes('DepartmentHead')
+
+        setSavingHeadId(target.id)
+        try {
+            if (isRevoking) {
+                await userService.revokeDepartmentHead(target.id)
+            } else {
+                await userService.setDepartmentHead(target.id)
+            }
+            setHeadTarget(null)
+            await fetchUsers()
+        } catch (err) {
+            showError(err instanceof Error ? err.message : 'Không thể cập nhật vai trò Trưởng bộ môn.')
+        } finally {
+            setSavingHeadId(null)
+        }
+    }
+
     const totalPages = data?.totalPages ?? 0
     const pageNumbers = getPageNumbers(page, totalPages)
 
@@ -182,11 +214,19 @@ export function UsersPage() {
                                     onChange={(e) => setSearch(e.target.value)}
                                 />
                             </div>
-                            <button className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap">
+                            <button
+                                type="button"
+                                onClick={() => setShowImportModal(true)}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50 hover:text-primary transition-colors whitespace-nowrap"
+                            >
                                 <span className="material-symbols-outlined text-[20px]">upload_file</span>
                                 <span className="hidden sm:inline">Nhập Excel</span>
                             </button>
-                            <button className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light transition-colors shadow-sm whitespace-nowrap">
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateModal(true)}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary-light transition-colors shadow-sm whitespace-nowrap"
+                            >
                                 <span className="material-symbols-outlined text-[20px]">person_add</span>
                                 <span className="hidden sm:inline">Thêm mới</span>
                             </button>
@@ -241,7 +281,9 @@ export function UsersPage() {
                                                 key={user.id}
                                                 user={user}
                                                 isLocking={lockingUserId === user.id}
+                                                isUpdatingRole={savingHeadId === user.id}
                                                 onToggleLock={() => handleToggleLock(user)}
+                                                onToggleDepartmentHead={() => setHeadTarget(user)}
                                             />
                                         ))
                                     )}
@@ -296,22 +338,137 @@ export function UsersPage() {
                     </motion.div>
                 </motion.div>
             </div>
+
+            {showCreateModal && (
+                <AddUserModal
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={fetchUsers}
+                />
+            )}
+            {showImportModal && (
+                <ImportUsersModal
+                    onClose={() => setShowImportModal(false)}
+                    onImported={fetchUsers}
+                />
+            )}
+            {headTarget && (
+                <DepartmentHeadConfirmModal
+                    user={headTarget}
+                    currentHeadName={data?.items.find(
+                        (u) => u.id !== headTarget.id && u.roles.includes('DepartmentHead'),
+                    )?.fullName}
+                    isSaving={savingHeadId === headTarget.id}
+                    onClose={() => setHeadTarget(null)}
+                    onConfirm={handleConfirmDepartmentHead}
+                />
+            )}
         </>
+    )
+}
+
+/**
+ * Confirmation for granting / revoking Department Head.
+ *
+ * `currentHeadName` is best-effort: only the users on the page being viewed are known here, so the
+ * warning about the outgoing head appears when they happen to be listed. The transfer itself is
+ * decided server-side either way — the role is a singleton there, not here.
+ */
+function DepartmentHeadConfirmModal({
+    user,
+    currentHeadName,
+    isSaving,
+    onClose,
+    onConfirm,
+}: {
+    user: UserListItem
+    currentHeadName?: string
+    isSaving: boolean
+    onClose: () => void
+    onConfirm: () => void
+}) {
+    const isRevoking = user.roles.includes('DepartmentHead')
+
+    return (
+        <Modal onClose={onClose} contentClassName="w-full max-w-md p-6 bg-white shadow-2xl rounded-xl">
+            <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isRevoking ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                    <span className="material-symbols-outlined text-[22px]">
+                        {isRevoking ? 'person_remove' : 'shield_person'}
+                    </span>
+                </div>
+                <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                        {isRevoking ? 'Thu hồi vai trò Trưởng bộ môn' : 'Gán vai trò Trưởng bộ môn'}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                        {isRevoking ? (
+                            <>
+                                <span className="font-medium text-slate-800">{user.fullName}</span> sẽ mất quyền
+                                Trưởng bộ môn nhưng vẫn giữ vai trò giảng viên. Hệ thống sẽ không còn Trưởng bộ môn
+                                cho đến khi bạn gán cho người khác.
+                            </>
+                        ) : (
+                            <>
+                                Gán vai trò Trưởng bộ môn cho{' '}
+                                <span className="font-medium text-slate-800">{user.fullName}</span>
+                                {user.departmentName ? <> ({user.departmentName})</> : null}.
+                            </>
+                        )}
+                    </p>
+
+                    {!isRevoking && (
+                        <p className="p-3 mt-3 text-xs border rounded-lg bg-amber-50 border-amber-100 text-amber-700">
+                            Hệ thống chỉ có một Trưởng bộ môn.{' '}
+                            {currentHeadName
+                                ? <>Vai trò này sẽ được thu hồi từ <span className="font-medium">{currentHeadName}</span>.</>
+                                : <>Nếu đang có người giữ vai trò này, họ sẽ bị thu hồi.</>}
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isSaving}
+                    className="px-4 py-2 text-sm font-medium transition-colors border rounded-md border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                    Hủy
+                </button>
+                <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={isSaving}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-70 ${isRevoking ? 'bg-amber-600 hover:bg-amber-700' : 'bg-primary hover:bg-primary-light'}`}
+                >
+                    {isSaving ? 'Đang xử lý...' : isRevoking ? 'Thu hồi' : 'Gán vai trò'}
+                </button>
+            </div>
+        </Modal>
     )
 }
 
 function UserRow({
     user,
     isLocking,
+    isUpdatingRole,
     onToggleLock,
+    onToggleDepartmentHead,
 }: {
     user: UserListItem
     isLocking: boolean
+    isUpdatingRole: boolean
     onToggleLock: () => void
+    onToggleDepartmentHead: () => void
 }) {
     const isLocked = user.status === 'Locked'
     const code = user.studentCode ?? user.employeeCode ?? ''
     const isCurrentAdmin = user.roles.includes('Admin')
+    const isDepartmentHead = user.roles.includes('DepartmentHead')
+    // Only lecturers can head a department — same rule the backend enforces.
+    const isLecturer = user.roles.includes('Mentor') || user.roles.includes('Evaluator')
+    const canToggleHead = isLecturer && !isCurrentAdmin && (isDepartmentHead || !isLocked)
 
     return (
         <motion.tr
@@ -382,6 +539,21 @@ function UserRow({
                     >
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                     </button>
+                    {canToggleHead && (
+                        <button
+                            onClick={onToggleDepartmentHead}
+                            disabled={isUpdatingRole}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 ${isDepartmentHead
+                                ? 'text-blue-600 hover:bg-blue-50'
+                                : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                                }`}
+                            title={isDepartmentHead ? 'Thu hồi vai trò Trưởng bộ môn' : 'Gán vai trò Trưởng bộ môn'}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">
+                                {isUpdatingRole ? 'hourglass_empty' : isDepartmentHead ? 'person_remove' : 'shield_person'}
+                            </span>
+                        </button>
+                    )}
                     {!isCurrentAdmin && (
                         isLocked ? (
                             <button

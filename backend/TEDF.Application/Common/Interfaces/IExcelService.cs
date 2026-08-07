@@ -19,6 +19,15 @@ public interface IExcelService
     /// (employee code + optional Name / Email / Phone / Program). Columns are detected by header name.
     /// </summary>
     Task<List<EligibleMentorRow>> ExtractEligibleMentorRowsAsync(Stream fileStream, string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a generic user-import spreadsheet for the admin Users page: one row per user with a Role
+    /// column plus code / name / email / phone / academic title / major. Columns detected by header name.
+    /// </summary>
+    Task<List<UserImportRow>> ExtractUserRowsAsync(Stream fileStream, string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>Builds a styled .xlsx template (headers + sample rows) for the admin user import.</summary>
+    byte[] GenerateUserImportTemplate();
 }
 
 /// <summary>A parsed eligible-student row from an imported spreadsheet.</summary>
@@ -26,3 +35,6 @@ public record EligibleStudentRow(string StudentCode, string? FullName, string? E
 
 /// <summary>A parsed eligible-mentor row from an imported spreadsheet.</summary>
 public record EligibleMentorRow(string EmployeeCode, string? FullName, string? Email, string? PhoneNumber, string? MajorName, string? Division);
+
+/// <summary>A parsed user-import row (admin Users page). Role decides student vs lecturer profile.</summary>
+public record UserImportRow(string Role, string Code, string? FullName, string? Email, string? Phone, string? AcademicTitle, string? MajorName);

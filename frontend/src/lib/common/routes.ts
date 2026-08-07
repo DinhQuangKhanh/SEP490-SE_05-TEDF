@@ -11,7 +11,11 @@ export const routes = {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
     assignDepartmentHead: (departmentId: number) => `/api/users/departments/${departmentId}/head`,
+    /** Grant (POST) / revoke (DELETE) the Department Head role for a lecturer. */
+    userDepartmentHead: (userId: string) => `/api/users/${userId}/department-head`,
     users: "/api/users",
+    usersImport: "/api/users/import",
+    usersImportTemplate: "/api/users/import/template",
     activityLogs: "/api/activity-logs",
     activityLogsSummary: "/api/activity-logs/summary",
     errorLogs: "/api/activity-logs/errors",
@@ -65,6 +69,7 @@ export const routes = {
     projects: "/api/evaluations/projects",
     review: (projectId: string) => `/api/evaluations/projects/${projectId}/review`,
     similarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity`,
+    translateThesis: (thesisId: string) => `/api/evaluations/theses/${thesisId}/translate`,
     evaluate: (projectId: string) => `/api/evaluations/projects/${projectId}/evaluate`,
     checklist: (projectId: string) => `/api/evaluations/projects/${projectId}/checklist`,
     evaluatorChecklist: (projectId: string, evaluatorId: string) =>
@@ -90,7 +95,6 @@ export const routes = {
     topicUpdate: (projectId: string) => `/api/topic-pools/topics/${projectId}/update`,
     topicResubmit: (projectId: string) => `/api/topic-pools/topics/${projectId}/resubmit`,
     studentGroups: "/api/groups/mentor",
-    directRegistrationReview: (projectId: string) => `/api/direct-topics/${projectId}/review`,
     supervisedProjects: "/api/projects/supervised",
   },
   studentGroups: {
@@ -109,11 +113,6 @@ export const routes = {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
     myRegistrations: (groupId: string) => `/api/topic-pools/groups/${groupId}/registrations`,
     cancelRegistration: (registrationId: string) => `/api/topic-pools/registrations/${registrationId}/cancel`,
-    createDirectTopic: (groupId: string) => `/api/direct-topics/${groupId}`,
-    updateDirectTopic: (projectId: string) => `/api/direct-topics/${projectId}`,
-    submitDirectTopicToMentor: (groupId: string, projectId: string) =>
-      `/api/direct-topics/${projectId}/submit-to-mentor/${groupId}`,
-    availableMentors: "/api/direct-topics/available-mentors",
   },
   topics: {
     list: "/api/topics",
@@ -126,6 +125,7 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    projectRegistration: (projectId: string) => `/api/topic-pools/projects/${projectId}/registration`,
     mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,
     rejectRegistration: (id: string) => `/api/topic-pools/registrations/${id}/reject`,

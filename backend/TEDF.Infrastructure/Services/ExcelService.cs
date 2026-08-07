@@ -15,6 +15,12 @@ public class ExcelService : IExcelService
     private static readonly string[] ProgramKeys = ["program", "programcode", "major", "majorcode", "nganh", "chuyennganh"];
     private static readonly string[] DivisionKeys = ["bomon", "bomongiangday", "division"];
     private static readonly string[] FullNameKeys = ["fullname", "name", "hoten", "hovaten", "tengiangvien"];
+    private static readonly string[] RoleKeys = ["vaitro", "role", "quyen"];
+    private static readonly string[] AcademicTitleKeys = ["hochamhocvi", "hocham", "hocvi", "academictitle", "chucdanh"];
+    // A user-import row's code may be a student code or an employee code — accept either, plus generics.
+    private static readonly string[] UserCodeKeys =
+        ["maso", "code", "mssv", "studentcode", "studentid", "masinhvien", "masv",
+         "msgv", "magiangvien", "magv", "employeecode", "staffcode", "manhanvien", "manv"];
 
     public Task<List<string>> ExtractStudentCodesAsync(Stream fileStream, string fileName, CancellationToken cancellationToken = default)
     {
@@ -58,12 +64,76 @@ public class ExcelService : IExcelService
                 Program = FirstNonEmpty(r, ProgramKeys),
                 Division = FirstNonEmpty(r, DivisionKeys)
             })
+            // "Mã giảng viên" is optional: when the column is blank, derive the code from the
+            // email's local-part (e.g. vuongnl3@fe.edu.vn -> vuongnl3).
+            .Select(r => new
+            {
+                Code = string.IsNullOrWhiteSpace(r.Code) ? EmailLocalPart(r.Email) : r.Code,
+                r.Name,
+                r.Email,
+                r.Phone,
+                r.Program,
+                r.Division
+            })
             .Where(r => !string.IsNullOrWhiteSpace(r.Code))
             .GroupBy(r => r.Code!.ToUpperInvariant())
             .Select(g => g.First())
             .Select(r => new EligibleMentorRow(r.Code!.ToUpperInvariant(), r.Name, r.Email, r.Phone, r.Program, r.Division))
             .ToList();
         return Task.FromResult(rows);
+    }
+
+    public Task<List<UserImportRow>> ExtractUserRowsAsync(Stream fileStream, string fileName, CancellationToken cancellationToken = default)
+    {
+        var rows = ReadRows(fileStream, fileName)
+            .Select(r => new UserImportRow(
+                Role: FirstNonEmpty(r, RoleKeys) ?? string.Empty,
+                Code: FirstNonEmpty(r, UserCodeKeys) ?? string.Empty,
+                FullName: FirstNonEmpty(r, FullNameKeys),
+                Email: FirstNonEmpty(r, EmailKeys),
+                Phone: FirstNonEmpty(r, PhoneKeys),
+                AcademicTitle: FirstNonEmpty(r, AcademicTitleKeys),
+                MajorName: FirstNonEmpty(r, ProgramKeys)))
+            // Keep any row that carries at least a code or an email so blank rows are skipped but
+            // partially-filled rows still surface as issues during provisioning.
+            .Where(r => !string.IsNullOrWhiteSpace(r.Code) || !string.IsNullOrWhiteSpace(r.Email))
+            .ToList();
+        return Task.FromResult(rows);
+    }
+
+    public byte[] GenerateUserImportTemplate()
+    {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("NguoiDung");
+
+        string[] headers = ["Vai trò", "Email", "Họ tên", "Mã số", "Học hàm/học vị", "Ngành", "Số điện thoại"];
+        for (var c = 0; c < headers.Length; c++)
+        {
+            var cell = ws.Cell(1, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+        }
+
+        // Sample rows — Role accepts Student / Mentor / Evaluator (Vietnamese variants also work).
+        object[][] samples =
+        [
+            ["Student", "se150001@fpt.edu.vn", "Nguyễn Văn A", "SE150001", "", "Kỹ thuật phần mềm", "0901234567"],
+            ["Mentor", "gva@fpt.edu.vn", "Trần Thị B", "GV0001", "ThS", "", "0902345678"],
+            ["Evaluator", "gvc@fpt.edu.vn", "Lê Văn C", "GV0002", "TS", "", "0903456789"],
+        ];
+        for (var r = 0; r < samples.Length; r++)
+            for (var c = 0; c < samples[r].Length; c++)
+                ws.Cell(r + 2, c + 1).Value = XLCellValue.FromObject(samples[r][c]);
+
+        ws.Columns().AdjustToContents();
+        ws.Column(2).Width = 28;
+        ws.Column(3).Width = 24;
+        ws.Column(6).Width = 24;
+
+        using var output = new MemoryStream();
+        workbook.SaveAs(output);
+        return output.ToArray();
     }
 
     /// <summary>Dispatches to the correct parser based on file extension.</summary>
@@ -145,6 +215,15 @@ public class ExcelService : IExcelService
             if (record.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
                 return value.Trim();
         return null;
+    }
+
+    /// <summary>The part of an email before '@' (e.g. "vuongnl3@fe.edu.vn" → "vuongnl3"); null if empty.</summary>
+    private static string? EmailLocalPart(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+        var at = email.IndexOf('@');
+        var local = (at > 0 ? email[..at] : email).Trim();
+        return string.IsNullOrWhiteSpace(local) ? null : local;
     }
 
     /// <summary>Lowercases, strips Vietnamese diacritics and non-alphanumerics so headers match aliases.</summary>

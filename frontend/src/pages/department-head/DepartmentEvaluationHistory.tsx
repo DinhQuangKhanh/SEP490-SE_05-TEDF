@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { isSameMonth, isSameWeek, isYesterday, parseISO } from "date-fns";
 import { projectService } from "@/lib";
-import { groupProjects, type DepartmentProject, type DepartmentProjectsResponse } from "@/types";
+import { groupProjects, reviewedAt, type DepartmentProject, type DepartmentProjectsResponse } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { fadeContainer as container, fadeItem as item, formatDate } from "@/lib/common/ui";
 import { EvaluatorFilterBar } from "@/components/lecturer/EvaluatorFilterBar";
@@ -26,14 +26,6 @@ function resultKey(statusValue: number): string {
 }
 
 /** Latest evaluation timestamp for a project (most recent evaluator submission), fallback to submittedAt. */
-function reviewedAt(project: DepartmentProject): string | null {
-  const dates = project.evaluators
-    .map((e) => e.evaluatedAt)
-    .filter((d): d is string => !!d)
-    .sort((a, b) => a.localeCompare(b));
-  return dates.length > 0 ? dates[dates.length - 1] : (project.submittedAt ?? null);
-}
-
 function evaluatorNames(project: DepartmentProject): string {
   return project.evaluators.map((e) => e.evaluatorName).join(", ") || "—";
 }

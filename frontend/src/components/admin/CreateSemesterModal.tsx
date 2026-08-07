@@ -22,11 +22,11 @@ interface PhaseInput {
   endDate: string;
 }
 
+// The defense phase was dropped from the process — a new semester has three phases.
 const PHASES_TEMPLATE = [
   { label: "Đăng ký", name: "Đăng ký đề tài", type: "Registration", color: "text-primary" },
   { label: "Thẩm định", name: "Thẩm định đề tài", type: "Evaluation", color: "text-orange-600" },
   { label: "Thực hiện", name: "Thực hiện đồ án", type: "Implementation", color: "text-emerald-600" },
-  { label: "Bảo vệ", name: "Bảo vệ đồ án", type: "Defense", color: "text-purple-600" },
 ];
 
 const DRAFT_KEY = "semester_draft";
@@ -99,7 +99,7 @@ function nextSemesterStartDate(term: SemesterTerm, year: number): Date {
 }
 
 /**
- * Computes the full suggested schedule (semester + 4 phases) as "yyyy-MM-dd" strings.
+ * Computes the full suggested schedule (semester + its phases) as "yyyy-MM-dd" strings.
  * The admin can review and adjust before creating the semester.
  */
 function computeSemesterSchedule(term: SemesterTerm, year: number) {
@@ -112,19 +112,16 @@ function computeSemesterSchedule(term: SemesterTerm, year: number) {
   const evalEnd = addWeeks(evalStart, 2);
   const implStart = semStart;
   const implEnd = addDays(addWeeks(implStart, 15), 6); // Sunday closing the study weeks
-  const defStart = addDays(implEnd, 1);
-  const defEnd = addDays(defStart, 5);
 
   const f = (d: Date) => format(d, "yyyy-MM-dd");
   return {
     startDate: f(semStart),
     endDate: f(semEnd),
-    // Order matches PHASES_TEMPLATE: Registration, Evaluation, Implementation, Defense.
+    // Order matches PHASES_TEMPLATE: Registration, Evaluation, Implementation.
     phaseDates: [
       { startDate: f(regStart), endDate: f(regEnd) },
       { startDate: f(evalStart), endDate: f(evalEnd) },
       { startDate: f(implStart), endDate: f(implEnd) },
-      { startDate: f(defStart), endDate: f(defEnd) },
     ],
   };
 }
@@ -268,7 +265,11 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
     if (semStart < today) return showError("Ngày bắt đầu kỳ học không được nhỏ hơn ngày hiện tại.");
     if (semEnd < semStart) return showError("Ngày kết thúc phải sau ngày bắt đầu.");
 
-    const validPhases = phases.filter((p) => p.startDate && p.endDate);
+    // The template check also drops a phase kept by an older saved draft (e.g. the retired
+    // "Bảo vệ" one), so a new semester never gets a phase that is no longer part of the process.
+    const validPhases = phases.filter(
+      (p) => p.startDate && p.endDate && PHASES_TEMPLATE.some((t) => t.type === p.type),
+    );
     const labelFor = (p: PhaseInput) => PHASES_TEMPLATE.find((t) => t.type === p.type)?.label ?? p.name;
 
     // Create-only: timeline phases must not be in the past.
@@ -535,7 +536,7 @@ export function CreateSemesterModal({ isOpen, onClose, onCreated, semesters }: C
                   <h3 className="font-bold text-slate-700">Thiết lập giai đoạn (Timeline)</h3>
                 </div>
                 <div className="p-4 border rounded-lg bg-slate-50 border-slate-100">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {PHASES_TEMPLATE.map((phase, index) => (
                       <div
                         key={phase.label}

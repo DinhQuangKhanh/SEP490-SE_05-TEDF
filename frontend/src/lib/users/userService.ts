@@ -1,4 +1,4 @@
-import { UserFilters, UserListResponse } from "@/types";
+import { CreateUserRequest, UserFilters, UserImportResponse, UserListResponse } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
 
@@ -8,6 +8,20 @@ export const userService = {
     return apiClient.get<UserListResponse>(`${routes.admin.users}?${params.toString()}`);
   },
 
+  /** Create a single user (Student/Mentor/Evaluator/DepartmentHead). Returns the new id. */
+  createUser: (payload: CreateUserRequest): Promise<{ id: string }> =>
+    apiClient.post<{ id: string }>(routes.admin.users, payload),
+
+  /** Bulk-import users from an Excel/CSV file; returns a per-row issue summary. */
+  importUsers: (file: File): Promise<UserImportResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postForm<UserImportResponse>(routes.admin.usersImport, formData);
+  },
+
+  /** Downloads the .xlsx import template (authenticated). */
+  downloadImportTemplate: (): Promise<Blob> => apiClient.getBlob(routes.admin.usersImportTemplate),
+
   lockUser: (userId: string): Promise<void> => apiClient.put<void>(`${routes.admin.users}/${userId}/lock`, {}),
 
   unlockUser: (userId: string): Promise<void> => apiClient.put<void>(`${routes.admin.users}/${userId}/unlock`, {}),
@@ -15,6 +29,17 @@ export const userService = {
   /** Assign a user as head of a department. */
   assignDepartmentHead: (departmentId: number, userId: string): Promise<void> =>
     apiClient.post<void>(routes.admin.assignDepartmentHead(departmentId), { userId }),
+
+  /**
+   * Grant the Department Head role to a lecturer. The department comes from the lecturer's own
+   * profile, and the role is a singleton — whoever holds it loses it server-side.
+   */
+  setDepartmentHead: (userId: string): Promise<void> =>
+    apiClient.post<void>(routes.admin.userDepartmentHead(userId)),
+
+  /** Take the Department Head role back; the lecturer keeps their Mentor/Evaluator roles. */
+  revokeDepartmentHead: (userId: string): Promise<void> =>
+    apiClient.delete<void>(routes.admin.userDepartmentHead(userId)),
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

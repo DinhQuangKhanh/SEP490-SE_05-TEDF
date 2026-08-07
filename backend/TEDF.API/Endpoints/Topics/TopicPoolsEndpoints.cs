@@ -7,6 +7,7 @@ using TEDF.Application.Features.TopicPools.Commands.RejectRegistration;
 using TEDF.Application.Features.TopicPools.Commands.RequestRegistration;
 using TEDF.Application.Features.TopicPools.Queries.GetGroupRegistrations;
 using TEDF.Application.Features.TopicPools.Queries.GetMentorRegistrations;
+using TEDF.Application.Features.TopicPools.Queries.GetProjectRegistration;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
@@ -87,6 +88,14 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .Produces<List<GroupRegistrationDto>>()
             .Produces(401).Produces(403);
 
+        // Supervising mentor views the confirmed registration (reason + attachments) of their group.
+        pool.MapGet("/projects/{projectId:guid}/registration", GetProjectRegistration)
+            .RequireAuthorization(PolicyNames.MentorOfProject)
+            .WithTags("TopicPools")
+            .WithName("GetProjectRegistration")
+            .Produces<GroupRegistrationDto>()
+            .Produces(401).Produces(403).Produces(404);
+
         pool.MapGet("/registrations/mentor", GetMentorRegistrations)
             .WithTags("TopicPools")
             .WithName("GetMentorRegistrations")
@@ -142,6 +151,20 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         ISender sender,
         CancellationToken cancellationToken)
     {
+        byte[]? registerFormPdf = null;
+        if (body.RegisterForm is { Length: > 0 } registerForm)
+        {
+            if (!FileUploadValidator.TryValidate([registerForm], NoteAttachmentMaxBytes, maxAttachmentCount: 1, out var registerFormError))
+                return Results.BadRequest(ApiResponse.Fail(registerFormError));
+
+            if (!Path.GetExtension(registerForm.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF."));
+
+            using var registerFormStream = new MemoryStream();
+            await registerForm.CopyToAsync(registerFormStream, cancellationToken);
+            registerFormPdf = registerFormStream.ToArray();
+        }
+
         var command = new ProposeTopicToPoolCommand(
             PoolId: poolId,
             NameVi: body.NameVi,
@@ -152,7 +175,8 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             Scope: body.Scope,
             Technologies: body.Technologies,
             ExpectedResults: body.ExpectedResults,
-            MaxStudents: body.MaxStudents
+            MaxStudents: body.MaxStudents,
+            RegisterFormPdf: registerFormPdf
         );
 
         var projectId = await sender.Send(command, cancellationToken);
@@ -167,6 +191,9 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
     private static async Task<IResult> GetGroupRegistrations(Guid groupId, ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetGroupRegistrationsQuery(groupId), ct));
+
+    private static async Task<IResult> GetProjectRegistration(Guid projectId, ISender sender, CancellationToken ct)
+        => Ok(await sender.Send(new GetProjectRegistrationQuery(projectId), ct));
 
     private static async Task<IResult> GetMentorRegistrations(ISender sender, CancellationToken ct)
         => Ok(await sender.Send(new GetMentorRegistrationsQuery(), ct));

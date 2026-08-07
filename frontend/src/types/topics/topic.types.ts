@@ -75,6 +75,8 @@ export interface TopicDocument {
   id: string;
   fileName: string;
   originalFileName: string;
+  /** Public storage URL — used to preview (PDF/DOCX) or download the attachment. */
+  fileUrl: string;
   fileType: string;
   fileSize: number;
   documentType: string;

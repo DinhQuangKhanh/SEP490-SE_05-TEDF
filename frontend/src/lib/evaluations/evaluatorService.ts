@@ -6,7 +6,8 @@ import {
   EvaluatorProjectsFilters,
   EvaluatorProjectsResponse,
   ProjectReviewResponse,
-  SimilarTitleDto,
+  SimilarityMatchDto,
+  TranslatedThesisDto,
 } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
@@ -40,8 +41,11 @@ export const evaluatorService = {
   getProjectForReview: (projectId: string): Promise<ProjectReviewResponse> =>
     apiClient.get<ProjectReviewResponse>(routes.evaluator.review(projectId)),
 
-  checkSimilarity: (projectId: string): Promise<SimilarTitleDto[]> =>
-    apiClient.get<SimilarTitleDto[]>(routes.evaluator.similarity(projectId)),
+  checkSimilarity: (projectId: string): Promise<SimilarityMatchDto[]> =>
+    apiClient.get<SimilarityMatchDto[]>(routes.evaluator.similarity(projectId)),
+
+  translateThesis: (thesisId: string): Promise<TranslatedThesisDto> =>
+    apiClient.get<TranslatedThesisDto>(routes.evaluator.translateThesis(thesisId)),
 
   submitEvaluation: (projectId: string, data: { result: number; feedback?: string }): Promise<string> =>
     apiClient.post<string>(routes.evaluator.evaluate(projectId), data),

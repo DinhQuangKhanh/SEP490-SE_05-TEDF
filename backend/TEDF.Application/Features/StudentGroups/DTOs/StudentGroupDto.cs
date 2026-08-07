@@ -8,8 +8,11 @@ public record StudentGroupDto
     /// <summary>Always SE_NN — the tail of <see cref="GroupCode"/>.</summary>
     public string? GroupName { get; init; }
 
-    /// <summary>Optional nickname the students chose; null when they never set one.</summary>
-    public string? GroupDisplayName { get; init; }
+    /// <summary>
+    /// What to show the user: the group id (SE_NN) until the topic passes evaluation, then
+    /// "SE_NN - English topic name - Mentor".
+    /// </summary>
+    public string DisplayName { get; init; } = null!;
     public string GroupStatus { get; init; } = null!;
     public int MaxMembers { get; init; }
     public bool IsOpenForRequests { get; init; }

@@ -664,6 +664,33 @@ namespace TEDF.Persistence.Migrations
                     b.ToTable("ProjectMentors", (string)null);
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.ProjectAggregate.Entities.ProposedGroupMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsLeader")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("ProjectId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectProposedMembers", (string)null);
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.ProjectAggregate.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2326,6 +2353,21 @@ namespace TEDF.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TEDF.Domain.Aggregates.ProjectAggregate.Entities.ProposedGroupMember", b =>
+                {
+                    b.HasOne("TEDF.Domain.Aggregates.ProjectAggregate.Project", null)
+                        .WithMany("ProposedMembers")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TEDF.Domain.Aggregates.UserAggregate.User", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TEDF.Domain.Aggregates.ProjectAggregate.Project", b =>
                 {
                     b.HasOne("TEDF.Domain.Aggregates.SemesterAggregate.Semester", null)
@@ -2655,6 +2697,8 @@ namespace TEDF.Persistence.Migrations
                     b.Navigation("Documents");
 
                     b.Navigation("Mentors");
+
+                    b.Navigation("ProposedMembers");
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.SemesterAggregate.Semester", b =>

@@ -15,10 +15,12 @@ namespace TEDF.Persistence.SqlServer.QueryServices;
 public class TopicsQueryService : ITopicsQueryService
 {
     private readonly AppDbContext _context;
+    private readonly IFileStorageService _fileStorage;
 
-    public TopicsQueryService(AppDbContext context)
+    public TopicsQueryService(AppDbContext context, IFileStorageService fileStorage)
     {
         _context = context;
+        _fileStorage = fileStorage;
     }
 
     public async Task<GetTopicsInPoolResult> GetTopicsInPoolAsync(
@@ -197,23 +199,39 @@ public class TopicsQueryService : ITopicsQueryService
 
     public async Task<List<TopicDocumentDto>> GetTopicDocumentsAsync(Guid topicId, CancellationToken cancellationToken = default)
     {
-        return await _context.Set<Document>()
+        var rows = await _context.Set<Document>()
             .AsNoTracking()
             .Where(d => d.ProjectId == topicId && !d.IsDeleted)
             .OrderByDescending(d => d.UploadedAt)
-            .Join(_context.Users, d => d.UploadedBy, u => u.Id, (d, u) => new TopicDocumentDto
+            .Join(_context.Users, d => d.UploadedBy, u => u.Id, (d, u) => new
             {
-                Id = d.Id,
-                FileName = d.FileName,
-                OriginalFileName = d.OriginalFileName,
-                FileType = d.FileType,
-                FileSize = d.FileSize,
-                DocumentType = d.DocumentType.ToString(),
-                Description = d.Description,
-                UploadedAt = d.UploadedAt,
+                d.Id,
+                d.FileName,
+                d.OriginalFileName,
+                d.FileType,
+                d.FileSize,
+                d.FilePath,
+                d.DocumentType,
+                d.Description,
+                d.UploadedAt,
                 UploadedByName = u.FullName,
             })
             .ToListAsync(cancellationToken);
+
+        // The public URL is built from the storage path, so it cannot be part of the SQL projection.
+        return rows.Select(d => new TopicDocumentDto
+        {
+            Id = d.Id,
+            FileName = d.FileName,
+            OriginalFileName = d.OriginalFileName,
+            FileUrl = string.IsNullOrWhiteSpace(d.FilePath) ? string.Empty : _fileStorage.GetPublicUrl(d.FilePath),
+            FileType = d.FileType,
+            FileSize = d.FileSize,
+            DocumentType = d.DocumentType.ToString(),
+            Description = d.Description,
+            UploadedAt = d.UploadedAt,
+            UploadedByName = d.UploadedByName,
+        }).ToList();
     }
 
     public async Task<GetMentorTopicsResult> GetMentorTopicsAsync(

@@ -1,12 +1,14 @@
 using Microsoft.Extensions.Logging;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.Semesters.Commands;
+using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.SemesterAggregate.Entities;
 using TEDF.Domain.Aggregates.SemesterAggregate.ValueObjects;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
+using DomainEmail = TEDF.Domain.Aggregates.UserAggregate.ValueObjects.Email;
 using TEDF.Domain.Common.Interfaces;
 using TEDF.Domain.Constants;
 using TEDF.Domain.Entities;
@@ -23,6 +25,7 @@ public class SemestersDomainService : ISemestersDomainService
     private readonly IUserRepository _userRepository;
     private readonly IMajorReadRepository _majorRepository;
     private readonly IProjectRepository _projectRepository;
+    private readonly IGroupRepository _groupRepository;
     private readonly IExcelService _excelService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SemestersDomainService> _logger;
@@ -32,6 +35,7 @@ public class SemestersDomainService : ISemestersDomainService
         IUserRepository userRepository,
         IMajorReadRepository majorRepository,
         IProjectRepository projectRepository,
+        IGroupRepository groupRepository,
         IExcelService excelService,
         IUnitOfWork unitOfWork,
         ILogger<SemestersDomainService> logger)
@@ -40,6 +44,7 @@ public class SemestersDomainService : ISemestersDomainService
         _userRepository = userRepository;
         _majorRepository = majorRepository;
         _projectRepository = projectRepository;
+        _groupRepository = groupRepository;
         _excelService = excelService;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -176,17 +181,26 @@ public class SemestersDomainService : ISemestersDomainService
         var successCount = 0;
         var issues = new List<ImportRowIssue>();
         var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var majorLookup = await LoadMajorLookupAsync(cancellationToken);
+
+        // A student who already had a group in the semester right before this one is not eligible
+        // again. Resolved once: every row is checked against the same preceding semester.
+        var previousSemester = await _semesterRepository.GetPreviousSemesterAsync(semesterId, cancellationToken);
+        if (previousSemester is null)
+            _logger.LogInformation(
+                "Semester {SemesterId} has no preceding semester — skipping the previous-group eligibility check.",
+                semesterId);
 
         foreach (var row in rows)
         {
             var student = await _userRepository.GetByStudentCodeAsync(row.StudentCode, cancellationToken);
 
-            var major = string.IsNullOrWhiteSpace(row.MajorName)
-                ? null
-                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
+            // Resolve the major by name or code (loaded once, in-memory — no per-row DB query).
+            var major = ResolveMajorFor(majorLookup, row.MajorName);
 
             if (student is null)
             {
+                // Not in the database yet ⇒ no history at all ⇒ eligible; provision a pending account.
                 student = await TryProvisionStudentAsync(row, major, seenEmails, cancellationToken);
                 if (student is null)
                 {
@@ -194,11 +208,22 @@ public class SemestersDomainService : ISemestersDomainService
                     continue;
                 }
             }
-            else if (!InfoMatches(student, row.Email, row.FullName, row.PhoneNumber))
+            else
             {
-                issues.Add(new ImportRowIssue(row.StudentCode,
-                    "Thông tin (email/họ tên/SĐT) không khớp dữ liệu hệ thống — cần kiểm tra"));
-                continue;
+                if (!InfoMatches(student, row.Email, row.FullName, row.PhoneNumber))
+                {
+                    issues.Add(new ImportRowIssue(row.StudentCode,
+                        "Thông tin (email/họ tên/SĐT) không khớp dữ liệu hệ thống — cần kiểm tra"));
+                    continue;
+                }
+
+                if (previousSemester is not null
+                    && await _groupRepository.HadGroupInSemesterAsync(student.Id, previousSemester.Id, cancellationToken))
+                {
+                    issues.Add(new ImportRowIssue(row.StudentCode,
+                        $"Đã có nhóm ở học kỳ liền trước ({previousSemester.Name}) — không đủ điều kiện đăng ký học kỳ này"));
+                    continue;
+                }
             }
 
             semester.AddEligibleStudent(student.Id, row.StudentCode, row.Email, row.PhoneNumber, major?.Id, importedBy);
@@ -233,12 +258,14 @@ public class SemestersDomainService : ISemestersDomainService
         var issues = new List<ImportRowIssue>();
         var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var majorLookup = await LoadMajorLookupAsync(cancellationToken);
 
         foreach (var row in rows)
         {
-            var major = string.IsNullOrWhiteSpace(row.MajorName)
-                ? null
-                : await _majorRepository.GetByNameAsync(row.MajorName.Trim(), cancellationToken);
+            // Resolve the advising major from the file's "Ngành" column, falling back to the
+            // "Bộ môn" (division) column — its code (SE/IA/AI/IC) matches a major code — so the
+            // admin no longer has to pick "Ngành hướng dẫn" by hand for every imported row.
+            var major = ResolveMajorFor(majorLookup, row.MajorName, row.Division);
 
             var resolved = await ResolveMentorIdentityAsync(row, major, seenCodes, seenEmails, issues, cancellationToken);
             if (resolved is null) continue;
@@ -271,25 +298,29 @@ public class SemestersDomainService : ISemestersDomainService
 
         if (existing is null)
         {
-            var req = new UserProvisionRequest(row.EmployeeCode, row.FullName, row.Email, row.PhoneNumber, major, DomainRoleNames.Mentor, IsStudent: false);
+            var req = new UserProvisionRequest(row.EmployeeCode, row.FullName, row.Email, row.PhoneNumber, major, LecturerRoles, IsStudent: false);
             var mentor = await TryProvisionUserAsync(req, seenEmails, cancellationToken);
             if (mentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, EmailIssueReason)); return null; }
             return new MentorResolution(mentor, row.EmployeeCode, row.Email);
         }
 
         if (!IsDifferentMentor(existing, row.PhoneNumber))
+        {
+            // Tài khoản đã có sẵn (tạo từ đợt import cũ hoặc từ luồng khác) có thể chỉ mang role
+            // Mentor — bổ sung Evaluator để giảng viên phản biện được ngay trong kỳ này.
+            await EnsureLecturerRolesAsync(existing, cancellationToken);
             return new MentorResolution(existing, row.EmployeeCode, row.Email);
+        }
 
         // Trùng mã nhưng KHÁC SĐT ⇒ người khác ⇒ thêm số thứ tự cho cả mã lẫn email.
-        if (string.IsNullOrWhiteSpace(row.Email) ||
-            !row.Email.Trim().EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(row.Email) || !DomainEmail.IsAllowed(row.Email.Trim()))
         {
-            issues.Add(new ImportRowIssue(row.EmployeeCode, "Trùng mã GV nhưng khác người, thiếu email @fpt.edu.vn để tạo tài khoản mới"));
+            issues.Add(new ImportRowIssue(row.EmployeeCode, "Trùng mã GV nhưng khác người, thiếu email hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) để tạo tài khoản mới"));
             return null;
         }
 
         var (newCode, newEmail) = await NextAvailableSuffixAsync(row.EmployeeCode, row.Email.Trim(), seenCodes, seenEmails, cancellationToken);
-        var newReq = new UserProvisionRequest(newCode, row.FullName, newEmail, row.PhoneNumber, major, DomainRoleNames.Mentor, IsStudent: false);
+        var newReq = new UserProvisionRequest(newCode, row.FullName, newEmail, row.PhoneNumber, major, LecturerRoles, IsStudent: false);
         var newMentor = await TryProvisionUserAsync(newReq, seenEmails, cancellationToken);
         if (newMentor is null) { issues.Add(new ImportRowIssue(row.EmployeeCode, "Không tạo được tài khoản mới (email bị trùng)")); return null; }
         return new MentorResolution(newMentor, newCode, newEmail);
@@ -356,7 +387,7 @@ public class SemestersDomainService : ISemestersDomainService
         return poolMentors.Any(p => p.MentorId == mentorId);
     }
 
-    private const string EmailIssueReason = "Email không hợp lệ (@fpt.edu.vn) hoặc trùng";
+    private const string EmailIssueReason = "Email không hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) hoặc trùng";
 
     /// <summary>So sánh từng trường: chỉ coi là LỆCH khi cả 2 bên đều có giá trị và khác nhau.</summary>
     private static bool FieldMatches(string? dbValue, string? fileValue)
@@ -373,6 +404,30 @@ public class SemestersDomainService : ISemestersDomainService
         => !string.IsNullOrWhiteSpace(existing.PhoneNumber)
         && !string.IsNullOrWhiteSpace(filePhone)
         && !string.Equals(existing.PhoneNumber.Trim(), filePhone.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Loads every major once, keyed by both Code (e.g. "SE") and Name ("Kỹ thuật phần mềm"),
+    /// case-insensitive — so imports resolve majors in-memory instead of one DB query per row.
+    /// </summary>
+    private async Task<Dictionary<string, Major>> LoadMajorLookupAsync(CancellationToken cancellationToken)
+    {
+        var lookup = new Dictionary<string, Major>(StringComparer.OrdinalIgnoreCase);
+        foreach (var major in await _majorRepository.GetAllAsync(cancellationToken))
+        {
+            if (!string.IsNullOrWhiteSpace(major.Code)) lookup.TryAdd(major.Code.Trim(), major);
+            if (!string.IsNullOrWhiteSpace(major.Name)) lookup.TryAdd(major.Name.Trim(), major);
+        }
+        return lookup;
+    }
+
+    /// <summary>Returns the major for the first candidate that matches a major Code or Name.</summary>
+    private static Major? ResolveMajorFor(Dictionary<string, Major> lookup, params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+            if (!string.IsNullOrWhiteSpace(candidate) && lookup.TryGetValue(candidate.Trim(), out var major))
+                return major;
+        return null;
+    }
 
     /// <summary>Tìm (mã, email) còn trống bằng cách thêm số thứ tự: LamDQ/lamdq@… → LamDQ1/lamdq1@…, LamDQ2/…</summary>
     private async Task<(string Code, string Email)> NextAvailableSuffixAsync(
@@ -397,25 +452,51 @@ public class SemestersDomainService : ISemestersDomainService
 
     private sealed record UserProvisionRequest(
         string Code, string? FullName, string? Email, string? Phone,
-        Major? Major, string Role, bool IsStudent);
+        Major? Major, IReadOnlyList<string> Roles, bool IsStudent);
+
+    /// <summary>
+    /// Mọi giảng viên trong danh sách đủ điều kiện đều vừa hướng dẫn vừa phản biện, nên tài khoản
+    /// giảng viên luôn mang cả hai role — không chỉ Mentor.
+    /// </summary>
+    private static readonly string[] LecturerRoles = [DomainRoleNames.Mentor, DomainRoleNames.Evaluator];
 
     /// <summary>Tạo "tài khoản chờ" cho sinh viên chưa tồn tại; null nếu không thể tạo (caller báo lỗi).</summary>
     private Task<User?> TryProvisionStudentAsync(EligibleStudentRow row, Major? major, HashSet<string> seenEmails, CancellationToken cancellationToken)
     {
-        var req = new UserProvisionRequest(row.StudentCode, row.FullName, row.Email, row.PhoneNumber, major, DomainRoleNames.Student, IsStudent: true);
+        var req = new UserProvisionRequest(row.StudentCode, row.FullName, row.Email, row.PhoneNumber, major, [DomainRoleNames.Student], IsStudent: true);
         return TryProvisionUserAsync(req, seenEmails, cancellationToken);
     }
 
     /// <summary>
+    /// Bổ sung role còn thiếu cho giảng viên đã tồn tại trong hệ thống (ví dụ tài khoản cũ chỉ có
+    /// Mentor). <see cref="User.AssignRole"/> tự bỏ qua role đã có nên hàm này idempotent.
+    /// </summary>
+    private async Task EnsureLecturerRolesAsync(User lecturer, CancellationToken cancellationToken)
+    {
+        var missing = LecturerRoles.Where(role => !lecturer.HasRole(DomainRoleIds.FromName(role))).ToList();
+        if (missing.Count == 0) return;
+
+        foreach (var role in missing)
+            lecturer.AssignRole(DomainRoleIds.FromName(role), role);
+
+        await _userRepository.UpdateAsync(lecturer, cancellationToken);
+
+        _logger.LogInformation(
+            "Granted missing role(s) {Roles} to lecturer {UserId} during eligible-mentor import.",
+            string.Join(", ", missing), lecturer.Id);
+    }
+
+    /// <summary>
     /// Tạo User mới với FirebaseUid tạm ("pending:&lt;mã&gt;") để liên kết khi đăng nhập Google lần đầu.
-    /// Yêu cầu email @fpt.edu.vn hợp lệ và không trùng (trong file lẫn trong DB); trả null nếu vi phạm.
+    /// Yêu cầu email thuộc domain hợp lệ (@fpt.edu.vn / @fe.edu.vn / @gmail.com) và không trùng
+    /// (trong file lẫn trong DB); trả null nếu vi phạm.
     /// </summary>
     private async Task<User?> TryProvisionUserAsync(
         UserProvisionRequest req, HashSet<string> seenEmails, CancellationToken cancellationToken)
     {
         var trimmed = req.Email?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed) ||
-            !trimmed.EndsWith("@fpt.edu.vn", StringComparison.OrdinalIgnoreCase))
+        // Accept any allowed domain (@fpt.edu.vn / @fe.edu.vn / @gmail.com) — same rule as Email.Create.
+        if (string.IsNullOrWhiteSpace(trimmed) || !DomainEmail.IsAllowed(trimmed))
             return null;
 
         var normalized = trimmed.ToLowerInvariant();
@@ -434,7 +515,9 @@ public class SemestersDomainService : ISemestersDomainService
         else
             user.InitializeStaffProfile(req.Code);
 
-        user.AssignRole(DomainRoleIds.FromName(req.Role), req.Role);
+        foreach (var role in req.Roles)
+            user.AssignRole(DomainRoleIds.FromName(role), role);
+
         await _userRepository.AddAsync(user, cancellationToken);
         return user;
     }
@@ -442,6 +525,11 @@ public class SemestersDomainService : ISemestersDomainService
     /// <summary>
     /// Adds (idempotently) any mentor who already owns a pool topic awaiting registration for this
     /// semester, using the topic's Major — so they are assigned even if the imported CSV omits them.
+    /// <para>
+    /// They land in the same eligibility roster as the imported rows, so they get the same pair of
+    /// roles (Mentor + Evaluator) — being listed via a pool topic instead of a spreadsheet row must
+    /// not decide whether a lecturer can review projects.
+    /// </para>
     /// </summary>
     private async Task SyncPoolMentorsAsync(Semester semester, CancellationToken cancellationToken)
     {
@@ -450,6 +538,8 @@ public class SemestersDomainService : ISemestersDomainService
         {
             var user = await _userRepository.GetByIdAsync(mentorId, cancellationToken);
             if (user is null || string.IsNullOrEmpty(user.Lecturer?.EmployeeCode)) continue;
+
+            await EnsureLecturerRolesAsync(user, cancellationToken);
 
             semester.AddEligibleMentor(mentorId, user.Lecturer.EmployeeCode, majorId, user.Email.Value, user.PhoneNumber, division: null, importedBy: null);
         }

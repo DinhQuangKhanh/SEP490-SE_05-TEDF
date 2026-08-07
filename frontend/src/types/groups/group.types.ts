@@ -12,12 +12,21 @@ export interface MentorGroupDto {
   groupId: string;
   groupCode: string;
   groupName?: string;
+  /**
+   * Tên hiển thị: chỉ mã nhóm (SE_NN) cho tới khi đề tài thẩm định thành công,
+   * sau đó là "SE_NN - Tên tiếng Anh của đề tài - Giảng viên hướng dẫn".
+   */
+  displayName: string;
   groupStatus: string;
   maxMembers: number;
   projectId?: string;
   projectName?: string;
+  projectNameEn?: string;
   projectCode?: string;
   projectStatus?: string;
+  semesterId: number;
+  semesterName: string;
+  semesterStartDate: string;
   createdAt: string;
   members: GroupMemberDto[];
 }
@@ -27,8 +36,11 @@ export interface StudentGroupDto {
   groupCode: string;
   /** Luôn có dạng SE_NN — phần đuôi của groupCode. */
   groupName?: string;
-  /** Biệt danh sinh viên tự đặt; null nếu chưa đặt. */
-  groupDisplayName?: string;
+  /**
+   * Tên hiển thị: chỉ mã nhóm (SE_NN) cho tới khi đề tài thẩm định thành công,
+   * sau đó là "SE_NN - Tên tiếng Anh của đề tài - Giảng viên hướng dẫn".
+   */
+  displayName: string;
   groupStatus: string;
   maxMembers: number;
   isOpenForRequests: boolean;
@@ -101,4 +113,3 @@ export interface BulkItemFailureDto {
   id: number;
   error: string;
 }
-

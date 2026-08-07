@@ -120,11 +120,10 @@ var app = builder.Build();
 // ============================================
 // 2. INITIALIZE DATABASE
 // ============================================
-// Apply migrations and seed initial data (runs only once or as needed)
-if (app.Environment.IsDevelopment())
-{
-    await app.Services.InitializeDatabaseAsync();
-}
+// Development applies migrations and seeds the full load-test dataset; every other environment only
+// tops up the reference data the app cannot run without (Departments + Majors) and never touches
+// real records. See InitializeDatabaseAsync for the exact split.
+await app.Services.InitializeDatabaseAsync(app.Environment.IsDevelopment());
 
 // ============================================
 // 3. CONFIGURE THE HTTP REQUEST PIPELINE
@@ -144,8 +143,16 @@ if (app.Environment.IsDevelopment())
 // Must be first: extract real client IP from X-Forwarded-For before any middleware reads it
 app.UseForwardedHeaders();
 
-// HTTPS Redirection
-app.UseHttpsRedirection();
+// HTTPS Redirection — development only.
+// In Production the container listens on HTTP alone (ASPNETCORE_URLS=http://+:8080) and TLS is
+// terminated by the nginx reverse proxy, so this middleware can only do harm: any request that
+// reaches the app without X-Forwarded-Proto=https gets redirected to its own https URL, which the
+// proxy forwards back over http — an infinite redirect loop (ERR_TOO_MANY_REDIRECTS) that browsers
+// then cache. Let nginx own the http→https redirect instead.
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 
 // Infrastructure middleware (Correlation ID, Request Logging, Exception Handling, Performance Monitoring)
 app.UseInfrastructure();

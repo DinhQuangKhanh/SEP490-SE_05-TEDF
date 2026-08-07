@@ -1,4 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TEDF.Persistence.SqlServer;
@@ -56,6 +59,36 @@ public static class LoadTestDataSeeder
 
     private const int Fall25GroupCount = 50;
     private const int Spring26GroupCount = 40;
+
+    // ── Enriched topic content (title EN + 5 fields), shared with the Python seeder ──
+    // Loaded from the embedded capstone_SP26.json (Spring, "SP_01".."SP_40") and
+    // capstone_SU26.json (Summer, "SU_01".."SU_13", ordered to match Summer26RealGroups).
+    // Topics not present fall back to synthetic content.
+    private sealed record TopicContent(
+        string TitleEn, string Description, string Objective, string Scope, string Technology, string ExpectedResult);
+
+    private static readonly Dictionary<string, TopicContent> EnrichedTopics = LoadEnrichedTopics();
+
+    private static Dictionary<string, TopicContent> LoadEnrichedTopics()
+    {
+        var assembly = typeof(LoadTestDataSeeder).GetTypeInfo().Assembly;
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var merged = new Dictionary<string, TopicContent>();
+        foreach (var resource in new[]
+                 {
+                     "TEDF.Persistence.Seeds.Data.capstone_SP26.json",
+                     "TEDF.Persistence.Seeds.Data.capstone_SU26.json",
+                 })
+        {
+            using var stream = assembly.GetManifestResourceStream(resource);
+            if (stream is null) continue;
+            using var reader = new StreamReader(stream);
+            var part = JsonSerializer.Deserialize<Dictionary<string, TopicContent>>(reader.ReadToEnd(), options);
+            if (part is null) continue;
+            foreach (var (key, value) in part) merged[key] = value;
+        }
+        return merged;
+    }
     private const int Summer26GroupCount = 15;
 
     private static readonly DateTime SeedDate = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -117,106 +150,295 @@ public static class LoadTestDataSeeder
     private static DateTime MockBirthDate(int baseYear, int yearSpread, int i) =>
         new(baseYear + (i % yearSpread), (i % 12) + 1, (i % 28) + 1, 0, 0, 0, DateTimeKind.Utc);
 
-    // ────────────────── Entry point ──────────────────
-    public static async Task SeedAsync(AppDbContext context, ILogger? logger = null)
+    // ────────────────── Entry points ──────────────────
+
+    /// <summary>
+    /// Seeds only the reference data the application cannot function without — Departments and
+    /// Majors — and nothing else. This is the entry point used outside Development: no users, no
+    /// semesters, no projects, no mock topics, so it is safe to run against real data.
+    /// <para>
+    /// Majors in particular are not optional: an empty Majors table leaves the "Ngành hướng dẫn"
+    /// dropdown on the eligibility roster blank, which in turn blocks publishing the roster.
+    /// </para>
+    /// Idempotent — safe on every application start.
+    /// </summary>
+    internal static async Task<bool> IsSchemaReadyAsync(AppDbContext context, ILogger? logger = null)
     {
-        // Never reset data by default on app startup.
-        // Opt-in reset only when explicitly requested via environment variable.
-        // Example: set TEDF_RESET_LOADTEST_ON_STARTUP=true
-        var resetOnStartup =
-            string.Equals(
-                Environment.GetEnvironmentVariable("TEDF_RESET_LOADTEST_ON_STARTUP"),
-                "true",
-                StringComparison.OrdinalIgnoreCase);
+        // Production does not apply migrations automatically, so the tables may not exist yet on a
+        // brand-new database. Report it rather than throwing during startup.
+        var schemaReady = await context.Database
+            .SqlQueryRaw<int>(
+                "SELECT CASE WHEN OBJECT_ID('Departments') IS NOT NULL AND OBJECT_ID('Majors') IS NOT NULL THEN 1 ELSE 0 END AS [Value]")
+            .SingleAsync();
 
-        if (resetOnStartup)
-        {
-            logger?.LogWarning("TEDF_RESET_LOADTEST_ON_STARTUP=true => resetting database before load-test seeding.");
-            await ResetDatabaseAsync(context, logger);
-        }
+        if (schemaReady == 0)
+            logger?.LogWarning(
+                "Skipping seeding: the Departments/Majors tables do not exist yet. Apply the EF Core migrations first.");
 
-        var alreadySeeded = await context.Database
+        return schemaReady == 1;
+    }
+
+    /// <summary>True once the first seeded admin exists — the marker that a full run already happened.</summary>
+    internal static async Task<bool> IsAlreadySeededAsync(AppDbContext context)
+        => await context.Database
             .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Users WHERE Id = {0}", AdminId(1))
-            .SingleOrDefaultAsync();
+            .SingleOrDefaultAsync() > 0;
 
-        if (alreadySeeded > 0)
+    /// <summary>
+    /// Honours <c>TEDF_RESET_LOADTEST_ON_STARTUP</c>, but only when the caller allows it — outside
+    /// Development the switch is ignored and logged, so a stray environment variable can never drop
+    /// real data.
+    /// </summary>
+    internal static async Task ResetIfRequestedAsync(AppDbContext context, ILogger? logger, bool allowDestructiveReset)
+    {
+        var resetRequested = string.Equals(
+            Environment.GetEnvironmentVariable("TEDF_RESET_LOADTEST_ON_STARTUP"),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!resetRequested) return;
+
+        if (!allowDestructiveReset)
         {
-            // After the RefactorUserSchema migration, Students/Lecturers tables may be empty even
-            // though Users already has data (the migration dropped StudentCode/EmployeeCode without
-            // first copying them). Detect this and backfill without touching the rest of the data.
-            var studentsSeeded = await context.Database
-                .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Students")
-                .SingleOrDefaultAsync();
-
-            if (studentsSeeded == 0)
-            {
-                logger?.LogWarning("Users exist but Students/Lecturers tables are empty — backfilling after schema migration.");
-                await SeedStudentsAsync(context, logger);
-                await SeedLecturersAsync(context, logger);
-                await SeedEligibleStudentsAsync(context, logger);
-            }
-
-            logger?.LogInformation("Load-test data already seeded, skipping.");
+            logger?.LogWarning(
+                "TEDF_RESET_LOADTEST_ON_STARTUP=true was IGNORED: wiping the database is allowed in Development only.");
             return;
         }
 
-        logger?.LogInformation("Seeding load-test data (Fall 2025 + Spring 2026 + Summer 2026)...");
+        logger?.LogWarning("TEDF_RESET_LOADTEST_ON_STARTUP=true => resetting database before seeding.");
+        await ResetDatabaseAsync(context, logger);
+    }
 
+    /// <summary>
+    /// Backfills <c>Students</c>/<c>Lecturers</c> when <c>Users</c> already holds the seeded rows but
+    /// the two profile tables are empty — the state the RefactorUserSchema migration leaves behind,
+    /// since it dropped StudentCode/EmployeeCode without copying them first.
+    /// </summary>
+    internal static async Task BackfillProfileTablesAsync(AppDbContext context, ILogger? logger)
+    {
+        var studentsSeeded = await context.Database
+            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Students")
+            .SingleOrDefaultAsync();
+
+        if (studentsSeeded > 0) return;
+
+        logger?.LogWarning("Users exist but Students/Lecturers are empty — backfilling after schema migration.");
+        await SeedStudentsAsync(context, logger);
+        await SeedLecturersAsync(context, logger);
+        await SeedEligibleStudentsAsync(context, logger);
+    }
+
+    /// <summary>
+    /// Seeds the full load-test dataset (users, semesters, groups, projects, registrations…).
+    /// <para>
+    /// Everything it writes belongs to the three historical semesters — Fall 2025, Spring 2026 and
+    /// Summer 2026 — and to fixed Id ranges, so semesters created later from the admin UI and the
+    /// real accounts working in them are never touched. Idempotent: it short-circuits as soon as the
+    /// first seeded admin exists.
+    /// </para>
+    /// </summary>
+    /// <param name="allowDestructiveReset">
+    /// Whether the <c>TEDF_RESET_LOADTEST_ON_STARTUP</c> environment variable may wipe the database
+    /// before seeding. Pass true in Development only — outside it the switch is ignored and logged,
+    /// because a stray environment variable must never be able to drop production data.
+    /// </param>
+    /// <summary>
+    /// <b>Development</b> — every table, in FK order. One line per table; a table appears exactly
+    /// once. Methods are named <c>Seed{Table}[{Scope}]Async</c>, where the optional scope is the
+    /// semester or the topic pool the rows belong to, so the same table seeded for two semesters
+    /// reads as one template with the semester swapped.
+    /// </summary>
+    internal static async Task SeedAllTablesAsync(AppDbContext context, ILogger? logger)
+    {
+        logger?.LogInformation("Seeding ALL tables (Fall 2025 + Spring 2026 + Summer 2026)...");
+
+        // ── Reference data ──────────────────────────────────────────────────
         await SeedDepartmentsAsync(context);
         await SeedMajorsAsync(context);
         await SeedProjectArchivesAsync(context);
         await SeedSemestersAsync(context, logger);
+        await SeedSemesterPhasesAsync(context, logger);
+
+        // ── People ──────────────────────────────────────────────────────────
         await SeedUsersAsync(context, logger);
+        await SeedUsersSummer2026Async(context, logger);
         await SeedUserRolesAsync(context, logger);
-        await SeedTopicPoolsAsync(context, logger);
-        await SeedTopicPoolProjectsAsync(context, logger);
-        await SeedTopicPoolProjectMentorsAsync(context, logger);
-        await SeedGroupsAsync(context, logger);
-        await SeedGroupMembersAsync(context, logger);
-        await SeedFall25ProjectsAsync(context, logger);
-        await SeedSpring26ProjectsAsync(context, logger);
-        await SeedProjectMentorsAsync(context, logger);
-        await SeedProjectEvaluatorAssignmentsAsync(context, logger);
-        await SeedTopicRegistrationsAsync(context, logger);
-        await SeedSpring26TopicRegistrationsAsync(context, logger);
-        await SeedSupportTicketsAsync(context, logger);
-        await AssignDepartmentHeadAsync(context, logger);
-        await SeedSummer26RealRegistrationsAsync(context, logger);
-        await SeedStudentsAsync(context, logger);
+        await SeedUserRolesSummer2026Async(context, logger);
         await SeedLecturersAsync(context, logger);
+        await SeedStudentsAsync(context, logger);
+        await SeedDepartmentHeadAsync(context, logger);
+
+        // ── Topic pool ──────────────────────────────────────────────────────
+        await SeedTopicPoolsAsync(context, logger);
+        await SeedProjectsTopicPoolAsync(context, logger);
+        await SeedProjectMentorsTopicPoolAsync(context, logger);
+
+        // ── Groups ──────────────────────────────────────────────────────────
+        await SeedGroupsAsync(context, logger);
+        await SeedGroupsSummer2026Async(context, logger);
+        await SeedGroupMembersAsync(context, logger);
+        await SeedGroupMembersSummer2026Async(context, logger);
+
+        // ── Projects ────────────────────────────────────────────────────────
+        await SeedProjectsFall2025Async(context, logger);
+        await SeedProjectsSpring2026Async(context, logger);
+        await SeedProjectsSummer2026Async(context, logger);
+        await SeedProjectMentorsFall2025Async(context, logger);
+        await SeedProjectMentorsSpring2026Async(context, logger);
+        await SeedProjectMentorsSummer2026Async(context, logger);
+        await LinkGroupsToProjectsSummer2026Async(context, logger);
+
+        // ── Evaluation & registration ───────────────────────────────────────
+        await SeedProjectEvaluatorAssignmentsFall2025Async(context, logger);
+        await SeedProjectEvaluatorAssignmentsSpring2026Async(context, logger);
+        await SeedTopicRegistrationsFall2025Async(context, logger);
+        await SeedTopicRegistrationsSpring2026Async(context, logger);
+
+        // ── Support & eligibility ───────────────────────────────────────────
+        await SeedSupportTicketsAsync(context, logger);
         await SeedEligibleStudentsAsync(context, logger);
 
-        logger?.LogInformation("Load-test data seeding complete.");
+        logger?.LogInformation("Seeding ALL tables complete.");
+    }
+
+    /// <summary>
+    /// <b>Production</b> — the subset that carries over: Departments, Majors, the SE topic pool, the
+    /// Spring 2026 and Summer 2026 projects with their mentors and evaluation results.
+    /// <para>
+    /// The rows above them (semesters, users, groups) are not optional decoration: Projects has FKs
+    /// to Semesters, Majors and Groups, and ProjectMentors to Users — a project cannot exist without
+    /// them. What is genuinely left out is Fall 2025 (projects, mentors, evaluations, registrations),
+    /// ProjectArchives and SupportTickets.
+    /// </para>
+    /// </summary>
+    internal static async Task SeedProductionTablesAsync(AppDbContext context, ILogger? logger)
+    {
+        logger?.LogInformation("Seeding production tables (Spring 2026 + Summer 2026)...");
+
+        // ── Reference data ──────────────────────────────────────────────────
+        await SeedDepartmentsAsync(context);
+        await SeedMajorsAsync(context);
+        await SeedSemestersAsync(context, logger);
+        await SeedSemesterPhasesAsync(context, logger);
+
+        // ── People (FK prerequisite of every project below) ──────────────────
+        await SeedUsersAsync(context, logger);
+        await SeedUsersSummer2026Async(context, logger);
+        await SeedUserRolesAsync(context, logger);
+        await SeedUserRolesSummer2026Async(context, logger);
+        await SeedLecturersAsync(context, logger);
+        await SeedStudentsAsync(context, logger);
+        await SeedDepartmentHeadAsync(context, logger);
+
+        // ── Topic pool (kho đề tài ngành SE) ─────────────────────────────────
+        await SeedTopicPoolsAsync(context, logger);
+        await SeedProjectsTopicPoolAsync(context, logger);
+        await SeedProjectMentorsTopicPoolAsync(context, logger);
+
+        // ── Groups ──────────────────────────────────────────────────────────
+        await SeedGroupsAsync(context, logger);
+        await SeedGroupsSummer2026Async(context, logger);
+        await SeedGroupMembersAsync(context, logger);
+        await SeedGroupMembersSummer2026Async(context, logger);
+
+        // ── Projects: Spring 2026 + Summer 2026 only ────────────────────────
+        await SeedProjectsSpring2026Async(context, logger);
+        await SeedProjectsSummer2026Async(context, logger);
+        await SeedProjectMentorsSpring2026Async(context, logger);
+        await SeedProjectMentorsSummer2026Async(context, logger);
+        await LinkGroupsToProjectsSummer2026Async(context, logger);
+
+        // ── Evaluation results & registration ───────────────────────────────
+        await SeedProjectEvaluatorAssignmentsSpring2026Async(context, logger);
+        await SeedTopicRegistrationsSpring2026Async(context, logger);
+
+        // ── Eligibility ─────────────────────────────────────────────────────
+        await SeedEligibleStudentsAsync(context, logger);
+
+        logger?.LogInformation("Seeding production tables complete.");
     }
 
     // ─── 1. Departments ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Idempotent: skips when a 'SE' department already exists, and falls back to an
+    /// identity-assigned Id when <see cref="DeptCNTT"/> is taken by a different row (which is the
+    /// normal case on a Production database whose departments came from a roster import).
+    /// </summary>
     private static async Task SeedDepartmentsAsync(AppDbContext context)
     {
         var sql = @"
-            SET IDENTITY_INSERT Departments ON;
-            INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
-            VALUES (@p0, N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
-            SET IDENTITY_INSERT Departments OFF;";
+            IF NOT EXISTS (SELECT 1 FROM Departments WHERE Code = 'SE')
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM Departments WHERE Id = @p0)
+                BEGIN
+                    SET IDENTITY_INSERT Departments ON;
+                    INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
+                    VALUES (@p0, N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
+                    SET IDENTITY_INSERT Departments OFF;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO Departments (Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
+                    VALUES (N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
+                END
+            END";
 
         await context.Database.ExecuteSqlRawAsync(sql, DeptCNTT, SeedDate);
     }
 
     // ─── 2. Majors ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Idempotent: inserts only the chuyên ngành codes that are missing.
+    /// <para>
+    /// Khoa CNTT has four chuyên ngành. SE is used by all seeded students/projects; AI/IA/IC are
+    /// reference rows so the Khoa → Chuyên ngành hierarchy is complete.
+    /// </para>
+    /// <para>
+    /// Explicit Ids (<see cref="MajorSE"/>…<see cref="MajorIC"/>) are forced only when the table is
+    /// empty, because the rest of the load-test seed hard-codes <c>MajorSE = 1</c>. On a database
+    /// that already holds majors the identity column assigns the Ids instead. Each major is attached
+    /// to the department sharing its code when one exists, otherwise to the SE department.
+    /// </para>
+    /// </summary>
     private static async Task SeedMajorsAsync(AppDbContext context)
     {
-        // Khoa CNTT has four chuyên ngành. SE is used by all seeded students/projects;
-        // AI/IA/IC are reference rows so the Khoa → Chuyên ngành hierarchy is complete.
         var sql = @"
-            SET IDENTITY_INSERT Majors ON;
-            INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+            DECLARE @defaultDeptId INT = (SELECT TOP 1 Id FROM Departments WHERE Code = 'SE' ORDER BY Id);
+            IF @defaultDeptId IS NULL
+                SET @defaultDeptId = (SELECT TOP 1 Id FROM Departments ORDER BY Id);
+
+            -- No department at all => the FK cannot be satisfied; nothing to do.
+            IF @defaultDeptId IS NULL
+                RETURN;
+
+            DECLARE @seed TABLE (Id INT, Name NVARCHAR(200), Code NVARCHAR(20), Description NVARCHAR(500));
+            INSERT INTO @seed (Id, Name, Code, Description)
             VALUES
-            (@p0, @p4, N'Kỹ thuật phần mềm',           'SE', N'Chuyên ngành Kỹ thuật phần mềm',           1, @p5, NULL),
-            (@p1, @p4, N'Trí tuệ nhân tạo',            'AI', N'Chuyên ngành Trí tuệ nhân tạo',            1, @p5, NULL),
-            (@p2, @p4, N'An toàn thông tin',           'IA', N'Chuyên ngành An toàn thông tin',           1, @p5, NULL),
-            (@p3, @p4, N'Thiết kế vi mạch bán dẫn',    'IC', N'Chuyên ngành Thiết kế vi mạch bán dẫn',    1, @p5, NULL);
-            SET IDENTITY_INSERT Majors OFF;";
+            (@p0, N'Kỹ thuật phần mềm',        'SE', N'Chuyên ngành Kỹ thuật phần mềm'),
+            (@p1, N'Trí tuệ nhân tạo',         'AI', N'Chuyên ngành Trí tuệ nhân tạo'),
+            (@p2, N'An toàn thông tin',        'IA', N'Chuyên ngành An toàn thông tin'),
+            (@p3, N'Thiết kế vi mạch bán dẫn', 'IC', N'Chuyên ngành Thiết kế vi mạch bán dẫn');
+
+            IF NOT EXISTS (SELECT 1 FROM Majors)
+            BEGIN
+                SET IDENTITY_INSERT Majors ON;
+                INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+                SELECT s.Id,
+                       COALESCE((SELECT TOP 1 d.Id FROM Departments d WHERE d.Code = s.Code), @defaultDeptId),
+                       s.Name, s.Code, s.Description, 1, @p5, NULL
+                FROM @seed s;
+                SET IDENTITY_INSERT Majors OFF;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO Majors (DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+                SELECT COALESCE((SELECT TOP 1 d.Id FROM Departments d WHERE d.Code = s.Code), @defaultDeptId),
+                       s.Name, s.Code, s.Description, 1, @p5, NULL
+                FROM @seed s
+                WHERE NOT EXISTS (SELECT 1 FROM Majors m WHERE m.Code = s.Code);
+            END";
 
         await context.Database.ExecuteSqlRawAsync(sql, MajorSE, MajorAI, MajorIA, MajorIC, DeptCNTT, SeedDate);
     }
@@ -226,7 +448,13 @@ public static class LoadTestDataSeeder
     private static async Task SeedProjectArchivesAsync(AppDbContext context)
     {
         // A few completed projects per past academic year so the storage panel shows real data.
+        // Delete-then-insert, scoped to the three fixed seed Ids: re-running the seeder on a database
+        // that already holds them (a previous run that failed further down the list) would otherwise
+        // violate PK_ProjectArchives. Only these three rows are touched — archives created by the
+        // application keep their own Ids and are never deleted.
         var sql = @"
+            DELETE FROM ProjectArchives WHERE Id IN (@p0, @p1, @p2);
+
             INSERT INTO ProjectArchives (Id, ProjectName, StudentNames, MajorId, AcademicYear, Summary, DocumentUrl, Tags, FileSizeBytes, ViewCount, DownloadCount, CreatedAt)
             VALUES
             (@p0, N'Hệ thống quản lý thư viện thông minh', N'Nguyễn Văn A, Trần Thị B', @pMajor, N'2023-2024', N'Khóa luận tốt nghiệp', NULL, N'library,web', @pSize1, 12, 3, @pDate),
@@ -257,12 +485,22 @@ public static class LoadTestDataSeeder
     {
         // Semesters.Id uses ValueGeneratedNever (no identity column)
         // Status column was removed – it is now a computed property based on StartDate/EndDate
+        //
+        // Only the missing semesters are inserted, matched on Id *or* Code: re-running the seeder
+        // after a run that failed further down the list must not violate PK_Semesters, and a
+        // semester an admin created with one of these codes must not be duplicated either.
         var sql = @"
-            INSERT INTO Semesters (Id, Name, Code, AcademicYear, StartDate, EndDate, Description, CreatedAt, UpdatedAt)
+            DECLARE @seed TABLE (Id INT, Name NVARCHAR(200), Code NVARCHAR(50), StartDate DATETIME2, EndDate DATETIME2, Description NVARCHAR(500));
+            INSERT INTO @seed (Id, Name, Code, StartDate, EndDate, Description)
             VALUES
-            (@p0, N'Học kỳ Fall 2025', 'FALL2025', '2025-2026', @p2, @p3, N'Học kỳ đồ án tốt nghiệp Fall 2025', @p9, NULL),
-            (@p1, N'Học kỳ Spring 2026', 'SPRING2026', '2025-2026', @p4, @p5, N'Học kỳ đồ án tốt nghiệp Spring 2026', @p9, NULL),
-            (@p6, N'Học kỳ Summer 2026', 'SUMMER2026', '2025-2026', @p7, @p8, N'Học kỳ đồ án tốt nghiệp Summer 2026', @p9, NULL);";
+            (@p0, N'Học kỳ Fall 2025',   'FALL2025',   @p2, @p3, N'Học kỳ đồ án tốt nghiệp Fall 2025'),
+            (@p1, N'Học kỳ Spring 2026', 'SPRING2026', @p4, @p5, N'Học kỳ đồ án tốt nghiệp Spring 2026'),
+            (@p6, N'Học kỳ Summer 2026', 'SUMMER2026', @p7, @p8, N'Học kỳ đồ án tốt nghiệp Summer 2026');
+
+            INSERT INTO Semesters (Id, Name, Code, AcademicYear, StartDate, EndDate, Description, CreatedAt, UpdatedAt)
+            SELECT s.Id, s.Name, s.Code, '2025-2026', s.StartDate, s.EndDate, s.Description, @p9, NULL
+            FROM @seed s
+            WHERE NOT EXISTS (SELECT 1 FROM Semesters e WHERE e.Id = s.Id OR e.Code = s.Code);";
 
         await context.Database.ExecuteSqlRawAsync(sql,
             Fall2025Id,
@@ -276,59 +514,54 @@ public static class LoadTestDataSeeder
             new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),   // SU26 end
             SeedDate);
 
-        // Fall 2025 phases (all Completed)
-        var phaseSql = @"
+        logger?.LogInformation("Seeded 3 semesters.");
+    }
+
+    // ─── 5. SemesterPhases ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// One INSERT per semester, all three built from the same statement so a phase added to one
+    /// semester cannot silently skip the others.
+    /// <para>
+    /// Three phases per semester (Registration / Evaluation / Implementation). The Defense phase was
+    /// removed from this seed on 2026-08-07 — see <c>SemesterPhaseType</c> if it needs to come back.
+    /// </para>
+    /// </summary>
+    private static async Task SeedSemesterPhasesAsync(AppDbContext context, ILogger? logger)
+    {
+        // Guarded per semester so a re-run cannot duplicate the phases.
+        const string sql = @"
             IF NOT EXISTS (SELECT 1 FROM SemesterPhases WHERE SemesterId = @p0)
             BEGIN
                 INSERT INTO SemesterPhases (SemesterId, Name, Type, StartDate, EndDate, [Order])
                 VALUES
-                (@p0, N'Đăng ký đề tài',    0, @p1, @p2, 1),
-                (@p0, N'Thẩm định đề tài',  1, @p3, @p4, 2),
-                (@p0, N'Triển khai',         2, @p5, @p6, 3),
-                (@p0, N'Bảo vệ đồ án',      3, @p7, @p8, 4);
+                (@p0, N'Đăng ký đề tài',   0, @p1, @p2, 1),
+                (@p0, N'Thẩm định đề tài', 1, @p3, @p4, 2),
+                (@p0, N'Triển khai',       2, @p5, @p6, 3);
             END";
 
-        await context.Database.ExecuteSqlRawAsync(phaseSql,
+        // Fall 2025 (all completed)
+        await context.Database.ExecuteSqlRawAsync(sql,
             Fall2025Id,
-            new DateTime(2025, 7, 7), new DateTime(2025, 7, 27),     // Registration
-            new DateTime(2025, 7, 28), new DateTime(2025, 8, 17),    // Evaluation
-            new DateTime(2025, 9, 8), new DateTime(2025, 12, 22),    // Implementation
-            new DateTime(2025, 12, 23), new DateTime(2025, 12, 27)); // Defense
+            new DateTime(2025, 7, 7), new DateTime(2025, 7, 27),      // Registration
+            new DateTime(2025, 7, 28), new DateTime(2025, 8, 17),     // Evaluation
+            new DateTime(2025, 9, 8), new DateTime(2025, 12, 22));    // Implementation
 
-        // Spring 2026 phases (Implementation in progress, Defense not started)
-        var phaseSql2 = @"
-            IF NOT EXISTS (SELECT 1 FROM SemesterPhases WHERE SemesterId = @p0)
-            BEGIN
-                INSERT INTO SemesterPhases (SemesterId, Name, Type, StartDate, EndDate, [Order])
-                VALUES
-                (@p0, N'Đăng ký đề tài',    0, @p1, @p2, 1),
-                (@p0, N'Thẩm định đề tài',  1, @p3, @p4, 2),
-                (@p0, N'Triển khai',         2, @p5, @p6, 3),
-                (@p0, N'Bảo vệ đồ án',      3, @p7, @p8, 4);
-            END";
-
-        await context.Database.ExecuteSqlRawAsync(phaseSql2,
+        // Spring 2026 (implementation in progress)
+        await context.Database.ExecuteSqlRawAsync(sql,
             Spring2026Id,
-            new DateTime(2025, 11, 3), new DateTime(2025, 11, 23),   // Registration
-            new DateTime(2025, 11, 24), new DateTime(2025, 12, 14),  // Evaluation
-            new DateTime(2026, 1, 5), new DateTime(2026, 5, 4),     // Implementation (15 weeks + 2 weeks Tet)
-            new DateTime(2025, 5, 5), new DateTime(2025, 5, 9)); // Defense
+            new DateTime(2025, 11, 3), new DateTime(2025, 11, 23),    // Registration
+            new DateTime(2025, 11, 24), new DateTime(2025, 12, 14),   // Evaluation
+            new DateTime(2026, 1, 5), new DateTime(2026, 5, 4));      // Implementation
 
-        // Summer 2026 phases (Registration upcoming, rest not started)
-        var phaseSql3 = @"
-            INSERT INTO SemesterPhases (SemesterId, Name, Type, StartDate, EndDate, [Order])
-            VALUES
-            (@p0, N'Đăng ký đề tài',    0, @p1, @p2, 1),
-            (@p0, N'Thẩm định đề tài',  1, @p3, @p4, 2),
-            (@p0, N'Triển khai',         2, @p5, @p6, 3);";
-
-        await context.Database.ExecuteSqlRawAsync(phaseSql3,
+        // Summer 2026 (registration upcoming)
+        await context.Database.ExecuteSqlRawAsync(sql,
             Summer2026Id,
-            new DateTime(2026, 3, 16), new DateTime(2026, 4, 5),    // Registration
-            new DateTime(2026, 4, 6), new DateTime(2026, 4, 26),    // Evaluation
-            new DateTime(2026, 5, 11), new DateTime(2026, 8, 24));   // Implementation
+            new DateTime(2026, 3, 16), new DateTime(2026, 4, 5),      // Registration
+            new DateTime(2026, 4, 6), new DateTime(2026, 4, 26),      // Evaluation
+            new DateTime(2026, 5, 11), new DateTime(2026, 8, 24));    // Implementation
 
-        logger?.LogInformation("Seeded 3 semesters with phases.");
+        logger?.LogInformation("Seeded semester phases for 3 semesters.");
     }
 
     // ════════════════════════════════════════════════
@@ -460,10 +693,15 @@ public static class LoadTestDataSeeder
             lecturers.Add((DualRoleId(i), $"LT-EMP-L{i:D4}", LecturerTitles[i % LecturerTitles.Length]));
 
         foreach (var l in lecturers)
+            // Pass SqlParameter instances (not bare values): a nullable AcademicTitle becomes
+            // DBNull.Value, and EF's ExecuteSqlRawAsync cannot infer a store type for a bare
+            // DBNull ("no store type mapping for type 'DBNull'"). A DbParameter is handed straight
+            // to ADO.NET, which maps DBNull to a SQL NULL without any EF type inference.
             await context.Database.ExecuteSqlRawAsync(
-                // DBNull, not null: the params array is object[], so a null element would be a
-                // possible-null-reference argument and ADO.NET wants DBNull for a NULL column.
-                InsertLecturerSql, l.Id, l.EmployeeCode, l.AcademicTitle ?? (object)DBNull.Value);
+                InsertLecturerSql,
+                new SqlParameter("@p0", l.Id),
+                new SqlParameter("@p1", l.EmployeeCode),
+                new SqlParameter("@p2", (object?)l.AcademicTitle ?? DBNull.Value));
 
         logger?.LogInformation("Seeded {Count} lecturers.", lecturers.Count);
     }
@@ -577,7 +815,8 @@ public static class LoadTestDataSeeder
     //  TOPIC POOL PROJECTS (~25 per major = 200 total)
     //  SourceType=FromPool, no GroupId
     // ════════════════════════════════════════════════
-    private static async Task SeedTopicPoolProjectsAsync(AppDbContext context, ILogger? logger)
+    /// <summary>Projects rows that live in the SE topic pool (kho đề tài), not yet tied to a group.</summary>
+    private static async Task SeedProjectsTopicPoolAsync(AppDbContext context, ILogger? logger)
     {
         var totalCount = 0;
 
@@ -709,7 +948,8 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  TOPIC POOL PROJECT MENTORS (1 per pool project, matches SubmittedBy)
     // ════════════════════════════════════════════════
-    private static async Task SeedTopicPoolProjectMentorsAsync(AppDbContext context, ILogger? logger)
+    /// <summary>ProjectMentors rows for the topic-pool projects.</summary>
+    private static async Task SeedProjectMentorsTopicPoolAsync(AppDbContext context, ILogger? logger)
     {
         var totalCount = 0;
 
@@ -990,41 +1230,50 @@ public static class LoadTestDataSeeder
     /// students, groups, and DirectRegistration projects. Uses distinct GUID ranges, so it never
     /// collides with the synthetic load-test rows. Idempotent.
     /// </summary>
-    private static async Task SeedSummer26RealRegistrationsAsync(AppDbContext context, ILogger? logger)
+    // ── Shared Summer 2026 roster ────────────────────────────────────────────
+    // Flattened once and reused by every Seed*Summer2026Async method below, so the student index
+    // → group mapping cannot drift between the Users, GroupMembers and Projects inserts.
+
+    private sealed record Summer2026Student(int Idx, string Roll, string FullName);
+
+    /// <summary>Every real Summer 2026 student, in a stable 1-based order.</summary>
+    private static readonly List<Summer2026Student> Summer2026Students = BuildSummer2026Students();
+
+    /// <summary>Per group (same order as <see cref="Summer26RealGroups"/>), its student indexes; first = leader.</summary>
+    private static readonly List<List<int>> Summer2026GroupMembers = BuildSummer2026GroupMembers();
+
+    private static readonly DateTime Summer2026SubmittedAt = new(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Summer2026ApprovedAt = new(2026, 5, 5, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Summer2026StartDate = new(2026, 5, 11, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Summer2026Deadline = new(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc);
+
+    private static List<Summer2026Student> BuildSummer2026Students()
     {
-        var alreadySeeded = await context.Database
-            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Users WHERE Id = {0}", RealStudentId(1))
-            .SingleOrDefaultAsync();
+        var students = new List<Summer2026Student>();
+        var nextIdx = 0;
+        foreach (var grp in Summer26RealGroups)
+            foreach (var (roll, fullName) in grp.Members)
+                students.Add(new Summer2026Student(++nextIdx, roll, fullName));
+        return students;
+    }
 
-        if (alreadySeeded > 0)
-        {
-            logger?.LogInformation("Summer 2026 real registrations already seeded, skipping.");
-            return;
-        }
-
-        var submittedAt = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
-        var approvedAt = new DateTime(2026, 5, 5, 0, 0, 0, DateTimeKind.Utc);
-        var startDate = new DateTime(2026, 5, 11, 0, 0, 0, DateTimeKind.Utc);  // Summer impl. start
-        var deadline = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc);   // Summer impl. end
-
-        // Flatten members → sequential 1-based real-student index; remember each group's members
-        // (first member = leader).
-        var students = new List<(int Idx, string Roll, string FullName)>();
-        var groupMembers = new List<List<int>>();
+    private static List<List<int>> BuildSummer2026GroupMembers()
+    {
+        var groups = new List<List<int>>();
         var nextIdx = 0;
         foreach (var grp in Summer26RealGroups)
         {
             var indices = new List<int>();
-            foreach (var (roll, fullName) in grp.Members)
-            {
-                nextIdx++;
-                students.Add((nextIdx, roll, fullName));
-                indices.Add(nextIdx);
-            }
-            groupMembers.Add(indices);
+            foreach (var _ in grp.Members) indices.Add(++nextIdx);
+            groups.Add(indices);
         }
+        return groups;
+    }
 
-        // 1) Users (students)
+    /// <summary>Users: the real Summer 2026 students.</summary>
+    private static async Task SeedUsersSummer2026Async(AppDbContext context, ILogger? logger)
+    {
+        var students = Summer2026Students;
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1051,7 +1300,13 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        // 2) User roles (Student = RoleId 3)
+        logger?.LogInformation("Seeded {Count} Summer 2026 users.", students.Count);
+    }
+
+    /// <summary>UserRoles: Student (RoleId 3) for every real Summer 2026 student.</summary>
+    private static async Task SeedUserRolesSummer2026Async(AppDbContext context, ILogger? logger)
+    {
+        var students = Summer2026Students;
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1070,8 +1325,17 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        // 3) Groups (Active, Summer 2026, leader = first member). ProjectId is set later, after
-        //    the projects exist, to satisfy the Groups → Projects FK.
+        logger?.LogInformation("Seeded {Count} Summer 2026 user roles.", students.Count);
+    }
+
+    /// <summary>
+    /// Groups: the real Summer 2026 groups (Active, leader = first member). ProjectId stays NULL
+    /// here and is filled in by <see cref="LinkGroupsToProjectsSummer2026Async"/> once the projects
+    /// exist, because of the Groups → Projects FK.
+    /// </summary>
+    private static async Task SeedGroupsSummer2026Async(AppDbContext context, ILogger? logger)
+    {
+        var groupMembers = Summer2026GroupMembers;
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1098,7 +1362,13 @@ public static class LoadTestDataSeeder
             await InsertGroupsAsync(context, values, parameters);
         }
 
-        // 4) Group members (Role: 0 = Leader for the first, 1 = Member otherwise)
+        logger?.LogInformation("Seeded {Count} Summer 2026 groups.", Summer26RealGroups.Length);
+    }
+
+    /// <summary>GroupMembers: Role 0 = Leader for the first member of each group, 1 = Member.</summary>
+    private static async Task SeedGroupMembersSummer2026Async(AppDbContext context, ILogger? logger)
+    {
+        var groupMembers = Summer2026GroupMembers;
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1123,9 +1393,20 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        // 5) Projects (SourceType = DirectRegistration, Status = InProgress, assigned to the group).
-        //    A mentor is assigned round-robin from the seeded lecturers (the source list has no
-        //    mentor data).
+        logger?.LogInformation("Seeded {Count} Summer 2026 group members.", Summer2026Students.Count);
+    }
+
+    /// <summary>
+    /// Projects: the real Summer 2026 registrations (SourceType = DirectRegistration, Status =
+    /// InProgress, attached to their group). The mentor is picked round-robin from the seeded
+    /// lecturers — the source list carries no mentor of its own.
+    /// </summary>
+    private static async Task SeedProjectsSummer2026Async(AppDbContext context, ILogger? logger)
+    {
+        var submittedAt = Summer2026SubmittedAt;
+        var approvedAt = Summer2026ApprovedAt;
+        var startDate = Summer2026StartDate;
+        var deadline = Summer2026Deadline;
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1135,14 +1416,19 @@ public static class LoadTestDataSeeder
                 var grp = Summer26RealGroups[g];
                 var mentorId = DualRoleId((g % DualRoleCount) + 1);
 
+                // capstone_SU26 is ordered to match Summer26RealGroups, so group index g -> "SU_{g+1}".
+                var content = EnrichedTopics.GetValueOrDefault($"SU_{g + 1:D2}");
+                var nameEn = content?.TitleEn ?? grp.NameEn;
+
                 var pId = $"@p{pi++}"; var pCode = $"@p{pi++}"; var pVi = $"@p{pi++}"; var pEn = $"@p{pi++}";
-                var pAbbr = $"@p{pi++}"; var pDesc = $"@p{pi++}"; var pObj = $"@p{pi++}"; var pMajor = $"@p{pi++}";
+                var pAbbr = $"@p{pi++}"; var pDesc = $"@p{pi++}"; var pObj = $"@p{pi++}";
+                var pScope = $"@p{pi++}"; var pTech = $"@p{pi++}"; var pExpected = $"@p{pi++}"; var pMajor = $"@p{pi++}";
                 var pSemester = $"@p{pi++}"; var pGroup = $"@p{pi++}"; var pSubAt = $"@p{pi++}"; var pSubBy = $"@p{pi++}";
                 var pAppAt = $"@p{pi++}"; var pStart = $"@p{pi++}"; var pDeadline = $"@p{pi++}"; var pCreatedIn = $"@p{pi++}";
                 var pDate = $"@p{pi++}";
 
                 values.Add($@"({pId}, {pCode}, {pVi}, {pEn}, {pAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, {pGroup}, NULL, 5, 1, 0, 5, 0,
                     {pSubAt}, {pSubBy}, {pAppAt}, {pStart}, {pDeadline}, 0, NULL,
                     NULL, {pCreatedIn}, NULL, {pDate}, NULL)");
@@ -1150,10 +1436,13 @@ public static class LoadTestDataSeeder
                 parameters.Add(RealProjectId(g + 1));
                 parameters.Add($"KL-SU26-{g + 1:D3}");
                 parameters.Add(grp.NameVi);
-                parameters.Add(grp.NameEn);
+                parameters.Add(nameEn);
                 parameters.Add(grp.Name);
-                parameters.Add($"Mô tả đề tài: {grp.NameVi}");
-                parameters.Add($"Mục tiêu: {grp.NameEn}");
+                parameters.Add(content?.Description ?? $"Mô tả đề tài: {grp.NameVi}");
+                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add((object?)content?.Scope ?? DBNull.Value);
+                parameters.Add((object?)content?.Technology ?? DBNull.Value);
+                parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);
                 parameters.Add(MajorSE);
                 parameters.Add(Summer2026Id);
                 parameters.Add(RealGroupId(g + 1));
@@ -1176,7 +1465,12 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        // 6) Project mentors (matches each project's SubmittedBy)
+        logger?.LogInformation("Seeded {Count} Summer 2026 projects.", Summer26RealGroups.Length);
+    }
+
+    /// <summary>ProjectMentors: matches each Summer 2026 project's SubmittedBy.</summary>
+    private static async Task SeedProjectMentorsSummer2026Async(AppDbContext context, ILogger? logger)
+    {
         {
             var values = new List<string>();
             var parameters = new List<object>();
@@ -1197,7 +1491,16 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        // 7) Link each group back to its project (Groups → Projects FK now satisfiable)
+        logger?.LogInformation("Seeded {Count} Summer 2026 project mentors.", Summer26RealGroups.Length);
+    }
+
+    /// <summary>
+    /// Groups (UPDATE): points each Summer 2026 group at its project. Separate from
+    /// <see cref="SeedGroupsSummer2026Async"/> because the Groups → Projects FK can only be
+    /// satisfied once <see cref="SeedProjectsSummer2026Async"/> has run.
+    /// </summary>
+    private static async Task LinkGroupsToProjectsSummer2026Async(AppDbContext context, ILogger? logger)
+    {
         for (var g = 1; g <= Summer26RealGroups.Length; g++)
         {
             await context.Database.ExecuteSqlRawAsync(
@@ -1205,15 +1508,13 @@ public static class LoadTestDataSeeder
                 RealProjectId(g), RealGroupId(g));
         }
 
-        logger?.LogInformation(
-            "Seeded {Groups} real Summer 2026 groups, {Students} students and {Projects} projects.",
-            Summer26RealGroups.Length, students.Count, Summer26RealGroups.Length);
+        logger?.LogInformation("Linked {Count} Summer 2026 groups to their projects.", Summer26RealGroups.Length);
     }
 
     // ════════════════════════════════════════════════
     //  FALL 2025 PROJECTS (50 real SE topics, Completed)
     // ════════════════════════════════════════════════
-    private static async Task SeedFall25ProjectsAsync(AppDbContext context, ILogger? logger)
+    private static async Task SeedProjectsFall2025Async(AppDbContext context, ILogger? logger)
     {
         var poolId = TopicPoolId(0); // SE pool (majorIndex=0)
 
@@ -1302,7 +1603,7 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     private const int Spring26EvaluatedCount = 20;
 
-    private static async Task SeedSpring26ProjectsAsync(AppDbContext context, ILogger? logger)
+    private static async Task SeedProjectsSpring2026Async(AppDbContext context, ILogger? logger)
     {
         var projectOffset = Fall25GroupCount; // Projects start at index 51
 
@@ -1320,6 +1621,11 @@ public static class LoadTestDataSeeder
                 var topic = Spring26Topics[i];
                 var isEvaluated = i < Spring26EvaluatedCount; // First 20 are evaluated & approved
 
+                // Enriched content (real title EN + 5 fields) when available; else keep the
+                // Vietnamese title and fall back to synthetic description/objectives.
+                var content = EnrichedTopics.GetValueOrDefault(topic.Code);
+                var nameEn = content?.TitleEn ?? topic.NameEn;
+
                 var pId = $"@p{paramIndex++}";
                 var pCode = $"@p{paramIndex++}";
                 var pNameVi = $"@p{paramIndex++}";
@@ -1327,6 +1633,9 @@ public static class LoadTestDataSeeder
                 var pNameAbbr = $"@p{paramIndex++}";
                 var pDesc = $"@p{paramIndex++}";
                 var pObj = $"@p{paramIndex++}";
+                var pScope = $"@p{paramIndex++}";
+                var pTech = $"@p{paramIndex++}";
+                var pExpected = $"@p{paramIndex++}";
                 var pMajor = $"@p{paramIndex++}";
                 var pSemester = $"@p{paramIndex++}";
                 var pSubmittedBy = $"@p{paramIndex++}";
@@ -1337,10 +1646,13 @@ public static class LoadTestDataSeeder
                 parameters.Add(ProjectId(projectIndex));
                 parameters.Add(topic.Code);
                 parameters.Add(topic.NameVi);
-                parameters.Add(topic.NameEn);
+                parameters.Add(nameEn);
                 parameters.Add(topic.Code);
-                parameters.Add($"Mô tả đề tài: {topic.NameVi}");
-                parameters.Add($"Mục tiêu: {topic.NameEn}");
+                parameters.Add(content?.Description ?? $"Mô tả đề tài: {topic.NameVi}");
+                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add((object?)content?.Scope ?? DBNull.Value);
+                parameters.Add((object?)content?.Technology ?? DBNull.Value);
+                parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);
                 parameters.Add(MajorSE);
                 parameters.Add(Spring2026Id);
                 parameters.Add(DualRoleId(((projectOffset + i) % DualRoleCount) + 1));
@@ -1356,7 +1668,7 @@ public static class LoadTestDataSeeder
                     var pDeadline = $"@p{paramIndex++}";
 
                     valueClauses.Add($@"({pId}, {pCode}, {pNameVi}, {pNameEn}, {pNameAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, {pGroup}, NULL, 5, 1, 0, 5, 0,
                     {pSubmittedAt}, {pSubmittedBy}, {pApprovedAt}, {pStartDate}, {pDeadline}, 3, 1,
                     NULL, NULL, NULL, {pDate}, NULL)");
@@ -1370,7 +1682,7 @@ public static class LoadTestDataSeeder
                 {
                     // PendingEvaluation: no group, no approval, awaiting evaluator review
                     valueClauses.Add($@"({pId}, {pCode}, {pNameVi}, {pNameEn}, {pNameAbbr},
-                    {pDesc}, {pObj}, NULL, NULL, NULL,
+                    {pDesc}, {pObj}, {pScope}, {pTech}, {pExpected},
                     {pMajor}, {pSemester}, NULL, NULL, 5, 1, 0, 1, 0,
                     {pSubmittedAt}, {pSubmittedBy}, NULL, NULL, NULL, 1, NULL,
                     NULL, NULL, NULL, {pDate}, NULL)");
@@ -1404,18 +1716,31 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  PROJECT MENTORS (1 per project, round-robin)
     // ════════════════════════════════════════════════
-    private static async Task SeedProjectMentorsAsync(AppDbContext context, ILogger? logger)
-    {
-        var totalProjects = Fall25GroupCount + Spring26GroupCount;
+    /// <summary>ProjectMentors for the Fall 2025 projects (project index 1…50).</summary>
+    private static Task SeedProjectMentorsFall2025Async(AppDbContext context, ILogger? logger)
+        => SeedProjectMentorsForRangeAsync(context, logger, 1, Fall25GroupCount, "Fall 2025");
 
-        for (var batch = 0; batch < totalProjects; batch += BatchSize)
+    /// <summary>ProjectMentors for the Spring 2026 projects (project index 51…90).</summary>
+    private static Task SeedProjectMentorsSpring2026Async(AppDbContext context, ILogger? logger)
+        => SeedProjectMentorsForRangeAsync(context, logger,
+            Fall25GroupCount + 1, Fall25GroupCount + Spring26GroupCount, "Spring 2026");
+
+    /// <summary>
+    /// The shared body. Project indexes are contiguous — Fall 2025 owns 1…50 and Spring 2026 owns
+    /// 51…90 — so a semester is just a range, and the mentor picked for a project depends only on
+    /// its own index. Seeding one semester therefore produces the same rows as seeding both.
+    /// </summary>
+    private static async Task SeedProjectMentorsForRangeAsync(
+        AppDbContext context, ILogger? logger, int firstProjectIndex, int lastProjectIndex, string scope)
+    {
+        for (var batch = firstProjectIndex; batch <= lastProjectIndex; batch += BatchSize)
         {
-            var end = Math.Min(batch + BatchSize, totalProjects);
+            var end = Math.Min(batch + BatchSize - 1, lastProjectIndex);
             var valueClauses = new List<string>();
             var parameters = new List<object>();
             var paramIndex = 0;
 
-            for (var i = batch + 1; i <= end; i++)
+            for (var i = batch; i <= end; i++)
             {
                 var mentorIndex = ((i - 1) % DualRoleCount) + 1;
                 var pProject = $"@p{paramIndex++}";
@@ -1435,26 +1760,44 @@ public static class LoadTestDataSeeder
             await context.Database.ExecuteSqlRawAsync(sql, parameters.ToArray());
         }
 
-        logger?.LogInformation("Seeded {Count} load-test project mentors.", totalProjects);
+        logger?.LogInformation("Seeded {Count} {Scope} project mentors.",
+            lastProjectIndex - firstProjectIndex + 1, scope);
     }
 
     // ════════════════════════════════════════════════
     //  PROJECT EVALUATOR ASSIGNMENTS
     //  Fall25: 3 evaluators each (completed), Spring26: 3 each (pending)
     // ════════════════════════════════════════════════
-    private static async Task SeedProjectEvaluatorAssignmentsAsync(AppDbContext context, ILogger? logger)
-    {
-        var totalProjects = Fall25GroupCount + Spring26GroupCount;
-        var assignmentIndex = 0;
+    /// <summary>Evaluation results for the Fall 2025 projects — all approved.</summary>
+    private static Task SeedProjectEvaluatorAssignmentsFall2025Async(AppDbContext context, ILogger? logger)
+        => SeedProjectEvaluatorAssignmentsForRangeAsync(context, logger, 1, Fall25GroupCount, "Fall 2025");
 
-        for (var batch = 0; batch < totalProjects; batch += BatchSize)
+    /// <summary>Evaluation results for the Spring 2026 projects — the first 20 approved, the rest pending.</summary>
+    private static Task SeedProjectEvaluatorAssignmentsSpring2026Async(AppDbContext context, ILogger? logger)
+        => SeedProjectEvaluatorAssignmentsForRangeAsync(context, logger,
+            Fall25GroupCount + 1, Fall25GroupCount + Spring26GroupCount, "Spring 2026");
+
+    /// <summary>
+    /// The shared body, ranged by project index like <see cref="SeedProjectMentorsForRangeAsync"/>.
+    /// <para>
+    /// The assignment Id is derived from the project index rather than from a running counter, so a
+    /// range produces exactly the Ids it would have produced inside a full run — seeding Spring 2026
+    /// alone cannot collide with Fall 2025 rows added later.
+    /// </para>
+    /// </summary>
+    private static async Task SeedProjectEvaluatorAssignmentsForRangeAsync(
+        AppDbContext context, ILogger? logger, int firstProjectIndex, int lastProjectIndex, string scope)
+    {
+        var assignmentCount = 0;
+
+        for (var batch = firstProjectIndex; batch <= lastProjectIndex; batch += BatchSize)
         {
-            var end = Math.Min(batch + BatchSize, totalProjects);
+            var end = Math.Min(batch + BatchSize - 1, lastProjectIndex);
             var valueClauses = new List<string>();
             var parameters = new List<object?>();
             var paramIndex = 0;
 
-            for (var i = batch + 1; i <= end; i++)
+            for (var i = batch; i <= end; i++)
             {
                 var isFall = i <= Fall25GroupCount;
                 var mentorIndex = ((i - 1) % DualRoleCount) + 1;
@@ -1462,7 +1805,9 @@ public static class LoadTestDataSeeder
                 var evaluatorOffset = 0;
                 for (var order = 1; order <= 2; order++)
                 {
-                    assignmentIndex++;
+                    // Stable across ranges: project 1 owns assignments 1-2, project 2 owns 3-4, …
+                    var assignmentIndex = (i - 1) * 2 + order;
+                    assignmentCount++;
 
                     int evaluatorIndex;
                     do
@@ -1522,13 +1867,13 @@ public static class LoadTestDataSeeder
             }
         }
 
-        logger?.LogInformation("Seeded {Count} load-test evaluator assignments.", assignmentIndex);
+        logger?.LogInformation("Seeded {Count} {Scope} evaluator assignments.", assignmentCount, scope);
     }
 
     // ════════════════════════════════════════════════
     //  TOPIC REGISTRATIONS (Fall25 only, Confirmed)
     // ════════════════════════════════════════════════
-    private static async Task SeedTopicRegistrationsAsync(AppDbContext context, ILogger? logger)
+    private static async Task SeedTopicRegistrationsFall2025Async(AppDbContext context, ILogger? logger)
     {
         for (var batch = 0; batch < Fall25GroupCount; batch += BatchSize)
         {
@@ -1576,7 +1921,7 @@ public static class LoadTestDataSeeder
     //  20 Confirmed (evaluated InProgress projects) + 10 Rejected (rejected projects)
     //  Last 20 Spring26 projects are PendingEvaluation — no registrations yet
     // ════════════════════════════════════════════════
-    private static async Task SeedSpring26TopicRegistrationsAsync(AppDbContext context, ILogger? logger)
+    private static async Task SeedTopicRegistrationsSpring2026Async(AppDbContext context, ILogger? logger)
     {
         var registrationOffset = Fall25GroupCount; // Fall25 registrations use IDs 1..50
         var valueClauses = new List<string>();
@@ -1769,7 +2114,8 @@ public static class LoadTestDataSeeder
     // ════════════════════════════════════════════════
     //  DEPARTMENT HEAD
     // ════════════════════════════════════════════════
-    private static async Task AssignDepartmentHeadAsync(AppDbContext context, ILogger? logger)
+    /// <summary>Departments: points the SE department at its head (UPDATE, no insert).</summary>
+    private static async Task SeedDepartmentHeadAsync(AppDbContext context, ILogger? logger)
     {
         await context.Database.ExecuteSqlRawAsync(
             "UPDATE Departments SET HeadOfDepartmentId = @p0, UpdatedAt = @p1 WHERE Id = 1;",
@@ -1813,6 +2159,9 @@ public static class LoadTestDataSeeder
             "GroupJoinRequests",
 
             // Leaf tables (no dependents)
+            // ProjectAuditLogs has Restrict FKs to Projects and Users, so it must be cleared
+            // before both (it is append-only and nothing references it).
+            "ProjectAuditLogs",
             "EligibleStudents",
             "EligibleMentors",
             "SupportTickets",
@@ -1822,6 +2171,10 @@ public static class LoadTestDataSeeder
             "Documents",
             "GroupMembers",
             "EvaluationSubmissions",
+
+            // Append-only project audit trail. Its FKs to Projects and Users are Restrict,
+            // so it has to go before both of them below.
+            "ProjectAuditLogs",
 
             // Projects reference Groups & TopicPools; Groups reference Projects (circular via ProjectId)
             // Break the cycle: NULL out the FK first, then delete.

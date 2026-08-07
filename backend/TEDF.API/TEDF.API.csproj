@@ -8,19 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Endpoints\Authentications\**" />
     <Compile Remove="Endpoints\Commons\**" />
     <Compile Remove="Endpoints\Evaluators\**" />
     <Compile Remove="Endpoints\Mentor\**" />
-    <Content Remove="Endpoints\Authentications\**" />
     <Content Remove="Endpoints\Commons\**" />
     <Content Remove="Endpoints\Evaluators\**" />
     <Content Remove="Endpoints\Mentor\**" />
-    <EmbeddedResource Remove="Endpoints\Authentications\**" />
     <EmbeddedResource Remove="Endpoints\Commons\**" />
     <EmbeddedResource Remove="Endpoints\Evaluators\**" />
     <EmbeddedResource Remove="Endpoints\Mentor\**" />
-    <None Remove="Endpoints\Authentications\**" />
     <None Remove="Endpoints\Commons\**" />
     <None Remove="Endpoints\Evaluators\**" />
     <None Remove="Endpoints\Mentor\**" />

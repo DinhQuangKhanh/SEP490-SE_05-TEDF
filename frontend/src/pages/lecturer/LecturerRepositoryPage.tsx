@@ -18,12 +18,12 @@ import { useSignalR } from "@/hooks/useSignalR";
 import {
   topicService,
   topicPoolService,
-  proposedTopicService,
   projectService,
   semesterService,
   sourceTypeLabel,
   statusConfig,
 } from "@/lib";
+import { submittedOrCreatedAt } from "@/types";
 import type {
   DepartmentProject,
   MentorRegistrationRequestDto,
@@ -1031,7 +1031,7 @@ function DepartmentTopicsView() {
                                 {sc.label}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">{formatDate(p.submittedAt)}</td>
+                            <td className="px-6 py-4 text-sm text-slate-600">{formatDate(submittedOrCreatedAt(p))}</td>
                             <td className="px-6 py-4 text-right">
                               <button
                                 type="button"
@@ -1136,11 +1136,6 @@ function TopicDetailModal({
   const [detail, setDetail] = useState<TopicDetail | null>(null);
   const [documents, setDocuments] = useState<TopicDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reviewAction, setReviewAction] = useState<"approve" | "requestModification" | null>(null);
-  const [feedback, setFeedback] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-
   // Edit/resubmit state for pool topics with NeedsModification
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<UpdatePoolTopicRequest>({
@@ -1159,9 +1154,7 @@ function TopicDetailModal({
   const [resubmitLoading, setResubmitLoading] = useState(false);
   const [resubmitError, setResubmitError] = useState<string | null>(null);
 
-  const isPendingMentorReview = topic.status === 8;
   const isPoolNeedsModification = topic.sourceType === 0 && topic.status === 2;
-  const isDirectNeedsModification = topic.sourceType === 1 && topic.status === 2;
 
   useEffect(() => {
     setLoading(true);
@@ -1336,115 +1329,6 @@ function TopicDetailModal({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 shrink-0">
-          {isPendingMentorReview && !reviewAction && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setReviewAction("approve")}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-lg">check_circle</span>
-                Duyệt & gửi thẩm định
-              </button>
-              <button
-                type="button"
-                onClick={() => setReviewAction("requestModification")}
-                className="flex-1 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-lg">edit_note</span>
-                Yêu cầu chỉnh sửa
-              </button>
-            </div>
-          )}
-
-          {reviewAction === "approve" && (
-            <div className="space-y-3">
-              {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
-              <p className="text-sm text-slate-600">Xác nhận duyệt đề tài này và gửi đi thẩm định?</p>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setReviewLoading(true);
-                    setReviewError(null);
-                    try {
-                      await proposedTopicService.mentorReviewProposedTopic(topic.id, { action: "approve" });
-                      onReviewed();
-                    } catch (err) {
-                      setReviewError(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
-                    } finally {
-                      setReviewLoading(false);
-                    }
-                  }}
-                  disabled={reviewLoading}
-                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  {reviewLoading && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  )}
-                  Xác nhận duyệt
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReviewAction(null)}
-                  className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Hủy
-                </button>
-              </div>
-            </div>
-          )}
-
-          {reviewAction === "requestModification" && (
-            <div className="space-y-3">
-              {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
-              <AutoResizeTextarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-                placeholder="Nhập góp ý cho sinh viên (tùy chọn)..."
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setReviewLoading(true);
-                    setReviewError(null);
-                    try {
-                      await proposedTopicService.mentorReviewProposedTopic(topic.id, {
-                        action: "requestModification",
-                        feedback: feedback.trim() || undefined,
-                      });
-                      onReviewed();
-                    } catch (err) {
-                      setReviewError(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
-                    } finally {
-                      setReviewLoading(false);
-                    }
-                  }}
-                  disabled={reviewLoading}
-                  className="flex-1 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  {reviewLoading && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  )}
-                  Gửi yêu cầu chỉnh sửa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReviewAction(null);
-                    setFeedback("");
-                  }}
-                  className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Hủy
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Pool topic NeedsModification: Edit mode footer */}
           {isEditing && isPoolNeedsModification && (
             <div className="flex items-center gap-3">
@@ -1502,7 +1386,7 @@ function TopicDetailModal({
           )}
 
           {/* Pool topic NeedsModification: View mode footer */}
-          {!isEditing && isPoolNeedsModification && !reviewAction && (
+          {!isEditing && isPoolNeedsModification && (
             <div className="space-y-3">
               {resubmitError && <p className="text-sm text-red-600">{resubmitError}</p>}
               <div className="flex items-center gap-3">
@@ -1541,24 +1425,7 @@ function TopicDetailModal({
             </div>
           )}
 
-          {/* Direct registration NeedsModification: Info message for mentor */}
-          {isDirectNeedsModification && !reviewAction && (
-            <div className="flex items-center gap-3">
-              <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="material-symbols-outlined text-slate-400 text-lg">info</span>
-                <p className="text-sm text-slate-600">Đề tài đang chờ sinh viên chỉnh sửa và gửi lại.</p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                Đóng
-              </button>
-            </div>
-          )}
-
-          {!isPendingMentorReview && !isPoolNeedsModification && !isDirectNeedsModification && !reviewAction && (
+          {!isPoolNeedsModification && (
             <div className="flex justify-end">
               <button
                 type="button"

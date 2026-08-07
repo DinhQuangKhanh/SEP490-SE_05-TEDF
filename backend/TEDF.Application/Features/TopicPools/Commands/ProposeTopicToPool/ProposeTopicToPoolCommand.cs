@@ -17,7 +17,12 @@ public record ProposeTopicToPoolCommand(
     string? Scope,
     string? Technologies,
     string? ExpectedResults,
-    int MaxStudents = 5
+    int MaxStudents = 5,
+    /// <summary>
+    /// Optional capstone register form. A form listing students seeds the topic's proposed roster,
+    /// which becomes a group once the topic passes evaluation.
+    /// </summary>
+    byte[]? RegisterFormPdf = null
 ) : ICacheInvalidatingCommand<Guid>
 {
     public IReadOnlyCollection<string> CachePrefixesToInvalidate =>

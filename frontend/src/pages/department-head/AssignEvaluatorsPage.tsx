@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
-import { EvaluatorChecklistViewButton } from "@/components/lecturer";
+import { EvaluatorChecklistViewButton, TopicContentDetailModal } from "@/components/lecturer";
 import { evaluatorService, projectService } from "@/lib";
 import { DepartmentEvaluator, DepartmentProject, GroupedProjects, groupProjects } from "@/types";
 
@@ -66,6 +66,20 @@ function getMentorName(p: DepartmentProject): string {
   return p.mentors?.[0]?.mentorName ?? "—";
 }
 
+/** Opens the topic's full content (description, objectives, attached DOCX/PDF) before deciding. */
+function ViewDetailButton({ onClick }: Readonly<{ onClick: () => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors bg-white border rounded-lg border-slate-200 text-slate-700 hover:border-primary/50 hover:text-primary"
+    >
+      <span className="material-symbols-outlined text-[18px]">visibility</span>
+      <span>Xem chi tiết</span>
+    </button>
+  );
+}
+
 const PAGE_SIZE = 10;
 
 function matchesSearch(p: DepartmentProject, query: string): boolean {
@@ -115,6 +129,7 @@ export function AssignEvaluatorsPage() {
   // Modal state
   const [assignModal, setAssignModal] = useState<DepartmentProject | null>(null);
   const [decisionModal, setDecisionModal] = useState<DepartmentProject | null>(null);
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
 
   // Debounced search (400ms)
   useEffect(() => {
@@ -284,10 +299,20 @@ export function AssignEvaluatorsPage() {
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
                 >
-                  {activeTab === "pending" && <PendingTab projects={paginatedData} onAssign={setAssignModal} />}
+                  {activeTab === "pending" && (
+                    <PendingTab
+                      projects={paginatedData}
+                      onAssign={setAssignModal}
+                      onViewDetail={(p) => setDetailProjectId(p.projectId)}
+                    />
+                  )}
                   {activeTab === "in-evaluation" && <InEvaluationTab projects={paginatedData} />}
                   {activeTab === "needs-decision" && (
-                    <NeedsDecisionTab projects={paginatedData} onDecide={setDecisionModal} />
+                    <NeedsDecisionTab
+                      projects={paginatedData}
+                      onDecide={setDecisionModal}
+                      onViewDetail={(p) => setDetailProjectId(p.projectId)}
+                    />
                   )}
                   {activeTab === "completed" && <CompletedTab projects={paginatedData} />}
                 </motion.div>
@@ -373,6 +398,9 @@ export function AssignEvaluatorsPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Topic content + attachments, read before assigning or deciding */}
+      <TopicContentDetailModal projectId={detailProjectId} onClose={() => setDetailProjectId(null)} />
     </div>
   );
 }
@@ -382,9 +410,11 @@ export function AssignEvaluatorsPage() {
 function PendingTab({
   projects,
   onAssign,
+  onViewDetail,
 }: {
   projects: DepartmentProject[];
   onAssign: (p: DepartmentProject) => void;
+  onViewDetail: (p: DepartmentProject) => void;
 }) {
   if (projects.length === 0)
     return <EmptyState message="Không có đề tài nào chờ phân công" icon="assignment_turned_in" />;
@@ -421,13 +451,16 @@ function PendingTab({
               </span>
             </div>
           </div>
-          <button type="button"
-            onClick={() => onAssign(p)}
-            className="flex items-center gap-2 px-4 py-2 ml-4 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90 shrink-0"
-          >
-            <span className="material-symbols-outlined text-[18px]">person_add</span>
-            Phân công
-          </button>
+          <div className="flex items-center gap-2 ml-4 shrink-0">
+            <ViewDetailButton onClick={() => onViewDetail(p)} />
+            <button type="button"
+              onClick={() => onAssign(p)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary hover:bg-primary/90"
+            >
+              <span className="material-symbols-outlined text-[18px]">person_add</span>
+              Phân công
+            </button>
+          </div>
         </div>
       ))}
     </div>
@@ -487,9 +520,11 @@ function InEvaluationTab({ projects }: { projects: DepartmentProject[] }) {
 function NeedsDecisionTab({
   projects,
   onDecide,
+  onViewDetail,
 }: {
   projects: DepartmentProject[];
   onDecide: (p: DepartmentProject) => void;
+  onViewDetail: (p: DepartmentProject) => void;
 }) {
   if (projects.length === 0) return <EmptyState message="Không có đề tài nào cần quyết định" icon="gavel" />;
   return (
@@ -535,7 +570,8 @@ function NeedsDecisionTab({
             ))}
           </div>
 
-          <div className="flex justify-end mt-3">
+          <div className="flex justify-end gap-2 mt-3">
+            <ViewDetailButton onClick={() => onViewDetail(p)} />
             <button type="button"
               onClick={() => onDecide(p)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-amber-500 hover:bg-amber-600"

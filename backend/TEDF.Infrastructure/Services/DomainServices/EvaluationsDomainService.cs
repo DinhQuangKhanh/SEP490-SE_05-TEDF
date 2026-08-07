@@ -300,6 +300,6 @@ public class EvaluationsDomainService : IEvaluationsDomainService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _publisher.Publish(new DepartmentHeadFinalDecisionEvent(projectId, finalResult, currentUserId), cancellationToken);
+        await _publisher.Publish(new DepartmentHeadFinalDecisionEvent(projectId, finalResult, currentUserId, notes), cancellationToken);
     }
 }

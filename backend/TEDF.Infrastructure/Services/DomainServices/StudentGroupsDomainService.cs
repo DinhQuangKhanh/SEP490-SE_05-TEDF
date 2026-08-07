@@ -56,10 +56,16 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
     // ── Write operations ──
     // Parameter is spelled out to match IStudentGroupsDomainService; the rest of this file still
     // uses the shorter `ct`, which predates that convention.
-    public async Task<Guid> CreateGroupAsync(Guid studentId, string? displayName, CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateGroupAsync(Guid studentId, CancellationToken cancellationToken = default)
     {
-        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, cancellationToken)
-            ?? throw new BusinessRuleValidationException("No next semester found.");
+        // The group belongs to the semester this student was approved for — not to "the semester
+        // after the one running right now". Those two differ whenever the newly created semester is
+        // itself the running one, or whenever today falls in the gap between two semesters; in both
+        // cases the old lookup returned null and students were told "No next semester found" even
+        // though their roster entry was in place.
+        var nextSemester = await _semesterRepository.GetEligibleSemesterForStudentAsync(studentId, cancellationToken)
+            ?? throw new BusinessRuleValidationException(
+                "Bạn không thuộc danh sách sinh viên đủ điều kiện của học kỳ hiện tại hoặc sắp tới.");
 
         if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student is already in an active group next semester.");
@@ -73,7 +79,7 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         var code = GroupCode.Generate(nextSemester.Code.Value, seq);
 
         var maxMembers = await _settings.GetIntAsync(SettingKeys.MaxGroupMembers, 5, cancellationToken);
-        var group = Group.Create(code, nextSemester.Id, studentId, displayName, maxMembers);
+        var group = Group.Create(code, nextSemester.Id, studentId, maxMembers: maxMembers);
 
         await _groupRepository.AddAsync(group, cancellationToken);
 
