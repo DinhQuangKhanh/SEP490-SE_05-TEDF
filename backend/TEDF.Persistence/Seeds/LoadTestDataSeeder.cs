@@ -150,7 +150,48 @@ public static class LoadTestDataSeeder
     private static DateTime MockBirthDate(int baseYear, int yearSpread, int i) =>
         new(baseYear + (i % yearSpread), (i % 12) + 1, (i % 28) + 1, 0, 0, 0, DateTimeKind.Utc);
 
-    // ────────────────── Entry point ──────────────────
+    // ────────────────── Entry points ──────────────────
+
+    /// <summary>
+    /// Seeds only the reference data the application cannot function without — Departments and
+    /// Majors — and nothing else. This is the entry point used outside Development: no users, no
+    /// semesters, no projects, no mock topics, so it is safe to run against real data.
+    /// <para>
+    /// Majors in particular are not optional: an empty Majors table leaves the "Ngành hướng dẫn"
+    /// dropdown on the eligibility roster blank, which in turn blocks publishing the roster.
+    /// </para>
+    /// Idempotent — safe on every application start.
+    /// </summary>
+    public static async Task SeedEssentialAsync(AppDbContext context, ILogger? logger = null)
+    {
+        // Production does not apply migrations automatically, so the tables may not exist yet on a
+        // brand-new database. Skip quietly rather than throwing during startup.
+        var schemaReady = await context.Database
+            .SqlQueryRaw<int>(
+                "SELECT CASE WHEN OBJECT_ID('Departments') IS NOT NULL AND OBJECT_ID('Majors') IS NOT NULL THEN 1 ELSE 0 END AS [Value]")
+            .SingleAsync();
+
+        if (schemaReady == 0)
+        {
+            logger?.LogWarning(
+                "Skipping essential seeding: the Departments/Majors tables do not exist yet. Apply the EF Core migrations first.");
+            return;
+        }
+
+        await SeedDepartmentsAsync(context);
+        await SeedMajorsAsync(context);
+
+        var majorCount = await context.Database
+            .SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM Majors")
+            .SingleAsync();
+
+        logger?.LogInformation("Essential seeding complete: Majors table holds {MajorCount} row(s).", majorCount);
+    }
+
+    /// <summary>
+    /// Seeds the full load-test dataset (users, semesters, groups, projects, registrations…).
+    /// Development only — it inserts hundreds of mock users and must never touch real data.
+    /// </summary>
     public static async Task SeedAsync(AppDbContext context, ILogger? logger = null)
     {
         // Never reset data by default on app startup.
@@ -224,32 +265,85 @@ public static class LoadTestDataSeeder
 
     // ─── 1. Departments ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Idempotent: skips when a 'SE' department already exists, and falls back to an
+    /// identity-assigned Id when <see cref="DeptCNTT"/> is taken by a different row (which is the
+    /// normal case on a Production database whose departments came from a roster import).
+    /// </summary>
     private static async Task SeedDepartmentsAsync(AppDbContext context)
     {
         var sql = @"
-            SET IDENTITY_INSERT Departments ON;
-            INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
-            VALUES (@p0, N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
-            SET IDENTITY_INSERT Departments OFF;";
+            IF NOT EXISTS (SELECT 1 FROM Departments WHERE Code = 'SE')
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM Departments WHERE Id = @p0)
+                BEGIN
+                    SET IDENTITY_INSERT Departments ON;
+                    INSERT INTO Departments (Id, Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
+                    VALUES (@p0, N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
+                    SET IDENTITY_INSERT Departments OFF;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO Departments (Name, Code, Description, HeadOfDepartmentId, IsActive, CreatedAt, UpdatedAt)
+                    VALUES (N'Kỹ thuật phần mềm', 'SE', N'Bộ môn Kỹ thuật phần mềm', NULL, 1, @p1, NULL);
+                END
+            END";
 
         await context.Database.ExecuteSqlRawAsync(sql, DeptCNTT, SeedDate);
     }
 
     // ─── 2. Majors ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Idempotent: inserts only the chuyên ngành codes that are missing.
+    /// <para>
+    /// Khoa CNTT has four chuyên ngành. SE is used by all seeded students/projects; AI/IA/IC are
+    /// reference rows so the Khoa → Chuyên ngành hierarchy is complete.
+    /// </para>
+    /// <para>
+    /// Explicit Ids (<see cref="MajorSE"/>…<see cref="MajorIC"/>) are forced only when the table is
+    /// empty, because the rest of the load-test seed hard-codes <c>MajorSE = 1</c>. On a database
+    /// that already holds majors the identity column assigns the Ids instead. Each major is attached
+    /// to the department sharing its code when one exists, otherwise to the SE department.
+    /// </para>
+    /// </summary>
     private static async Task SeedMajorsAsync(AppDbContext context)
     {
-        // Khoa CNTT has four chuyên ngành. SE is used by all seeded students/projects;
-        // AI/IA/IC are reference rows so the Khoa → Chuyên ngành hierarchy is complete.
         var sql = @"
-            SET IDENTITY_INSERT Majors ON;
-            INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+            DECLARE @defaultDeptId INT = (SELECT TOP 1 Id FROM Departments WHERE Code = 'SE' ORDER BY Id);
+            IF @defaultDeptId IS NULL
+                SET @defaultDeptId = (SELECT TOP 1 Id FROM Departments ORDER BY Id);
+
+            -- No department at all => the FK cannot be satisfied; nothing to do.
+            IF @defaultDeptId IS NULL
+                RETURN;
+
+            DECLARE @seed TABLE (Id INT, Name NVARCHAR(200), Code NVARCHAR(20), Description NVARCHAR(500));
+            INSERT INTO @seed (Id, Name, Code, Description)
             VALUES
-            (@p0, @p4, N'Kỹ thuật phần mềm',           'SE', N'Chuyên ngành Kỹ thuật phần mềm',           1, @p5, NULL),
-            (@p1, @p4, N'Trí tuệ nhân tạo',            'AI', N'Chuyên ngành Trí tuệ nhân tạo',            1, @p5, NULL),
-            (@p2, @p4, N'An toàn thông tin',           'IA', N'Chuyên ngành An toàn thông tin',           1, @p5, NULL),
-            (@p3, @p4, N'Thiết kế vi mạch bán dẫn',    'IC', N'Chuyên ngành Thiết kế vi mạch bán dẫn',    1, @p5, NULL);
-            SET IDENTITY_INSERT Majors OFF;";
+            (@p0, N'Kỹ thuật phần mềm',        'SE', N'Chuyên ngành Kỹ thuật phần mềm'),
+            (@p1, N'Trí tuệ nhân tạo',         'AI', N'Chuyên ngành Trí tuệ nhân tạo'),
+            (@p2, N'An toàn thông tin',        'IA', N'Chuyên ngành An toàn thông tin'),
+            (@p3, N'Thiết kế vi mạch bán dẫn', 'IC', N'Chuyên ngành Thiết kế vi mạch bán dẫn');
+
+            IF NOT EXISTS (SELECT 1 FROM Majors)
+            BEGIN
+                SET IDENTITY_INSERT Majors ON;
+                INSERT INTO Majors (Id, DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+                SELECT s.Id,
+                       COALESCE((SELECT TOP 1 d.Id FROM Departments d WHERE d.Code = s.Code), @defaultDeptId),
+                       s.Name, s.Code, s.Description, 1, @p5, NULL
+                FROM @seed s;
+                SET IDENTITY_INSERT Majors OFF;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO Majors (DepartmentId, Name, Code, Description, IsActive, CreatedAt, UpdatedAt)
+                SELECT COALESCE((SELECT TOP 1 d.Id FROM Departments d WHERE d.Code = s.Code), @defaultDeptId),
+                       s.Name, s.Code, s.Description, 1, @p5, NULL
+                FROM @seed s
+                WHERE NOT EXISTS (SELECT 1 FROM Majors m WHERE m.Code = s.Code);
+            END";
 
         await context.Database.ExecuteSqlRawAsync(sql, MajorSE, MajorAI, MajorIA, MajorIC, DeptCNTT, SeedDate);
     }

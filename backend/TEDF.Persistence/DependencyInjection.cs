@@ -130,16 +130,48 @@ namespace TEDF.Persistence
         /// <summary>
         /// Initializes the database with migrations and seeding.
         /// Call this method after building the WebApplication instance.
+        /// <para>
+        /// What runs depends on the environment:
+        /// <list type="bullet">
+        ///   <item><b>Development</b> — applies pending migrations, seeds the full load-test dataset
+        ///   (when the Firebase emulator is on), the evaluation checklists, and the Mongo indexes.</item>
+        ///   <item><b>Anything else (Production/Staging)</b> — seeds only the reference data the app
+        ///   cannot run without: <c>SeedDepartmentsAsync</c> + <c>SeedMajorsAsync</c>. No migrations
+        ///   are applied automatically and no mock users are ever created.</item>
+        /// </list>
+        /// </para>
         /// </summary>
+        /// <param name="isDevelopment">
+        /// Pass <c>app.Environment.IsDevelopment()</c>. Everything that is not Development is treated
+        /// as real data, so the seeding stays limited to Departments and Majors.
+        /// </param>
         /// <example>
         /// var app = builder.Build();
-        /// await app.Services.InitializeDatabaseAsync();
+        /// await app.Services.InitializeDatabaseAsync(app.Environment.IsDevelopment());
         /// </example>
-        public static async Task InitializeDatabaseAsync(this IServiceProvider serviceProvider)
+        public static async Task InitializeDatabaseAsync(this IServiceProvider serviceProvider, bool isDevelopment)
         {
             using var scope = serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
+
+            if (!isDevelopment)
+            {
+                logger.LogInformation("Non-Development environment: seeding reference data only (Departments + Majors).");
+
+                try
+                {
+                    await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
+                }
+                catch (Exception ex)
+                {
+                    // Reference data is important but not worth refusing to start the API over:
+                    // an admin can still fix it by hand, whereas a crash loop takes the site down.
+                    logger.LogError(ex, "Essential data seeding failed. The API will start without it.");
+                }
+
+                return;
+            }
 
             var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
             if (pendingMigrations.Count == 0)
@@ -164,6 +196,12 @@ namespace TEDF.Persistence
             {
                 await LoadTestDataSeeder.SeedAsync(dbContext, logger);
                 await FirebaseEmulatorSeeder.SeedAsync(logger);
+            }
+            else
+            {
+                // The emulator is off, so the mock users are skipped — but Departments/Majors are
+                // reference data the app needs in every environment.
+                await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
             }
 
             // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
