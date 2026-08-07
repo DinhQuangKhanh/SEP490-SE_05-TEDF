@@ -14,6 +14,12 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         Task<IEnumerable<Semester>> GetByAcademicYearAsync(string academicYear, CancellationToken cancellationToken = default);
         Task<IEnumerable<Semester>> GetUpcomingAsync(CancellationToken cancellationToken = default);
         Task<Semester?> GetSemesterAfterAsync(int semesterId, int count, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The semester immediately preceding the given one — the latest semester that ended before
+        /// it starts — or null when it is the earliest semester on record.
+        /// </summary>
+        Task<Semester?> GetPreviousSemesterAsync(int semesterId, CancellationToken cancellationToken = default);
         Task<bool> ExistsCodeAsync(SemesterCode code, CancellationToken cancellationToken = default);
         Task<bool> HasOverlappingAsync(DateTime startDate, DateTime endDate, int? excludeId = null, CancellationToken cancellationToken = default);
         Task<int> GetNextIdAsync(CancellationToken cancellationToken = default);
