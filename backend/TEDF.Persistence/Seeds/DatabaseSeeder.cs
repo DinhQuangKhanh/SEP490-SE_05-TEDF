@@ -59,7 +59,12 @@ public static class DatabaseSeeder
         await dbContext.Database.MigrateAsync();
         logger.LogInformation("EF Core migrations applied successfully.");
 
-        await SeedDataAsync(dbContext, logger, allowDestructiveReset: true);
+        await LoadTestDataSeeder.ResetIfRequestedAsync(dbContext, logger, allowDestructiveReset: true);
+
+        if (await LoadTestDataSeeder.IsAlreadySeededAsync(dbContext))
+            await LoadTestDataSeeder.BackfillProfileTablesAsync(dbContext, logger);
+        else
+            await LoadTestDataSeeder.SeedAllTablesAsync(dbContext, logger);
 
         // Sign-in accounts for the seeded users live in the Auth Emulator. Never run this against a
         // real Firebase project: it would create ~1000 usable accounts sharing one password that is
@@ -104,7 +109,19 @@ public static class DatabaseSeeder
 
         try
         {
-            await SeedDataAsync(dbContext, logger, allowDestructiveReset: false);
+            if (!await LoadTestDataSeeder.IsSchemaReadyAsync(dbContext, logger))
+                return;
+
+            if (await LoadTestDataSeeder.IsAlreadySeededAsync(dbContext))
+            {
+                logger.LogInformation("Already seeded — nothing to do.");
+                await LoadTestDataSeeder.BackfillProfileTablesAsync(dbContext, logger);
+            }
+            else
+            {
+                await LoadTestDataSeeder.SeedProductionTablesAsync(dbContext, logger);
+            }
+
             await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
             await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);
 
@@ -119,14 +136,4 @@ public static class DatabaseSeeder
         }
     }
 
-    /// <summary>
-    /// The SQL dataset both recipes share. Reference data goes first: <c>SeedAsync</c> short-circuits
-    /// once its own users exist, so on an already-seeded database Departments and Majors would
-    /// otherwise never be topped up.
-    /// </summary>
-    private static async Task SeedDataAsync(AppDbContext dbContext, ILogger logger, bool allowDestructiveReset)
-    {
-        await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
-        await LoadTestDataSeeder.SeedAsync(dbContext, logger, allowDestructiveReset);
-    }
 }
