@@ -11,6 +11,8 @@ export const routes = {
     dashboard: "/api/dashboard/admin",
     projects: "/api/projects",
     assignDepartmentHead: (departmentId: number) => `/api/users/departments/${departmentId}/head`,
+    /** Grant (POST) / revoke (DELETE) the Department Head role for a lecturer. */
+    userDepartmentHead: (userId: string) => `/api/users/${userId}/department-head`,
     users: "/api/users",
     usersImport: "/api/users/import",
     usersImportTemplate: "/api/users/import/template",
