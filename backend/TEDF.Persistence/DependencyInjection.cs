@@ -131,19 +131,22 @@ namespace TEDF.Persistence
         /// Initializes the database with migrations and seeding.
         /// Call this method after building the WebApplication instance.
         /// <para>
-        /// What runs depends on the environment:
+        /// The seed data itself runs in <b>every</b> environment: it lands entirely in the three
+        /// historical semesters (Fall 2025 / Spring 2026 / Summer 2026) and in fixed Id ranges, so
+        /// semesters created later from the admin UI — and the real accounts working in them — are
+        /// left alone. Two things stay Development-only:
         /// <list type="bullet">
-        ///   <item><b>Development</b> — applies pending migrations, seeds the full load-test dataset
-        ///   (when the Firebase emulator is on), the evaluation checklists, and the Mongo indexes.</item>
-        ///   <item><b>Anything else (Production/Staging)</b> — seeds only the reference data the app
-        ///   cannot run without: <c>SeedDepartmentsAsync</c> + <c>SeedMajorsAsync</c>. No migrations
-        ///   are applied automatically and no mock users are ever created.</item>
+        ///   <item><b>EF Core migrations</b> — schema changes on real data stay a deliberate act.</item>
+        ///   <item><b>The destructive reset switch</b> (<c>TEDF_RESET_LOADTEST_ON_STARTUP</c>).</item>
         /// </list>
+        /// The Firebase accounts for the seeded users are created in the Auth <i>Emulator</i> only,
+        /// gated on <c>Firebase:UseEmulator</c> — never against a real Firebase project.
         /// </para>
         /// </summary>
         /// <param name="isDevelopment">
-        /// Pass <c>app.Environment.IsDevelopment()</c>. Everything that is not Development is treated
-        /// as real data, so the seeding stays limited to Departments and Majors.
+        /// Pass <c>app.Environment.IsDevelopment()</c>. Outside Development the database holds real
+        /// data, so migrations and the reset switch are withheld and a seeding failure is logged
+        /// instead of taking the API down.
         /// </param>
         /// <example>
         /// var app = builder.Build();
@@ -155,60 +158,58 @@ namespace TEDF.Persistence
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
 
-            if (!isDevelopment)
+            if (isDevelopment)
             {
-                logger.LogInformation("Non-Development environment: seeding reference data only (Departments + Majors).");
-
-                try
+                var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+                if (pendingMigrations.Count == 0)
                 {
-                    await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
+                    logger.LogInformation("No pending EF Core migrations.");
                 }
-                catch (Exception ex)
+                else
                 {
-                    // Reference data is important but not worth refusing to start the API over:
-                    // an admin can still fix it by hand, whereas a crash loop takes the site down.
-                    logger.LogError(ex, "Essential data seeding failed. The API will start without it.");
+                    logger.LogWarning("Applying {Count} pending migration(s): {Migrations}",
+                        pendingMigrations.Count,
+                        string.Join(", ", pendingMigrations));
                 }
 
-                return;
-            }
-
-            var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-            if (pendingMigrations.Count == 0)
-            {
-                logger.LogInformation("No pending EF Core migrations.");
+                await dbContext.Database.MigrateAsync();
+                logger.LogInformation("EF Core migrations applied successfully.");
             }
             else
             {
-                logger.LogWarning("Applying {Count} pending migration(s): {Migrations}",
-                    pendingMigrations.Count,
-                    string.Join(", ", pendingMigrations));
+                logger.LogInformation(
+                    "Non-Development environment: skipping automatic EF Core migrations. Apply them out of band.");
             }
 
-            await dbContext.Database.MigrateAsync();
-            logger.LogInformation("EF Core migrations applied successfully.");
-
-            // Load-test data: seed 1000 users + relationships when Firebase Emulator is enabled
-            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var useEmulator = configuration.GetValue<bool>("Firebase:UseEmulator");
-
-            if (useEmulator)
+            try
             {
-                await LoadTestDataSeeder.SeedAsync(dbContext, logger);
-                await FirebaseEmulatorSeeder.SeedAsync(logger);
-            }
-            else
-            {
-                // The emulator is off, so the mock users are skipped — but Departments/Majors are
-                // reference data the app needs in every environment.
+                // Reference data first: the full seeder short-circuits once its own users exist, so on
+                // an already-seeded database Departments/Majors would otherwise never be topped up.
                 await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
+
+                // Full load-test dataset (users, semesters, groups, projects, registrations…).
+                await LoadTestDataSeeder.SeedAsync(dbContext, logger, allowDestructiveReset: isDevelopment);
+
+                // Sign-in accounts for those users exist in the Auth Emulator only. Running this
+                // against a real Firebase project would create ~1000 usable accounts sharing one
+                // password that is published in the source — hence the hard gate.
+                var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+                if (configuration.GetValue<bool>("Firebase:UseEmulator"))
+                    await FirebaseEmulatorSeeder.SeedAsync(logger);
+
+                // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
+                await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
+
+                var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+                await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);
             }
-
-            // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
-            await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
-
-            var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
-            await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);
+            catch (Exception ex) when (!isDevelopment)
+            {
+                // Seeding is worth a loud error, not a crash loop: a half-seeded demo dataset still
+                // beats an API that refuses to start and takes the whole site down with it.
+                // In Development the exception propagates so the failure is not missed.
+                logger.LogError(ex, "Database seeding failed. The API will start without the seeded data.");
+            }
         }
     }
 }

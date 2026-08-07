@@ -30,6 +30,20 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         /// <summary>True if the student is on the IsEligible roster of the given semester.</summary>
         Task<bool> IsStudentEligibleAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// The semester the student is supposed to be working in: the earliest semester that has not
+        /// ended yet (active or upcoming) and carries the student on its IsEligible roster. Null when
+        /// the student is not rostered on any such semester.
+        /// <para>
+        /// This is the counterpart of <see cref="IsStudentEligibleNowAsync"/> — same set of semesters,
+        /// but it returns which one instead of a yes/no. Group creation and group browsing must anchor
+        /// on this, not on <see cref="GetNextSemesterAsync"/>: the latter answers "the semester after
+        /// the one running right now", which is a different thing and is null both when no semester is
+        /// running and when the newest semester is itself the running one.
+        /// </para>
+        /// </summary>
+        Task<Semester?> GetEligibleSemesterForStudentAsync(Guid studentId, CancellationToken cancellationToken = default);
+
         /// <summary>True if the mentor is on the IsAssigned eligible-mentor roster of any active or upcoming semester (EndDate ≥ now).</summary>
         Task<bool> IsMentorEligibleNowAsync(Guid mentorId, CancellationToken cancellationToken = default);
 

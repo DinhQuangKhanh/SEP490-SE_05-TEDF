@@ -58,8 +58,14 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
     // uses the shorter `ct`, which predates that convention.
     public async Task<Guid> CreateGroupAsync(Guid studentId, CancellationToken cancellationToken = default)
     {
-        var nextSemester = await _semesterRepository.GetNextSemesterAsync(null, cancellationToken)
-            ?? throw new BusinessRuleValidationException("No next semester found.");
+        // The group belongs to the semester this student was approved for — not to "the semester
+        // after the one running right now". Those two differ whenever the newly created semester is
+        // itself the running one, or whenever today falls in the gap between two semesters; in both
+        // cases the old lookup returned null and students were told "No next semester found" even
+        // though their roster entry was in place.
+        var nextSemester = await _semesterRepository.GetEligibleSemesterForStudentAsync(studentId, cancellationToken)
+            ?? throw new BusinessRuleValidationException(
+                "Bạn không thuộc danh sách sinh viên đủ điều kiện của học kỳ hiện tại hoặc sắp tới.");
 
         if (await _groupRepository.IsStudentInActiveGroupAsync(studentId, nextSemester.Id, cancellationToken))
             throw new BusinessRuleValidationException("Student is already in an active group next semester.");

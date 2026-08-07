@@ -190,18 +190,34 @@ public static class LoadTestDataSeeder
 
     /// <summary>
     /// Seeds the full load-test dataset (users, semesters, groups, projects, registrations…).
-    /// Development only — it inserts hundreds of mock users and must never touch real data.
+    /// <para>
+    /// Everything it writes belongs to the three historical semesters — Fall 2025, Spring 2026 and
+    /// Summer 2026 — and to fixed Id ranges, so semesters created later from the admin UI and the
+    /// real accounts working in them are never touched. Idempotent: it short-circuits as soon as the
+    /// first seeded admin exists.
+    /// </para>
     /// </summary>
-    public static async Task SeedAsync(AppDbContext context, ILogger? logger = null)
+    /// <param name="allowDestructiveReset">
+    /// Whether the <c>TEDF_RESET_LOADTEST_ON_STARTUP</c> environment variable may wipe the database
+    /// before seeding. Pass true in Development only — outside it the switch is ignored and logged,
+    /// because a stray environment variable must never be able to drop production data.
+    /// </param>
+    public static async Task SeedAsync(AppDbContext context, ILogger? logger = null, bool allowDestructiveReset = false)
     {
         // Never reset data by default on app startup.
         // Opt-in reset only when explicitly requested via environment variable.
         // Example: set TEDF_RESET_LOADTEST_ON_STARTUP=true
-        var resetOnStartup =
+        var resetRequested =
             string.Equals(
                 Environment.GetEnvironmentVariable("TEDF_RESET_LOADTEST_ON_STARTUP"),
                 "true",
                 StringComparison.OrdinalIgnoreCase);
+
+        var resetOnStartup = resetRequested && allowDestructiveReset;
+
+        if (resetRequested && !allowDestructiveReset)
+            logger?.LogWarning(
+                "TEDF_RESET_LOADTEST_ON_STARTUP=true was IGNORED: wiping the database is allowed in Development only.");
 
         if (resetOnStartup)
         {
@@ -412,7 +428,6 @@ public static class LoadTestDataSeeder
                 (@p0, N'Đăng ký đề tài',    0, @p1, @p2, 1),
                 (@p0, N'Thẩm định đề tài',  1, @p3, @p4, 2),
                 (@p0, N'Triển khai',         2, @p5, @p6, 3),
-                (@p0, N'Bảo vệ đồ án',      3, @p7, @p8, 4);
             END";
 
         await context.Database.ExecuteSqlRawAsync(phaseSql,
@@ -431,7 +446,6 @@ public static class LoadTestDataSeeder
                 (@p0, N'Đăng ký đề tài',    0, @p1, @p2, 1),
                 (@p0, N'Thẩm định đề tài',  1, @p3, @p4, 2),
                 (@p0, N'Triển khai',         2, @p5, @p6, 3),
-                (@p0, N'Bảo vệ đồ án',      3, @p7, @p8, 4);
             END";
 
         await context.Database.ExecuteSqlRawAsync(phaseSql2,
