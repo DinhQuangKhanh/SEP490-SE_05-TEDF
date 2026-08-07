@@ -162,6 +162,20 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        /// <inheritdoc/>
+        public async Task<Semester?> GetPreviousSemesterAsync(int semesterId, CancellationToken cancellationToken = default)
+        {
+            var currentSemester = await _dbSet.FindAsync([semesterId], cancellationToken);
+            if (currentSemester == null) return null;
+
+            // Mirror of GetSemesterAfterAsync: semesters are ordered by their date range, not by Id,
+            // because Ids are assigned by creation order and a semester can be created out of order.
+            return await _dbSet
+                .Where(s => s.EndDate < currentSemester.StartDate)
+                .OrderByDescending(s => s.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         public async Task<Semester?> GetNextSemesterAsync(int? semesterId, CancellationToken cancellationToken)
         {
             if (semesterId.HasValue) return

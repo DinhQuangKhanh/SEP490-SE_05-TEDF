@@ -120,11 +120,10 @@ var app = builder.Build();
 // ============================================
 // 2. INITIALIZE DATABASE
 // ============================================
-// Apply migrations and seed initial data (runs only once or as needed)
-if (app.Environment.IsDevelopment())
-{
-    await app.Services.InitializeDatabaseAsync();
-}
+// Development applies migrations and seeds the full load-test dataset; every other environment only
+// tops up the reference data the app cannot run without (Departments + Majors) and never touches
+// real records. See InitializeDatabaseAsync for the exact split.
+await app.Services.InitializeDatabaseAsync(app.Environment.IsDevelopment());
 
 // ============================================
 // 3. CONFIGURE THE HTTP REQUEST PIPELINE

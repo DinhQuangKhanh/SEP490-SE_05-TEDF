@@ -119,8 +119,14 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .Select(l => (Guid?)l.Id)
                 .FirstOrDefaultAsync(ct);
 
+            // Roles must be loaded: callers such as the eligible-mentor import top up the
+            // Mentor/Evaluator roles through User.AssignRole, which can only tell an existing role
+            // from a missing one when the collection is materialized. Without the Include it would
+            // re-add a role the user already has and violate the unique (UserId, RoleId) index.
             return userId.HasValue
-                ? await _dbSet.FirstOrDefaultAsync(u => u.Id == userId.Value, ct)
+                ? await _dbSet
+                    .Include(u => u.Roles)
+                    .FirstOrDefaultAsync(u => u.Id == userId.Value, ct)
                 : null;
         }
 
