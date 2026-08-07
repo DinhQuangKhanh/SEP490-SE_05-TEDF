@@ -448,7 +448,13 @@ public static class LoadTestDataSeeder
     private static async Task SeedProjectArchivesAsync(AppDbContext context)
     {
         // A few completed projects per past academic year so the storage panel shows real data.
+        // Delete-then-insert, scoped to the three fixed seed Ids: re-running the seeder on a database
+        // that already holds them (a previous run that failed further down the list) would otherwise
+        // violate PK_ProjectArchives. Only these three rows are touched — archives created by the
+        // application keep their own Ids and are never deleted.
         var sql = @"
+            DELETE FROM ProjectArchives WHERE Id IN (@p0, @p1, @p2);
+
             INSERT INTO ProjectArchives (Id, ProjectName, StudentNames, MajorId, AcademicYear, Summary, DocumentUrl, Tags, FileSizeBytes, ViewCount, DownloadCount, CreatedAt)
             VALUES
             (@p0, N'Hệ thống quản lý thư viện thông minh', N'Nguyễn Văn A, Trần Thị B', @pMajor, N'2023-2024', N'Khóa luận tốt nghiệp', NULL, N'library,web', @pSize1, 12, 3, @pDate),
@@ -479,12 +485,22 @@ public static class LoadTestDataSeeder
     {
         // Semesters.Id uses ValueGeneratedNever (no identity column)
         // Status column was removed – it is now a computed property based on StartDate/EndDate
+        //
+        // Only the missing semesters are inserted, matched on Id *or* Code: re-running the seeder
+        // after a run that failed further down the list must not violate PK_Semesters, and a
+        // semester an admin created with one of these codes must not be duplicated either.
         var sql = @"
-            INSERT INTO Semesters (Id, Name, Code, AcademicYear, StartDate, EndDate, Description, CreatedAt, UpdatedAt)
+            DECLARE @seed TABLE (Id INT, Name NVARCHAR(200), Code NVARCHAR(50), StartDate DATETIME2, EndDate DATETIME2, Description NVARCHAR(500));
+            INSERT INTO @seed (Id, Name, Code, StartDate, EndDate, Description)
             VALUES
-            (@p0, N'Học kỳ Fall 2025', 'FALL2025', '2025-2026', @p2, @p3, N'Học kỳ đồ án tốt nghiệp Fall 2025', @p9, NULL),
-            (@p1, N'Học kỳ Spring 2026', 'SPRING2026', '2025-2026', @p4, @p5, N'Học kỳ đồ án tốt nghiệp Spring 2026', @p9, NULL),
-            (@p6, N'Học kỳ Summer 2026', 'SUMMER2026', '2025-2026', @p7, @p8, N'Học kỳ đồ án tốt nghiệp Summer 2026', @p9, NULL);";
+            (@p0, N'Học kỳ Fall 2025',   'FALL2025',   @p2, @p3, N'Học kỳ đồ án tốt nghiệp Fall 2025'),
+            (@p1, N'Học kỳ Spring 2026', 'SPRING2026', @p4, @p5, N'Học kỳ đồ án tốt nghiệp Spring 2026'),
+            (@p6, N'Học kỳ Summer 2026', 'SUMMER2026', @p7, @p8, N'Học kỳ đồ án tốt nghiệp Summer 2026');
+
+            INSERT INTO Semesters (Id, Name, Code, AcademicYear, StartDate, EndDate, Description, CreatedAt, UpdatedAt)
+            SELECT s.Id, s.Name, s.Code, '2025-2026', s.StartDate, s.EndDate, s.Description, @p9, NULL
+            FROM @seed s
+            WHERE NOT EXISTS (SELECT 1 FROM Semesters e WHERE e.Id = s.Id OR e.Code = s.Code);";
 
         await context.Database.ExecuteSqlRawAsync(sql,
             Fall2025Id,
