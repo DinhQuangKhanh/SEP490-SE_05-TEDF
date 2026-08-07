@@ -128,25 +128,18 @@ namespace TEDF.Persistence
         }
 
         /// <summary>
-        /// Initializes the database with migrations and seeding.
+        /// Runs the start-up database recipe for the current environment.
         /// Call this method after building the WebApplication instance.
         /// <para>
-        /// The seed data itself runs in <b>every</b> environment: it lands entirely in the three
-        /// historical semesters (Fall 2025 / Spring 2026 / Summer 2026) and in fixed Id ranges, so
-        /// semesters created later from the admin UI — and the real accounts working in them — are
-        /// left alone. Two things stay Development-only:
-        /// <list type="bullet">
-        ///   <item><b>EF Core migrations</b> — schema changes on real data stay a deliberate act.</item>
-        ///   <item><b>The destructive reset switch</b> (<c>TEDF_RESET_LOADTEST_ON_STARTUP</c>).</item>
-        /// </list>
-        /// The Firebase accounts for the seeded users are created in the Auth <i>Emulator</i> only,
-        /// gated on <c>Firebase:UseEmulator</c> — never against a real Firebase project.
+        /// This method only picks the recipe; what each one does lives in
+        /// <see cref="DatabaseSeeder.SeedDevelopmentAsync"/> and
+        /// <see cref="DatabaseSeeder.SeedProductionAsync"/>.
         /// </para>
         /// </summary>
         /// <param name="isDevelopment">
-        /// Pass <c>app.Environment.IsDevelopment()</c>. Outside Development the database holds real
-        /// data, so migrations and the reset switch are withheld and a seeding failure is logged
-        /// instead of taking the API down.
+        /// Pass <c>app.Environment.IsDevelopment()</c>. Anything that is not Development is treated as
+        /// holding real data and gets the production recipe — which is off unless
+        /// <c>Seeding__RunOnStartup</c> says otherwise, and never throws.
         /// </param>
         /// <example>
         /// var app = builder.Build();
@@ -156,60 +149,20 @@ namespace TEDF.Persistence
         {
             using var scope = serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
 
+            // Logged first: which recipe ran is the first thing anyone reads the start-up log for,
+            // and it makes a mis-set ASPNETCORE_ENVIRONMENT visible immediately rather than through
+            // its side effects.
+            logger.LogInformation("Database initialization: running the {Recipe} recipe.",
+                isDevelopment ? "Development" : "Production");
+
             if (isDevelopment)
-            {
-                var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-                if (pendingMigrations.Count == 0)
-                {
-                    logger.LogInformation("No pending EF Core migrations.");
-                }
-                else
-                {
-                    logger.LogWarning("Applying {Count} pending migration(s): {Migrations}",
-                        pendingMigrations.Count,
-                        string.Join(", ", pendingMigrations));
-                }
-
-                await dbContext.Database.MigrateAsync();
-                logger.LogInformation("EF Core migrations applied successfully.");
-            }
+                await DatabaseSeeder.SeedDevelopmentAsync(dbContext, mongoContext, configuration, logger);
             else
-            {
-                logger.LogInformation(
-                    "Non-Development environment: skipping automatic EF Core migrations. Apply them out of band.");
-            }
-
-            try
-            {
-                // Reference data first: the full seeder short-circuits once its own users exist, so on
-                // an already-seeded database Departments/Majors would otherwise never be topped up.
-                await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
-
-                // Full load-test dataset (users, semesters, groups, projects, registrations…).
-                await LoadTestDataSeeder.SeedAsync(dbContext, logger, allowDestructiveReset: isDevelopment);
-
-                // Sign-in accounts for those users exist in the Auth Emulator only. Running this
-                // against a real Firebase project would create ~1000 usable accounts sharing one
-                // password that is published in the source — hence the hard gate.
-                var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-                if (configuration.GetValue<bool>("Firebase:UseEmulator"))
-                    await FirebaseEmulatorSeeder.SeedAsync(logger);
-
-                // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
-                await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
-
-                var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
-                await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);
-            }
-            catch (Exception ex) when (!isDevelopment)
-            {
-                // Seeding is worth a loud error, not a crash loop: a half-seeded demo dataset still
-                // beats an API that refuses to start and takes the whole site down with it.
-                // In Development the exception propagates so the failure is not missed.
-                logger.LogError(ex, "Database seeding failed. The API will start without the seeded data.");
-            }
+                await DatabaseSeeder.SeedProductionAsync(dbContext, mongoContext, configuration, logger);
         }
     }
 }

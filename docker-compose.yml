@@ -144,6 +144,10 @@ services:
       EmailSettings__Password: "${SMTP_PASSWORD:-}"
       EmailSettings__EnableSsl: "${SMTP_ENABLE_SSL:-true}"
       UNITHESIS_RESET_LOADTEST_ON_STARTUP: "${UNITHESIS_RESET_LOADTEST_ON_STARTUP:-false}"
+      # Arms the production seeding recipe. Off by default: a start with this false does not touch
+      # the database at all. Set SEEDING_RUN_ON_STARTUP=true in .env for one restart to seed, then
+      # set it back to false.
+      Seeding__RunOnStartup: "${SEEDING_RUN_ON_STARTUP:-false}"
     ports:
       - "8080:8080"
     volumes:
