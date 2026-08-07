@@ -72,29 +72,40 @@ public class UsersDomainService : IUsersDomainService
 
     public async Task AssignDepartmentHeadAsync(int departmentId, Guid userId, Guid assignedBy, CancellationToken cancellationToken = default)
     {
-        var department = await _departmentRepository.GetByIdAsync(departmentId, cancellationToken)
-            ?? throw new EntityNotFoundException(nameof(Department), departmentId);
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(User), userId);
 
+        if (user.DepartmentId != departmentId)
+            throw new BusinessRuleValidationException("User does not belong to this department.");
+
+        // One code path only, so the department-scoped route cannot create a second Department Head.
+        await SetDepartmentHeadAsync(userId, assignedBy, cancellationToken);
+    }
+
+    public async Task SetDepartmentHeadAsync(Guid userId, Guid assignedBy, CancellationToken cancellationToken = default)
+    {
         var newHead = await _userRepository.GetByIdAsync(userId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(User), userId);
 
         if (!newHead.HasRole(DomainRoleIds.Mentor) && !newHead.HasRole(DomainRoleIds.Evaluator))
             throw new BusinessRuleValidationException(
-                "User must have Mentor or Evaluator role to be assigned as Department Head.");
+                "Chỉ giảng viên (Mentor/Evaluator) mới có thể được gán làm Trưởng bộ môn.");
 
-        if (newHead.DepartmentId != departmentId)
-            throw new BusinessRuleValidationException("User does not belong to this department.");
+        if (newHead.Status != UserStatus.Active)
+            throw new BusinessRuleValidationException(
+                "Không thể gán Trưởng bộ môn cho tài khoản đang bị khóa hoặc chưa kích hoạt.");
 
-        // Remove DepartmentHead role from the previous head (if any).
-        if (department.HeadOfDepartmentId.HasValue && department.HeadOfDepartmentId.Value != userId)
-        {
-            var oldHead = await _userRepository.GetByIdAsync(department.HeadOfDepartmentId.Value, cancellationToken);
-            if (oldHead != null)
-            {
-                oldHead.RemoveRole(DomainRoleIds.DepartmentHead);
-                await _userRepository.UpdateAsync(oldHead, cancellationToken);
-            }
-        }
+        if (newHead.DepartmentId is not int departmentId)
+            throw new BusinessRuleValidationException(
+                "Giảng viên chưa thuộc bộ môn nào — hãy cập nhật bộ môn cho giảng viên trước khi gán Trưởng bộ môn.");
+
+        var department = await _departmentRepository.GetByIdAsync(departmentId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Department), departmentId);
+
+        // The role is a singleton system-wide, so this is a transfer: strip it from the current
+        // holder (in any department) before granting it. Doing it here rather than rejecting the
+        // request means the system is never left without a Department Head mid-handover.
+        await ClearDepartmentHeadsAsync(exceptUserId: userId, cancellationToken);
 
         newHead.AssignRole(DomainRoleIds.DepartmentHead, DomainRoleNames.DepartmentHead, assignedBy);
         await _userRepository.UpdateAsync(newHead, cancellationToken);
@@ -103,6 +114,53 @@ public class UsersDomainService : IUsersDomainService
         _departmentRepository.Update(department);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RevokeDepartmentHeadAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(User), userId);
+
+        if (!user.HasRole(DomainRoleIds.DepartmentHead))
+            throw new BusinessRuleValidationException("Người dùng này không giữ vai trò Trưởng bộ môn.");
+
+        user.RemoveRole(DomainRoleIds.DepartmentHead);
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        await ClearHeadPointersAsync(userId, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Deactivates the DepartmentHead role on every holder except <paramref name="exceptUserId"/>,
+    /// and clears the head pointer of the departments they headed. Does not save.
+    /// </summary>
+    private async Task ClearDepartmentHeadsAsync(Guid exceptUserId, CancellationToken cancellationToken)
+    {
+        var currentHeads = await _userRepository.GetByRoleAsync(DomainRoleNames.DepartmentHead, cancellationToken);
+
+        foreach (var head in currentHeads.Where(h => h.Id != exceptUserId))
+        {
+            head.RemoveRole(DomainRoleIds.DepartmentHead);
+            await _userRepository.UpdateAsync(head, cancellationToken);
+            await ClearHeadPointersAsync(head.Id, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Clears <c>HeadOfDepartmentId</c> on every department still pointing at the user — plural
+    /// because the user's own DepartmentId may have moved since they were appointed. Does not save.
+    /// </summary>
+    private async Task ClearHeadPointersAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var departments = await _departmentRepository.GetAllAsync(cancellationToken);
+
+        foreach (var department in departments.Where(d => d.HeadOfDepartmentId == userId))
+        {
+            department.SetHeadOfDepartment(null);
+            _departmentRepository.Update(department);
+        }
     }
 
     public async Task UpdateMyProfileAsync(Guid userId, string? phoneNumber, DateOnly? birthDate, string? privacySettings, CancellationToken cancellationToken = default)
@@ -142,15 +200,31 @@ public class UsersDomainService : IUsersDomainService
         if (!isStudent && await _userRepository.GetByEmployeeCodeAsync(code, cancellationToken) is not null)
             throw new BusinessRuleValidationException("Mã giảng viên đã tồn tại.");
 
-        if (role == DomainRoleNames.DepartmentHead && await HasActiveDepartmentHeadAsync(cancellationToken))
-            throw new BusinessRuleValidationException("Hệ thống đã có Trưởng bộ môn đang hoạt động, không thể tạo thêm.");
-
         int? departmentId = await ResolveDepartmentIdAsync(input.MajorId, cancellationToken);
 
         var user = ProvisionUser(
             new NewUserData(role, email, input.FullName, code, input.Phone, input.AcademicTitle, departmentId),
             actingUserId);
         await _userRepository.AddAsync(user, cancellationToken);
+
+        // Department Head is a singleton, and creating one is a handover like any other: the sitting
+        // head loses the role in the same transaction rather than the request being refused. Same
+        // semantics as SetDepartmentHeadAsync, so both entry points behave identically.
+        if (role == DomainRoleNames.DepartmentHead)
+        {
+            await ClearDepartmentHeadsAsync(exceptUserId: user.Id, cancellationToken);
+
+            if (departmentId is int newHeadDepartmentId)
+            {
+                var department = await _departmentRepository.GetByIdAsync(newHeadDepartmentId, cancellationToken);
+                if (department is not null)
+                {
+                    department.SetHeadOfDepartment(user.Id);
+                    _departmentRepository.Update(department);
+                }
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return user.Id;
     }
@@ -246,12 +320,6 @@ public class UsersDomainService : IUsersDomainService
 
         var departmentId = await ResolveDepartmentIdByNameOrCodeAsync(row.MajorName, ct);
         return (null, new NewUserData(role, email, row.FullName, code, row.Phone, row.AcademicTitle, departmentId));
-    }
-
-    private async Task<bool> HasActiveDepartmentHeadAsync(CancellationToken ct)
-    {
-        var heads = await _userRepository.GetByRoleAsync(DomainRoleNames.DepartmentHead, ct);
-        return heads.Any(u => u.Status == UserStatus.Active);
     }
 
     private async Task<int?> ResolveDepartmentIdAsync(int? majorId, CancellationToken ct)

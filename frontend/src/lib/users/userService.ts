@@ -29,6 +29,17 @@ export const userService = {
   /** Assign a user as head of a department. */
   assignDepartmentHead: (departmentId: number, userId: string): Promise<void> =>
     apiClient.post<void>(routes.admin.assignDepartmentHead(departmentId), { userId }),
+
+  /**
+   * Grant the Department Head role to a lecturer. The department comes from the lecturer's own
+   * profile, and the role is a singleton — whoever holds it loses it server-side.
+   */
+  setDepartmentHead: (userId: string): Promise<void> =>
+    apiClient.post<void>(routes.admin.userDepartmentHead(userId)),
+
+  /** Take the Department Head role back; the lecturer keeps their Mentor/Evaluator roles. */
+  revokeDepartmentHead: (userId: string): Promise<void> =>
+    apiClient.delete<void>(routes.admin.userDepartmentHead(userId)),
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

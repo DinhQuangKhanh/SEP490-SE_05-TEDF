@@ -6,6 +6,8 @@ using TEDF.Application.Features.Users.Commands.AssignDepartmentHead;
 using TEDF.Application.Features.Users.Commands.CreateUser;
 using TEDF.Application.Features.Users.Commands.ImportUsers;
 using TEDF.Application.Features.Users.Commands.LockUser;
+using TEDF.Application.Features.Users.Commands.RevokeDepartmentHead;
+using TEDF.Application.Features.Users.Commands.SetDepartmentHead;
 using TEDF.Application.Features.Users.Commands.UnlockUser;
 using TEDF.Application.Features.Users.Queries.GetUsers;
 using TEDF.Application.Features.Users.Queries.GetMyProfile;
@@ -62,6 +64,16 @@ public sealed class UsersEndpoints : IEndpoint
         adminGroup.MapPost("/departments/{departmentId:int}/head", AssignDepartmentHead)
             .WithTags("Users").WithName("AssignDepartmentHead")
             .Produces(204).Produces(400).Produces(401).Produces(404);
+
+        // Grant / revoke the Department Head role straight from the user-management screen: the
+        // department comes from the lecturer's own profile, so the caller only supplies the user.
+        adminGroup.MapPost("/{userId:guid}/department-head", SetDepartmentHead)
+            .WithTags("Users").WithName("SetDepartmentHead")
+            .Produces(204).Produces(400).Produces(401).Produces(404);
+
+        adminGroup.MapDelete("/{userId:guid}/department-head", RevokeDepartmentHead)
+            .WithTags("Users").WithName("RevokeDepartmentHead")
+            .Produces(204).Produces(400).Produces(401).Produces(404);
     }
 
     private static async Task<IResult> GetUsers(ISender sender, string? role, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
@@ -112,5 +124,17 @@ public sealed class UsersEndpoints : IEndpoint
     {
         await sender.Send(new AssignDepartmentHeadCommand(departmentId, request.UserId), ct);
         return NoContent("Thiết lập trưởng bộ phận thành công.");
+    }
+
+    private static async Task<IResult> SetDepartmentHead(Guid userId, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new SetDepartmentHeadCommand(userId), ct);
+        return NoContent("Đã gán vai trò Trưởng bộ môn.");
+    }
+
+    private static async Task<IResult> RevokeDepartmentHead(Guid userId, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new RevokeDepartmentHeadCommand(userId), ct);
+        return NoContent("Đã thu hồi vai trò Trưởng bộ môn.");
     }
 }
