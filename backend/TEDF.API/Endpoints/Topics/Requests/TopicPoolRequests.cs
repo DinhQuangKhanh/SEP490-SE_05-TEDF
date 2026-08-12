@@ -12,16 +12,11 @@ public sealed class ProposeTopicRequest
     public string? ExpectedResults { get; set; }
     public int MaxStudents { get; set; } = 5;
 
-    /// <summary>Supporting documents. Archived alongside the register form after a malware scan.</summary>
-    public List<IFormFile> Attachments { get; set; } = [];
-
-    /// <summary>
-    /// The capstone register form (PDF or DOCX), which is <b>required</b>. When its student table is
-    /// filled in, those students become the topic's group after it passes evaluation. It is uploaded
-    /// once and archived with the other attachments — the client must not repeat it in
-    /// <see cref="Attachments"/>.
-    /// </summary>
-    public IFormFile? RegisterForm { get; set; }
+    // The uploaded files are deliberately NOT properties here. Minimal API [FromForm] binding does
+    // not populate a List<IFormFile> on a complex type — it silently leaves it null, which is how
+    // the attachments on this endpoint came to be dropped in the first place. The handler reads them
+    // off HttpContext.Request.Form.Files instead: the register form by the part name "registerForm",
+    // and every other part as a supporting document.
 }
 
 public sealed record TopicRegistrationRequest(Guid ProjectId, string? Note);

@@ -136,7 +136,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       case 0:
         return !!form.poolId;
       case 1:
-        return !!form.nameVi.trim() && !!form.nameAbbr.trim();
+        // The English name is required by the domain (ProjectName.Create rejects a blank value),
+        // so gate on it here rather than letting the server reject the submission.
+        return !!form.nameVi.trim() && !!form.nameEn.trim() && !!form.nameAbbr.trim();
       case 2:
         return (
           !!form.description.trim() && !!form.objectives.trim() && !!form.scope.trim() && !!form.technologies.trim()
@@ -524,7 +526,9 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
         />
       </div>
       <div>
-        <label className={labelClass}>Tên đề tài (Tiếng Anh)</label>
+        <label className={labelClass}>
+          Tên đề tài (Tiếng Anh) <span className="text-red-500">*</span>
+        </label>
         <AutoResizeTextarea
           rows={1}
           value={form.nameEn}

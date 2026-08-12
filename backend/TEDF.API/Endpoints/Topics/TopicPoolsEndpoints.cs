@@ -37,6 +37,9 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
     private static readonly string[] RegisterFormExtensions = [".pdf", ".docx"];
 
+    /// <summary>The multipart part name the client uses for the capstone register form.</summary>
+    private const string RegisterFormFieldName = "registerForm";
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var pool = app.MapGroup("/api/topic-pools").RequireAuthorization();
@@ -160,6 +163,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     private static async Task<IResult> ProposeTopicToPool(
         Guid poolId,
         [FromForm] ProposeTopicRequest body,
+        HttpContext httpContext,
         [FromServices] IAttachmentScanWorkflow scanWorkflow,
         [FromServices] IMalwareScanner malwareScanner,
         ICurrentUserService currentUser,
@@ -171,10 +175,30 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         if (userId is null)
             return Results.Unauthorized();
 
-        if (body.RegisterForm is not { Length: > 0 } registerForm)
+        if (!httpContext.Request.HasFormContentType)
+            return Results.BadRequest(ApiResponse.Fail("Request phải là multipart/form-data."));
+
+        // ProjectName.Create rejects a blank name with an ArgumentException, which the exception
+        // middleware has no arm for — without these guards an empty name surfaces as a 500.
+        if (string.IsNullOrWhiteSpace(body.NameVi))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Việt."));
+
+        if (string.IsNullOrWhiteSpace(body.NameEn))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Anh."));
+
+        if (string.IsNullOrWhiteSpace(body.NameAbbr))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên viết tắt của đề tài."));
+
+        // Read the files off the request rather than the bound model — see ProposeTopicRequest.
+        var files = httpContext.Request.Form.Files;
+
+        if (files.GetFile(RegisterFormFieldName) is not { Length: > 0 } registerForm)
             return Results.BadRequest(ApiResponse.Fail("Vui lòng tải lên phiếu đăng ký (Capstone Project Register)."));
 
-        var attachments = body.Attachments.Where(f => f.Length > 0).ToList();
+        var attachments = files
+            .Where(f => !ReferenceEquals(f, registerForm) && f.Length > 0)
+            .ToList();
+
         var allFiles = attachments.Prepend(registerForm).ToList();
 
         if (!FileUploadValidator.TryValidate(allFiles, PerFileMaxBytes, MaxAttachmentCount, out var uploadError))
