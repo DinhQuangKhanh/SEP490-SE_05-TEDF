@@ -11,11 +11,15 @@ public sealed class ProposeTopicRequest
     public string? Technologies { get; set; }
     public string? ExpectedResults { get; set; }
     public int MaxStudents { get; set; } = 5;
-    public List<IFormFile>? Attachments { get; set; }
+
+    /// <summary>Supporting documents. Archived alongside the register form after a malware scan.</summary>
+    public List<IFormFile> Attachments { get; set; } = [];
 
     /// <summary>
-    /// Optional capstone register form (PDF). When its student table is filled in, those students
-    /// become the topic's group after it passes evaluation.
+    /// The capstone register form (PDF or DOCX), which is <b>required</b>. When its student table is
+    /// filled in, those students become the topic's group after it passes evaluation. It is uploaded
+    /// once and archived with the other attachments — the client must not repeat it in
+    /// <see cref="Attachments"/>.
     /// </summary>
     public IFormFile? RegisterForm { get; set; }
 }

@@ -175,13 +175,16 @@ if (app.Environment.IsProduction())
 
 app.UseCors("AllowFrontend");
 
-// Apply request timeout and rate limit middleware before mapping endpoints.
 app.UseRequestTimeouts();
-app.UseRateLimiter();
 
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication on purpose: ProposeTopicUploadPolicy partitions on the DbUserId claim, which
+// is only populated once the JWT has been validated. Running earlier would silently key every
+// request by IP, so everyone behind one campus NAT would share a single quota.
+app.UseRateLimiter();
 
 // Maintenance mode: block non-admin API calls with 503 when enabled (after auth so roles are known)
 app.UseMaintenanceMode();
