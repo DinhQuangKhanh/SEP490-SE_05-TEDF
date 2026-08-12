@@ -294,7 +294,7 @@ namespace TEDF.Infrastructure
             services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));
             services.AddScoped<IFileStorageService, FirebaseStorageService>();
             services.AddScoped<IExcelService, ExcelService>();
-            services.AddScoped<IRegisterFormParser, RegisterFormParser>();
+            services.AddScoped<IRegisterFormParser, Services.RegisterForm.RegisterFormParser>();
 
             // Notification & RealTime
             services.AddScoped<INotificationService, NotificationService>();
