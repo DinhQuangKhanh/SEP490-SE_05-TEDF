@@ -63,7 +63,7 @@ public class ChecklistQueryService : IChecklistQueryService
                     return new ProjectChecklistItemDto(
                         i.CriterionId, i.Order, i.TitleVi,
                         criterion?.TitleEn ?? string.Empty, criterion?.Description,
-                        i.MaxScore, i.PassScore, i.Score, i.Comment, i.IsPassed);
+                        i.Comment, i.IsPassed);
                 })
                 .ToList();
 
@@ -109,7 +109,7 @@ public class ChecklistQueryService : IChecklistQueryService
             .OrderBy(c => c.Order)
             .Select(c => new ProjectChecklistItemDto(
                 c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description,
-                c.MaxScore, c.PassScore, Score: null, Comment: null, IsPassed: false))
+                Comment: null, IsPassed: false))
             .ToList();
 
         return new ProjectChecklistDto(
@@ -219,7 +219,7 @@ public class ChecklistQueryService : IChecklistQueryService
     {
         var criteria = config.Criteria
             .OrderBy(c => c.Order)
-            .Select(c => new ChecklistCriterionDto(c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
+            .Select(c => new ChecklistCriterionDto(c.Id, c.Order, c.TitleVi, c.TitleEn, c.Description))
             .ToList();
 
         return new ChecklistConfigDto(

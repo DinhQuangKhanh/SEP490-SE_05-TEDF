@@ -64,11 +64,11 @@ public class ChecklistConfig : AggregateRoot<Guid>
         return config;
     }
 
-    /// <summary>Clones this config's criteria (with scores) into a new Draft for <paramref name="targetSemesterId"/>.</summary>
+    /// <summary>Clones this config's criteria into a new Draft for <paramref name="targetSemesterId"/>.</summary>
     public ChecklistConfig CopyTo(int targetSemesterId, int version, Guid? createdBy = null)
     {
         var ordered = _criteria.OrderBy(c => c.Order)
-            .Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore));
+            .Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description));
         return Create(targetSemesterId, version, ordered, RequiredPassCount, SourceFileName, createdBy);
     }
 
@@ -110,13 +110,30 @@ public class ChecklistConfig : AggregateRoot<Guid>
 
     private void SetCriteriaInternal(IEnumerable<ChecklistCriterionSpec> criteria)
     {
-        _criteria.Clear();
-        var order = 1;
-        foreach (var c in criteria)
+        var criteriaList = criteria.ToList();
+
+        // Merge in place instead of clear-and-recreate so criterion ids survive an edit (result snapshots
+        // reference them by id). EF loads the collection unordered, so pair the specs against the criteria
+        // in Order — otherwise the merge would shuffle content across rows on every save.
+        var existing = _criteria.OrderBy(c => c.Order).ToList();
+
+        // Drop the surplus tail; EF cascade-deletes the orphans on SaveChanges.
+        for (var i = existing.Count - 1; i >= criteriaList.Count; i--)
+            _criteria.Remove(existing[i]);
+
+        for (var i = 0; i < criteriaList.Count; i++)
         {
-            // ChecklistCriterion.Create validates title + score bounds and throws a business rule error.
-            _criteria.Add(ChecklistCriterion.Create(
-                Id, order++, c.TitleVi, c.TitleEn ?? string.Empty, c.Description, c.MaxScore, c.PassScore));
+            var spec = criteriaList[i];
+            if (i < existing.Count)
+            {
+                existing[i].Update(i + 1, spec.TitleVi, spec.TitleEn ?? string.Empty, spec.Description);
+            }
+            else
+            {
+                // ChecklistCriterion.Create validates the title and throws a business rule error.
+                _criteria.Add(ChecklistCriterion.Create(
+                    Id, i + 1, spec.TitleVi, spec.TitleEn ?? string.Empty, spec.Description));
+            }
         }
     }
 

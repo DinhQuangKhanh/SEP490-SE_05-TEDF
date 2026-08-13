@@ -36,7 +36,7 @@ public class ChecklistDomainService : IChecklistDomainService
     }
 
     public async Task SaveProjectChecklistAsync(
-        Guid projectId, IReadOnlyList<ChecklistScoreData> scores, string? note, CancellationToken cancellationToken = default)
+        Guid projectId, IReadOnlyList<ChecklistEvaluationData> entries, string? note, CancellationToken cancellationToken = default)
     {
         var evaluatorId = RequireUserId();
 
@@ -53,7 +53,7 @@ public class ChecklistDomainService : IChecklistDomainService
                 "Chỉ có thể cập nhật checklist khi đề tài đang ở trạng thái chờ thẩm định.");
 
         var submissionNumber = project.EvaluationCount;
-        var entries = scores.Select(s => new ChecklistScoreEntry(s.CriterionId, s.Score, s.Comment)).ToList();
+        var evaluationEntries = entries.Select(e => new ChecklistEvaluationEntry(e.CriterionId, e.IsPassed, e.Comment)).ToList();
 
         var existing = await _repositories.Checklists.GetByProjectEvaluatorAsync(
             projectId, evaluatorId, submissionNumber, cancellationToken);
@@ -61,7 +61,7 @@ public class ChecklistDomainService : IChecklistDomainService
         if (existing is not null)
         {
             // Continue editing the snapshot the evaluator already started (its criteria match the UI).
-            existing.ApplyScores(entries, note);
+            existing.ApplyResults(evaluationEntries, note);
             _repositories.Checklists.Update(existing);
         }
         else
@@ -71,7 +71,7 @@ public class ChecklistDomainService : IChecklistDomainService
                     "Học kỳ này chưa được cấu hình checklist thẩm định. Vui lòng liên hệ Trưởng bộ môn.");
 
             var checklist = ProjectEvaluationChecklist.CreateFromConfig(config, projectId, evaluatorId, submissionNumber);
-            checklist.ApplyScores(entries, note);
+            checklist.ApplyResults(evaluationEntries, note);
             await _repositories.Checklists.AddAsync(checklist, cancellationToken);
         }
 
@@ -111,7 +111,7 @@ public class ChecklistDomainService : IChecklistDomainService
 
         var specs = parsed.Rows
             .Select(r => new ChecklistCriterionData(
-                r.TitleVi, r.TitleEn, r.Description, r.MaxScore!.Value, r.PassScore!.Value));
+                r.TitleVi, r.TitleEn, r.Description));
 
         var version = await _repositories.Configs.GetMaxVersionForSemesterAsync(semesterId, cancellationToken) + 1;
 
@@ -196,7 +196,7 @@ public class ChecklistDomainService : IChecklistDomainService
     }
 
     private static List<ChecklistCriterionSpec> ToSpecs(IReadOnlyList<ChecklistCriterionData> criteria)
-        => criteria.Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore)).ToList();
+        => criteria.Select(c => new ChecklistCriterionSpec(c.TitleVi, c.TitleEn, c.Description)).ToList();
 
     private static string BuildImportErrorMessage(ChecklistImportParseResult parsed)
     {
