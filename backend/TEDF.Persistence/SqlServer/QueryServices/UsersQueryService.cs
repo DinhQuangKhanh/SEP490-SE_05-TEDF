@@ -75,6 +75,27 @@ public class UsersQueryService : IUsersQueryService
             deptName = dept?.Name;
         }
 
+        // A student never types their own major: it is snapshotted onto the semester roster when
+        // the admin imports it, so the profile reads it back from the most recent roster entry.
+        Major? major = null;
+        if (user.Student is not null)
+        {
+            var majorId = await _context.EligibleStudents.AsNoTracking()
+                .Where(es => es.StudentId == user.Id && es.MajorId != null)
+                .Join(_context.Semesters.AsNoTracking(),
+                    es => es.SemesterId, sem => sem.Id,
+                    (es, sem) => new { es.MajorId, sem.StartDate })
+                .OrderByDescending(x => x.StartDate)
+                .Select(x => x.MajorId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (majorId.HasValue)
+            {
+                major = await _context.Majors.AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.Id == majorId.Value, cancellationToken);
+            }
+        }
+
         string? programCode = null;
         string? programName = null;
         var programId = user.Student?.ProgramId;
@@ -99,6 +120,9 @@ public class UsersQueryService : IUsersQueryService
             AcademicTitle: user.Lecturer?.AcademicTitle,
             DepartmentId: user.DepartmentId,
             DepartmentName: deptName,
+            MajorId: major?.Id,
+            MajorCode: major?.Code,
+            MajorName: major?.Name,
             ProgramId: programId,
             ProgramCode: programCode,
             ProgramName: programName,

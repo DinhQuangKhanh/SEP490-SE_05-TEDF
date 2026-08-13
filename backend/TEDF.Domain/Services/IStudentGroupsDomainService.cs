@@ -22,4 +22,10 @@ public interface IStudentGroupsDomainService
     Task<int> RequestJoinAsync(Guid groupId, Guid studentId, string? message, CancellationToken cancellationToken = default);
     Task RespondInvitationAsync(Guid groupId, int invitationId, Guid studentId, bool accept, CancellationToken cancellationToken = default);
     Task RespondJoinRequestAsync(Guid groupId, int requestId, Guid leaderId, bool approve, CancellationToken cancellationToken = default);
+
+    /// <summary>A non-leader member drops out of the group on their own.</summary>
+    Task LeaveGroupAsync(Guid groupId, Guid studentId, CancellationToken cancellationToken = default);
+
+    /// <summary>The leader disbands the group; every remaining member is dropped with it.</summary>
+    Task DisbandGroupAsync(Guid groupId, Guid leaderId, CancellationToken cancellationToken = default);
 }

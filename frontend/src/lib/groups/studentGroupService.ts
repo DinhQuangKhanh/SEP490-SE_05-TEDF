@@ -67,6 +67,12 @@ export const studentGroupService = {
   bulkRejectJoinRequests: (groupId: string, requestIds: number[]) =>
     apiClient.put<BulkOperationResultDto>(routes.studentGroups.bulkRejectJoinRequests(groupId), { requestIds }),
 
+  /** A member drops out of their own group. Not available to the leader — they disband instead. */
+  leaveGroup: (groupId: string) => apiClient.delete<void>(routes.studentGroups.leave(groupId)),
+
+  /** Group leader disbands the group, dropping every remaining member with it. */
+  disbandGroup: (groupId: string) => apiClient.delete<void>(routes.studentGroups.disband(groupId)),
+
   /** Group leader registers the group for a topic from the pool. */
   registerTopic: (params: { projectId: string; groupId: string; note?: string }) =>
     apiClient.post(routes.studentTopics.registerTopic(params.groupId), {
