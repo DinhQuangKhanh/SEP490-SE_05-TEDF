@@ -47,6 +47,9 @@ const STEPS = [
 /** Matches the server-side limit for the register form upload. */
 const MAX_REGISTER_FORM_BYTES = 10 * 1024 * 1024;
 
+/** The formats the server can read a roster out of. */
+const REGISTER_FORM_TYPES = [".pdf", ".docx"];
+
 // ── Input classes ───────────────────────────────────────────────────────────
 
 const inputClass =
@@ -54,6 +57,15 @@ const inputClass =
 const textareaClass = `${inputClass} leading-relaxed`;
 const selectClass = `${inputClass} text-slate-700`;
 const labelClass = "block text-sm font-semibold text-slate-700 mb-1.5";
+
+/**
+ * The name fields wrap onto several lines, so they are textareas — but they are still single-value
+ * fields. Swallowing Enter keeps a stray newline out of the project name, which would otherwise
+ * follow the topic into its code and every list that renders it.
+ */
+const blockNewline = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === "Enter") e.preventDefault();
+};
 
 // ── Slide animation ─────────────────────────────────────────────────────────
 
@@ -124,11 +136,16 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       case 0:
         return !!form.poolId;
       case 1:
-        return !!form.nameVi.trim() && !!form.nameAbbr.trim();
+        // The English name is required by the domain (ProjectName.Create rejects a blank value),
+        // so gate on it here rather than letting the server reject the submission.
+        return !!form.nameVi.trim() && !!form.nameEn.trim() && !!form.nameAbbr.trim();
       case 2:
         return (
           !!form.description.trim() && !!form.objectives.trim() && !!form.scope.trim() && !!form.technologies.trim()
         );
+      case 3:
+        // The register form is what seeds the group roster, so it is no longer optional.
+        return !!registerForm;
       default:
         return true;
     }
@@ -156,8 +173,8 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     e.target.value = ""; // allow re-picking the same file after a rejection
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setRegisterFormError("Phiếu đăng ký phải là tệp PDF.");
+    if (!REGISTER_FORM_TYPES.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+      setRegisterFormError("Phiếu đăng ký phải là tệp PDF hoặc DOCX.");
       return;
     }
     if (file.size > MAX_REGISTER_FORM_BYTES) {
@@ -218,7 +235,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            // ~90% of the viewport, capped so the form does not stretch to unreadable line lengths
+            // on ultrawide monitors: 90% at 1280px, 83% at 1920px.
+            className="bg-white w-[90vw] max-w-[1600px] max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           >
             {/* Success overlay */}
             {showSuccess ? (
@@ -309,7 +328,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                 </div>
 
                 {/* Content area */}
-                <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[320px]">
+                <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[420px]">
                   <AnimatePresence mode="wait" custom={dir}>
                     <motion.div
                       key={step}
@@ -343,10 +362,6 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                           registerForm={registerForm}
                           registerFormError={registerFormError}
                           onRegisterFormChange={handleRegisterForm}
-                          onRegisterFormRemove={() => {
-                            setRegisterForm(null);
-                            setRegisterFormError(null);
-                          }}
                         />
                       )}
                     </motion.div>
@@ -395,8 +410,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                     ) : (
                       <button
                         onClick={handleSubmit}
-                        disabled={submitting}
-                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50"
+                        disabled={submitting || !canProceed()}
+                        title={registerForm ? undefined : "Vui lòng tải lên phiếu đăng ký trước khi gửi."}
+                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submitting ? (
                           <>
@@ -500,21 +516,25 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
         <label className={labelClass}>
           Tên đề tài (Tiếng Việt) <span className="text-red-500">*</span>
         </label>
-        <input
-          type="text"
+        <AutoResizeTextarea
+          rows={2}
           value={form.nameVi}
           onChange={(e) => set("nameVi", e.target.value)}
-          className={inputClass}
+          onKeyDown={blockNewline}
+          className={textareaClass}
           placeholder="Nhập tên đề tài đầy đủ bằng tiếng Việt..."
         />
       </div>
       <div>
-        <label className={labelClass}>Tên đề tài (Tiếng Anh)</label>
-        <input
-          type="text"
+        <label className={labelClass}>
+          Tên đề tài (Tiếng Anh) <span className="text-red-500">*</span>
+        </label>
+        <AutoResizeTextarea
+          rows={2}
           value={form.nameEn}
           onChange={(e) => set("nameEn", e.target.value)}
-          className={inputClass}
+          onKeyDown={blockNewline}
+          className={textareaClass}
           placeholder="Enter project name in English..."
         />
       </div>
@@ -523,11 +543,12 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
           <label className={labelClass}>
             Tên viết tắt <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <AutoResizeTextarea
+            rows={2}
             value={form.nameAbbr}
             onChange={(e) => set("nameAbbr", e.target.value)}
-            className={inputClass}
+            onKeyDown={blockNewline}
+            className={textareaClass}
             placeholder="VD: QLBV, TMDT..."
           />
         </div>
@@ -631,7 +652,6 @@ function StepAttachments({
   registerForm,
   registerFormError,
   onRegisterFormChange,
-  onRegisterFormRemove,
 }: {
   attachments: File[];
   warnings: string[];
@@ -644,7 +664,6 @@ function StepAttachments({
   registerForm: File | null;
   registerFormError: string | null;
   onRegisterFormChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onRegisterFormRemove: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -682,54 +701,46 @@ function StepAttachments({
         </div>
       </div>
 
-      {/* Capstone register form — seeds the group when its student table is filled in */}
+      {/* Attachments. The register form lives in this same list — it is uploaded once and archived
+          alongside the other documents — but it is required and cannot simply be removed. */}
       <div>
-        {/* A heading, not a control label — the file input carries its own label below. */}
-        <p className={labelClass}>Phiếu đăng ký (tùy chọn)</p>
-        <p className="mb-2 text-xs text-slate-500">
-          Tệp PDF theo mẫu &ldquo;Capstone Project Register&rdquo;. Nếu phiếu đã điền danh sách sinh viên, hệ thống sẽ tự
-          tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành
-          công. Để trống thì đề tài chỉ vào kho như bình thường.
+        <label className={labelClass}>
+          Tài liệu đính kèm <span className="text-red-500">*</span>
+        </label>
+        <p className="mb-3 text-xs text-slate-500">
+          Bắt buộc phải có phiếu đăng ký theo mẫu &ldquo;Capstone Project Register&rdquo; (PDF hoặc DOCX). Nếu phiếu đã
+          điền danh sách sinh viên, hệ thống sẽ tự tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng
+          &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành công.
         </p>
-        {registerForm ? (
-          <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
-            <span className="material-symbols-outlined text-primary text-[20px]">assignment</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate text-slate-700">{registerForm.name}</p>
-              <p className="text-[10px] text-slate-400">{formatFileSize(registerForm.size)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={onRegisterFormRemove}
-              className="p-1 transition-colors text-slate-400 hover:text-red-500"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          </div>
-        ) : (
-          <label className="flex items-center gap-2 px-4 py-3 text-sm transition-colors border-2 border-dashed cursor-pointer border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 hover:border-primary/40">
-            <span className="material-symbols-outlined text-[20px] text-slate-400">upload_file</span>
+
+        {!registerForm && (
+          <label className="flex items-center gap-2 px-4 py-3 mb-3 text-sm transition-colors border-2 border-dashed cursor-pointer border-red-300 bg-red-50/40 rounded-xl text-slate-600 hover:bg-red-50 hover:border-red-400">
+            <span className="material-symbols-outlined text-[20px] text-red-400">assignment</span>
             <span className="font-medium text-primary">Chọn phiếu đăng ký</span>
-            <span className="text-xs text-slate-400">PDF &mdash; tối đa 10MB</span>
-            <input type="file" className="sr-only" accept=".pdf" onChange={onRegisterFormChange} />
+            <span className="text-xs text-slate-400">
+              {REGISTER_FORM_TYPES.map((t) => t.replace(".", "").toUpperCase()).join(", ")} &mdash; tối đa 10MB
+            </span>
+            <input
+              type="file"
+              className="sr-only"
+              accept={REGISTER_FORM_TYPES.join(",")}
+              onChange={onRegisterFormChange}
+            />
           </label>
         )}
+
         {registerFormError && (
-          <p className="mt-2 text-xs text-red-600 flex items-start gap-1.5">
+          <p className="mb-3 text-xs text-red-600 flex items-start gap-1.5">
             <span className="material-symbols-outlined text-[14px] mt-0.5">error</span>
             {registerFormError}
           </p>
         )}
-      </div>
 
-      {/* Upload area */}
-      <div>
-        <label className={labelClass}>Tài liệu đính kèm (tùy chọn)</label>
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="flex justify-center px-6 pt-6 mt-1 transition-colors border-2 border-dashed cursor-pointer pb-7 border-slate-300 rounded-xl hover:bg-slate-50 hover:border-primary/40 group"
+          className="flex justify-center px-6 pt-6 transition-colors border-2 border-dashed cursor-pointer pb-7 border-slate-300 rounded-xl hover:bg-slate-50 hover:border-primary/40 group"
         >
           <div className="space-y-2 text-center">
             <div className="flex items-center justify-center mx-auto transition-colors rounded-full size-12 bg-slate-100 text-slate-400 group-hover:text-primary group-hover:bg-blue-50">
@@ -754,9 +765,32 @@ function StepAttachments({
         </div>
       </div>
 
-      {/* File list */}
-      {attachments.length > 0 && (
+      {/* File list — the register form is pinned first, badged, and swapped rather than removed. */}
+      {(registerForm || attachments.length > 0) && (
         <div className="space-y-2">
+          {registerForm && (
+            <div className="flex items-center gap-3 px-4 py-2.5 border rounded-lg bg-blue-50/50 border-primary/20">
+              <span className="material-symbols-outlined text-primary text-[20px]">assignment</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate text-slate-700">{registerForm.name}</p>
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    Phiếu đăng ký
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400">{formatFileSize(registerForm.size)}</p>
+              </div>
+              <label className="px-2 py-1 text-xs font-semibold transition-colors rounded cursor-pointer text-primary hover:bg-primary/10">
+                Đổi
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept={REGISTER_FORM_TYPES.join(",")}
+                  onChange={onRegisterFormChange}
+                />
+              </label>
+            </div>
+          )}
           {attachments.map((file, idx) => (
             <div
               key={`${file.name}-${idx}`}
