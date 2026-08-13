@@ -192,8 +192,8 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         int? semesterId,
         CancellationToken cancellationToken = default)
     {
-        // Open groups are always from the NEXT semester (after the currently active one)
-        var targetSemesterId = await ResolveNextSemesterIdAsync(semesterId, cancellationToken);
+        // Open groups come from the semester this student is rostered for.
+        var targetSemesterId = await ResolveNextSemesterIdAsync(semesterId, studentId, cancellationToken);
         if (targetSemesterId == 0) return [];
 
         var groups = await _context.Groups.AsNoTracking()
@@ -315,8 +315,8 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
         int? semesterId,
         CancellationToken cancellationToken = default)
     {
-        // Pending join requests target groups from the NEXT semester
-        var targetSemesterId = await ResolveNextSemesterIdAsync(semesterId, cancellationToken);
+        // Pending join requests target groups from the semester this student is rostered for.
+        var targetSemesterId = await ResolveNextSemesterIdAsync(semesterId, studentId, cancellationToken);
         if (targetSemesterId == 0) return null;
 
         var now = DateTime.UtcNow;
@@ -344,29 +344,27 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
 
 
     /// <summary>
-    /// Resolves the next semester after the currently active one.
-    /// Used for open groups and pending join requests — students browse/join groups for the upcoming semester.
-    /// If semesterId is explicitly provided, uses it directly. Otherwise finds the next semester automatically.
-    /// Returns 0 if no next semester exists (admin hasn't created one yet).
+    /// Resolves the semester whose groups this student browses and joins: the earliest semester that
+    /// has not ended yet and carries the student on its eligible roster.
+    /// If semesterId is explicitly provided, uses it directly. Returns 0 when the student is not on
+    /// any current or upcoming roster.
+    /// <para>
+    /// Must stay in step with <c>ISemesterRepository.GetEligibleSemesterForStudentAsync</c>, which
+    /// group creation uses — if the two picked different semesters, a student would create a group
+    /// they could then not see in the open-group list.
+    /// </para>
     /// </summary>
-    private async Task<int> ResolveNextSemesterIdAsync(int? semesterId, CancellationToken cancellationToken)
+    private async Task<int> ResolveNextSemesterIdAsync(int? semesterId, Guid studentId, CancellationToken cancellationToken)
     {
         if (semesterId.HasValue) return semesterId.Value;
 
         var now = DateTime.UtcNow;
 
-        var activeSemester = await _context.Semesters
+        return await _context.EligibleStudents
             .AsNoTracking()
-            .Where(s => s.StartDate <= now && s.EndDate >= now)
-            .Select(s => new { s.Id, s.EndDate })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (activeSemester is null) return 0;
-
-        // Find the next semester that starts after the current one ends
-        return await _context.Semesters
-            .AsNoTracking()
-            .Where(s => s.StartDate > activeSemester.EndDate)
+            .Where(e => e.StudentId == studentId && e.IsEligible)
+            .Join(_context.Semesters.AsNoTracking(), e => e.SemesterId, s => s.Id, (e, s) => s)
+            .Where(s => s.EndDate >= now)
             .OrderBy(s => s.StartDate)
             .Select(s => s.Id)
             .FirstOrDefaultAsync(cancellationToken);

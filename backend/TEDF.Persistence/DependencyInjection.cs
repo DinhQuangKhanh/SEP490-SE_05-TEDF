@@ -128,22 +128,18 @@ namespace TEDF.Persistence
         }
 
         /// <summary>
-        /// Initializes the database with migrations and seeding.
+        /// Runs the start-up database recipe for the current environment.
         /// Call this method after building the WebApplication instance.
         /// <para>
-        /// What runs depends on the environment:
-        /// <list type="bullet">
-        ///   <item><b>Development</b> — applies pending migrations, seeds the full load-test dataset
-        ///   (when the Firebase emulator is on), the evaluation checklists, and the Mongo indexes.</item>
-        ///   <item><b>Anything else (Production/Staging)</b> — seeds only the reference data the app
-        ///   cannot run without: <c>SeedDepartmentsAsync</c> + <c>SeedMajorsAsync</c>. No migrations
-        ///   are applied automatically and no mock users are ever created.</item>
-        /// </list>
+        /// This method only picks the recipe; what each one does lives in
+        /// <see cref="DatabaseSeeder.SeedDevelopmentAsync"/> and
+        /// <see cref="DatabaseSeeder.SeedProductionAsync"/>.
         /// </para>
         /// </summary>
         /// <param name="isDevelopment">
-        /// Pass <c>app.Environment.IsDevelopment()</c>. Everything that is not Development is treated
-        /// as real data, so the seeding stays limited to Departments and Majors.
+        /// Pass <c>app.Environment.IsDevelopment()</c>. Anything that is not Development is treated as
+        /// holding real data and gets the production recipe — which is off unless
+        /// <c>Seeding__RunOnStartup</c> says otherwise, and never throws.
         /// </param>
         /// <example>
         /// var app = builder.Build();
@@ -153,62 +149,20 @@ namespace TEDF.Persistence
         {
             using var scope = serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInit");
 
-            if (!isDevelopment)
-            {
-                logger.LogInformation("Non-Development environment: seeding reference data only (Departments + Majors).");
+            // Logged first: which recipe ran is the first thing anyone reads the start-up log for,
+            // and it makes a mis-set ASPNETCORE_ENVIRONMENT visible immediately rather than through
+            // its side effects.
+            logger.LogInformation("Database initialization: running the {Recipe} recipe.",
+                isDevelopment ? "Development" : "Production");
 
-                try
-                {
-                    await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
-                }
-                catch (Exception ex)
-                {
-                    // Reference data is important but not worth refusing to start the API over:
-                    // an admin can still fix it by hand, whereas a crash loop takes the site down.
-                    logger.LogError(ex, "Essential data seeding failed. The API will start without it.");
-                }
-
-                return;
-            }
-
-            var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-            if (pendingMigrations.Count == 0)
-            {
-                logger.LogInformation("No pending EF Core migrations.");
-            }
+            if (isDevelopment)
+                await DatabaseSeeder.SeedDevelopmentAsync(dbContext, mongoContext, configuration, logger);
             else
-            {
-                logger.LogWarning("Applying {Count} pending migration(s): {Migrations}",
-                    pendingMigrations.Count,
-                    string.Join(", ", pendingMigrations));
-            }
-
-            await dbContext.Database.MigrateAsync();
-            logger.LogInformation("EF Core migrations applied successfully.");
-
-            // Load-test data: seed 1000 users + relationships when Firebase Emulator is enabled
-            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var useEmulator = configuration.GetValue<bool>("Firebase:UseEmulator");
-
-            if (useEmulator)
-            {
-                await LoadTestDataSeeder.SeedAsync(dbContext, logger);
-                await FirebaseEmulatorSeeder.SeedAsync(logger);
-            }
-            else
-            {
-                // The emulator is off, so the mock users are skipped — but Departments/Majors are
-                // reference data the app needs in every environment.
-                await LoadTestDataSeeder.SeedEssentialAsync(dbContext, logger);
-            }
-
-            // Ensure every existing semester has an Active evaluation checklist (idempotent, additive).
-            await EvaluationChecklistSeeder.SeedAsync(dbContext, logger);
-
-            var mongoContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
-            await MongoIndexConfiguration.CreateIndexesAsync(mongoContext);
+                await DatabaseSeeder.SeedProductionAsync(dbContext, mongoContext, configuration, logger);
         }
     }
 }

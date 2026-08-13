@@ -98,6 +98,22 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .AnyAsync(e => e.StudentId == studentId && e.SemesterId == semesterId && e.IsEligible, cancellationToken);
         }
 
+        /// <inheritdoc/>
+        public async Task<Semester?> GetEligibleSemesterForStudentAsync(Guid studentId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            // Earliest first: a student rostered on both the running semester and the next one belongs
+            // to the running one — they only move on once it has ended.
+            return await _context.EligibleStudents
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentId && e.IsEligible)
+                .Join(_context.Semesters, e => e.SemesterId, s => s.Id, (e, s) => s)
+                .Where(s => s.EndDate >= now)
+                .OrderBy(s => s.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         public async Task<bool> IsMentorEligibleNowAsync(Guid mentorId, CancellationToken cancellationToken = default)
         {
             var now = DateTime.UtcNow;
