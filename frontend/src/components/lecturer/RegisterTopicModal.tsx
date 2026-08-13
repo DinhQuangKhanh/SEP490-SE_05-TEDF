@@ -517,7 +517,7 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
           Tên đề tài (Tiếng Việt) <span className="text-red-500">*</span>
         </label>
         <AutoResizeTextarea
-          rows={1}
+          rows={2}
           value={form.nameVi}
           onChange={(e) => set("nameVi", e.target.value)}
           onKeyDown={blockNewline}
@@ -530,7 +530,7 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
           Tên đề tài (Tiếng Anh) <span className="text-red-500">*</span>
         </label>
         <AutoResizeTextarea
-          rows={1}
+          rows={2}
           value={form.nameEn}
           onChange={(e) => set("nameEn", e.target.value)}
           onKeyDown={blockNewline}
@@ -544,7 +544,7 @@ function StepBasicInfo({ form, set }: { form: FormData; set: (f: keyof FormData,
             Tên viết tắt <span className="text-red-500">*</span>
           </label>
           <AutoResizeTextarea
-            rows={1}
+            rows={2}
             value={form.nameAbbr}
             onChange={(e) => set("nameAbbr", e.target.value)}
             onKeyDown={blockNewline}
