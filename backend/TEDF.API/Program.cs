@@ -96,7 +96,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddJobServices();
-builder.Services.AddSignalRServices();
+builder.Services.AddSignalRServices(builder.Configuration);
 builder.Services.AddHealthCheckServices();
 
 // Layer Services
