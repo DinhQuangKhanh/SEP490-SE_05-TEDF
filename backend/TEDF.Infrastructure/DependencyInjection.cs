@@ -32,7 +32,6 @@ using TEDF.Infrastructure.Services.DomainServices;
 using TEDF.Infrastructure.Services.Excel;
 using TEDF.Infrastructure.Services.Email;
 using TEDF.Infrastructure.Services.Email.Firestore;
-using TEDF.Infrastructure.Services.Email.Templates;
 using TEDF.Infrastructure.Services.FileStorage;
 using TEDF.Infrastructure.Services.Notification;
 using TEDF.Persistence.SqlServer.QueryServices;
@@ -278,17 +277,13 @@ namespace TEDF.Infrastructure
                 client.Timeout = TimeSpan.FromSeconds(30);
             });
 
-            // Email — SMTP (admin "send test email" only)
-            services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
-            services.AddScoped<IEmailService, SmtpEmailService>();
-            services.AddScoped<IEmailTemplateService, EmailTemplateService>();
-            services.AddScoped<IEmailSender, EmailSenderAdapter>();
-
-            // Email — transactional mail via the Firestore "Trigger Email" extension.
-            // Singleton so the Firestore channel is built once and reused across jobs.
+            // Email — every message leaves through the Firestore "Trigger Email" extension; the
+            // backend never speaks SMTP itself. Singleton so the Firestore channel is built once
+            // and reused across jobs.
             services.Configure<FirestoreMailOptions>(configuration.GetSection(FirestoreMailOptions.SectionName));
             services.AddSingleton<IFirestoreMailQueue, FirestoreMailQueue>();
             services.AddScoped<IProjectMailContextFactory, ProjectMailContextFactory>();
+            services.AddScoped<IEmailSender, FirestoreEmailSender>();
 
             // File Storage - Firebase Storage
             services.Configure<FileStorageSettings>(configuration.GetSection(FileStorageSettings.SectionName));

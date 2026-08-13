@@ -7,6 +7,8 @@ using TEDF.Application.Features.StudentGroups.Commands.RequestJoin;
 using TEDF.Application.Features.StudentGroups.Commands.RespondInvitation;
 using TEDF.Application.Features.StudentGroups.Commands.RespondJoinRequest;
 using TEDF.Application.Features.StudentGroups.Commands.BulkRespondJoinRequests;
+using TEDF.Application.Features.StudentGroups.Commands.DisbandGroup;
+using TEDF.Application.Features.StudentGroups.Commands.LeaveGroup;
 using TEDF.Application.Features.StudentGroups.Queries.GetGroupJoinRequests;
 using TEDF.Application.Features.StudentGroups.Queries.GetInvitableStudents;
 using TEDF.Application.Features.StudentGroups.Queries.GetMentorGroups;
@@ -43,6 +45,10 @@ public sealed class StudentGroupEndpoints : IEndpoint
 
         group.MapPut("/{groupId:guid}/join-requests/bulk-approve", BulkApproveJoinRequests).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("BulkApproveJoinRequests").Produces(200).Produces(400).Produces(401);
         group.MapPut("/{groupId:guid}/join-requests/bulk-reject", BulkRejectJoinRequests).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("BulkRejectJoinRequests").Produces(200).Produces(400).Produces(401);
+
+        // Leaving is for members; disbanding is the leader's counterpart (a leader cannot leave).
+        group.MapDelete("/{groupId:guid}/members/me", LeaveGroup).WithTags("Groups").WithName("LeaveGroup").Produces(204).Produces(400).Produces(401);
+        group.MapDelete("/{groupId:guid}", DisbandGroup).RequireAuthorization(PolicyNames.GroupLeader).WithTags("Groups").WithName("DisbandGroup").Produces(204).Produces(400).Produces(401);
 
         group.MapGet("/mentor", GetMentorGroups).RequireAuthorization(PolicyNames.RequireMentor).WithTags("Groups").WithName("GetMentorGroups").Produces(200).Produces(401);
 
@@ -119,6 +125,18 @@ public sealed class StudentGroupEndpoints : IEndpoint
     {
         var result = await sender.Send(new BulkRespondJoinRequestsCommand(groupId, request.RequestIds, Approve: false), ct);
         return Ok(result, result.Message);
+    }
+
+    private static async Task<IResult> LeaveGroup(Guid groupId, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new LeaveGroupCommand(groupId), ct);
+        return NoContent("Bạn đã rời khỏi nhóm.");
+    }
+
+    private static async Task<IResult> DisbandGroup(Guid groupId, ISender sender, CancellationToken ct)
+    {
+        await sender.Send(new DisbandGroupCommand(groupId), ct);
+        return NoContent("Đã giải tán nhóm.");
     }
 
     private static async Task<IResult> GetMentorGroups(int? semesterId, ISender sender, CancellationToken ct)

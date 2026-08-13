@@ -95,6 +95,27 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
             RaiseDomainEvent(new MemberRemovedEvent(Id, studentId, removedBy));
         }
 
+        /// <summary>
+        /// A member drops out of the group by themselves. The leader cannot use this — a group must
+        /// always have a leader, so they either hand the role over or disband the whole group.
+        /// </summary>
+        public void LeaveGroup(Guid studentId)
+        {
+            if (Status != GroupStatus.Active)
+                throw new BusinessRuleValidationException("Chỉ có thể rời khỏi nhóm đang hoạt động.");
+
+            var member = _members.FirstOrDefault(m => m.StudentId == studentId && m.IsActive)
+                ?? throw new BusinessRuleValidationException("Bạn không phải là thành viên đang hoạt động của nhóm này.");
+
+            if (member.IsLeader)
+                throw new BusinessRuleValidationException(
+                    "Nhóm trưởng không thể rời nhóm. Hãy chuyển quyền nhóm trưởng cho thành viên khác hoặc giải tán nhóm.");
+
+            member.Leave();
+            UpdatedAt = DateTime.UtcNow;
+            RaiseDomainEvent(new MemberLeftEvent(Id, Code.Value, studentId, LeaderId));
+        }
+
         public void ChangeLeader(Guid newLeaderId)
         {
             var newLeader = _members.FirstOrDefault(m => m.StudentId == newLeaderId && m.IsActive)
@@ -119,14 +140,32 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
             UpdatedAt = DateTime.UtcNow;
         }
 
-        public void Disband()
+        /// <summary>
+        /// Disbands the group. Reserved for the leader — <paramref name="disbandedBy"/> is checked here
+        /// so the rule holds no matter which caller reaches the aggregate.
+        /// </summary>
+        public void Disband(Guid disbandedBy)
         {
             if (Status != GroupStatus.Active)
-                throw new BusinessRuleValidationException("Only active groups can be disbanded.");
+                throw new BusinessRuleValidationException("Chỉ có thể giải tán nhóm đang hoạt động.");
+
+            if (LeaderId != disbandedBy)
+                throw new BusinessRuleValidationException("Chỉ nhóm trưởng mới có thể giải tán nhóm.");
+
+            // Captured before the members are dropped so the event can still address them.
+            var memberIds = _members.Where(m => m.IsActive).Select(m => m.StudentId).ToList();
+
             Status = GroupStatus.Disbanded;
             foreach (var member in _members.Where(m => m.IsActive)) member.Leave();
+
+            // Nothing may stay pending against a group that no longer exists, otherwise an invitee
+            // could still accept their way into it. Closed silently — GroupDisbandedEvent is the
+            // one notification this action sends.
+            foreach (var invitation in _invitations.Where(i => i.IsPending)) invitation.Reject();
+            foreach (var request in _joinRequests.Where(r => r.IsPending)) request.Reject();
+
             UpdatedAt = DateTime.UtcNow;
-            RaiseDomainEvent(new GroupDisbandedEvent(Id));
+            RaiseDomainEvent(new GroupDisbandedEvent(Id, Code.Value, memberIds));
         }
 
         public void Complete()

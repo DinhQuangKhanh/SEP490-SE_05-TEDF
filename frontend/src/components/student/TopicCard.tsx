@@ -47,8 +47,6 @@ function parseTechnologies(tech: string | null): string[] {
 
 interface TopicCardProps {
   topic: TopicInPoolItem;
-  isFavorite: boolean;
-  onToggleFavorite: () => void;
   onViewDetail: () => void;
   groupHasProject?: boolean;
   hasGroup?: boolean;
@@ -58,8 +56,6 @@ interface TopicCardProps {
 
 export function TopicCard({
   topic,
-  isFavorite,
-  onToggleFavorite,
   onViewDetail,
   groupHasProject,
   hasGroup,
@@ -140,22 +136,6 @@ export function TopicCard({
 
       {/* Footer actions */}
       <div className="px-5 py-3 bg-slate-50/50 border-t border-[#e9ecf1] flex gap-2">
-        <motion.button
-          whileTap={{ scale: 0.85 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
-          className={`border py-2 px-2.5 rounded-lg transition-colors flex items-center justify-center ${
-            isFavorite
-              ? "border-red-200 bg-red-50 text-red-500"
-              : "bg-white border-[#e9ecf1] text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50"
-          }`}
-          title="Quan tâm"
-        >
-          <span className={`material-symbols-outlined text-lg ${isFavorite ? "fill-1" : ""}`}>favorite</span>
-        </motion.button>
-
         <button
           onClick={onViewDetail}
           className="flex-1 bg-white border border-[#e9ecf1] text-[#101319] py-2 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
