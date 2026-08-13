@@ -12,8 +12,7 @@ public class GetDefaultChecklistCriteriaQueryHandler
     {
         IReadOnlyList<ChecklistCriterionSeedDto> result = DefaultChecklistCriteria.Items
             .Select((c, i) => new ChecklistCriterionSeedDto(
-                i + 1, c.TitleVi, c.TitleEn, c.Description,
-                DefaultChecklistCriteria.DefaultMaxScore, DefaultChecklistCriteria.DefaultPassScore))
+                i + 1, c.TitleVi, c.TitleEn, c.Description))
             .ToList();
 
         return Task.FromResult(result);

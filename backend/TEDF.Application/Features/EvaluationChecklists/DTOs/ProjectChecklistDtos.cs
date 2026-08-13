@@ -1,8 +1,8 @@
 namespace TEDF.Application.Features.EvaluationChecklists.DTOs;
 
 /// <summary>
-/// One criterion row on the evaluator's checklist, with its scoring bounds and the evaluator's saved
-/// score/comment. <see cref="IsPassed"/> is server-computed (Score &gt;= PassScore).
+/// One criterion row on the evaluator's checklist, with the evaluator's saved
+/// pass/fail decision and comment.
 /// </summary>
 public record ProjectChecklistItemDto(
     Guid CriterionId,
@@ -10,9 +10,6 @@ public record ProjectChecklistItemDto(
     string TitleVi,
     string TitleEn,
     string? Description,
-    decimal MaxScore,
-    decimal PassScore,
-    decimal? Score,
     string? Comment,
     bool IsPassed);
 
