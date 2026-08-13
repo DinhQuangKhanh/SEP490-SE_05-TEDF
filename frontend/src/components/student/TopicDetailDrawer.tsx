@@ -77,8 +77,6 @@ interface TopicDetailDrawerProps {
   projectId: string | null;
   isOpen: boolean;
   onClose: () => void;
-  isFavorite: boolean;
-  onToggleFavorite: () => void;
   groupHasProject?: boolean;
   hasGroup?: boolean;
   isLeader?: boolean;
@@ -89,8 +87,6 @@ export function TopicDetailDrawer({
   projectId,
   isOpen,
   onClose,
-  isFavorite,
-  onToggleFavorite,
   groupHasProject,
   hasGroup,
   isLeader,
@@ -308,19 +304,6 @@ export function TopicDetailDrawer({
             {/* Footer */}
             {detail && !loading && (
               <div className="flex gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={onToggleFavorite}
-                  className={`border py-2.5 px-4 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${
-                    isFavorite
-                      ? "border-red-200 bg-red-50 text-red-500"
-                      : "bg-white border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50"
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-lg ${isFavorite ? "fill-1" : ""}`}>favorite</span>
-                  {isFavorite ? "Đã quan tâm" : "Quan tâm"}
-                </motion.button>
-
                 {!hasGroup ? (
                   <button
                     className="flex-1 bg-slate-200 text-slate-400 py-2.5 rounded-lg text-sm font-bold cursor-not-allowed flex items-center justify-center gap-2"
