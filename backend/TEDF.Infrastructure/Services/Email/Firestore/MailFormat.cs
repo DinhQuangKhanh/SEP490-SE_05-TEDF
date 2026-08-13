@@ -36,4 +36,22 @@ public static class MailFormat
         EvaluationResult.Rejected => "Không duyệt đề tài",
         _ => "Chưa có kết luận"
     };
+
+    public static string TicketPriority(Domain.Enums.Ticket.TicketPriority priority) => priority switch
+    {
+        Domain.Enums.Ticket.TicketPriority.Low => "Thấp",
+        Domain.Enums.Ticket.TicketPriority.Medium => "Trung bình",
+        Domain.Enums.Ticket.TicketPriority.High => "Cao",
+        Domain.Enums.Ticket.TicketPriority.Urgent => "Khẩn cấp",
+        _ => Unknown
+    };
+
+    public static string TicketCategory(Domain.Enums.Ticket.TicketCategory category) => category switch
+    {
+        Domain.Enums.Ticket.TicketCategory.Technical => "Kỹ thuật",
+        Domain.Enums.Ticket.TicketCategory.Academic => "Học vụ",
+        Domain.Enums.Ticket.TicketCategory.Account => "Tài khoản",
+        Domain.Enums.Ticket.TicketCategory.Other => "Khác",
+        _ => Unknown
+    };
 }
