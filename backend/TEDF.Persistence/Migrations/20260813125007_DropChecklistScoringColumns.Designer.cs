@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TEDF.Persistence.SqlServer;
 
@@ -11,9 +12,11 @@ using TEDF.Persistence.SqlServer;
 namespace TEDF.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260813125007_DropChecklistScoringColumns")]
+    partial class DropChecklistScoringColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2117,26 +2120,6 @@ namespace TEDF.Persistence.Migrations
                             DataType = 2,
                             Description = "Notify a mentor when a group registers for their topic",
                             Key = "NotifyMentorOnRegistration",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Category = "Notifications",
-                            DataType = 2,
-                            Description = "Email students about group invitations and join-request outcomes",
-                            Key = "EmailOnGroupMembership",
-                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "true"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Category = "Notifications",
-                            DataType = 2,
-                            Description = "Email participants about support ticket activity (new, replied, resolved)",
-                            Key = "EmailOnSupportTicket",
                             UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Value = "true"
                         });

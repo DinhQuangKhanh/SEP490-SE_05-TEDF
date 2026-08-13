@@ -1,14 +1,14 @@
 namespace TEDF.API.Endpoints.EvaluationChecklists.Requests;
 
-/// <summary>One evaluator score entry for a criterion (score null = not yet scored).</summary>
-public record ChecklistScoreItemRequest(Guid CriterionId, decimal? Score, string? Comment);
+/// <summary>One evaluator evaluation entry for a criterion.</summary>
+public record ChecklistEvaluationItemRequest(Guid CriterionId, bool IsPassed, string? Comment);
 
-/// <summary>Body for an evaluator saving their checklist result (scores + per-criterion comments) for a project.</summary>
-public record SaveProjectChecklistRequest(IReadOnlyList<ChecklistScoreItemRequest> Items, string? Note);
+/// <summary>Body for an evaluator saving their checklist result for a project.</summary>
+public record SaveProjectChecklistRequest(IReadOnlyList<ChecklistEvaluationItemRequest> Items, string? Note);
 
-/// <summary>A single editable criterion (with its scoring bounds) in a checklist configuration request.</summary>
+/// <summary>A single editable criterion in a checklist configuration request.</summary>
 public record ChecklistCriterionRequest(
-    string TitleVi, string TitleEn, string? Description, decimal MaxScore, decimal PassScore);
+    string TitleVi, string TitleEn, string? Description);
 
 /// <summary>Body for creating a new checklist configuration (Draft) for a semester by manual entry.</summary>
 public record CreateChecklistConfigRequest(
