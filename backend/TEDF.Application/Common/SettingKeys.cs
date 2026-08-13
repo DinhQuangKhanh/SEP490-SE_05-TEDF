@@ -22,6 +22,8 @@ public static class SettingKeys
     // Notifications
     public const string EmailOnEvaluationResult = "EmailOnEvaluationResult";       // Bool
     public const string NotifyMentorOnRegistration = "NotifyMentorOnRegistration"; // Bool
+    public const string EmailOnGroupMembership = "EmailOnGroupMembership";         // Bool
+    public const string EmailOnSupportTicket = "EmailOnSupportTicket";             // Bool
 
     /// <summary>Keys exposed by the anonymous /api/settings/public endpoint (no secrets).</summary>
     public static readonly string[] PublicKeys =
