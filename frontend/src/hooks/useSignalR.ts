@@ -71,12 +71,28 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
+const MAX_JITTER_MS = 1000;
+
+/**
+ * Random milliseconds in [0, MAX_JITTER_MS).
+ *
+ * Uses the Web Crypto API rather than Math.random(), which Sonar flags as security-sensitive
+ * (typescript:S2245) and which then blocks the quality gate as an unreviewed hotspot. Nothing here is
+ * security-critical — the value is only scheduling jitter — but the crypto call costs nothing at this
+ * frequency, so it is not worth carrying a hotspot for.
+ */
+function jitterMs(): number {
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  return buffer[0] % MAX_JITTER_MS;
+}
+
 /** Capped exponential backoff with jitter, starting immediately. */
 function backoffDelay(attempt: number): number {
   if (attempt <= 0) return 0;
   const capped = Math.min(2 ** attempt * 1000, MAX_RECONNECT_DELAY_MS);
   // Jitter keeps every open tab from retrying on the same tick after an outage.
-  return capped + Math.floor(Math.random() * 1000);
+  return capped + jitterMs();
 }
 
 /**
