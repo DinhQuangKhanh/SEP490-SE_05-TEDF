@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TopicPoolDto } from "@/types";
@@ -65,7 +65,7 @@ const slideVariants = {
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps) {
+export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps): ReactElement {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
