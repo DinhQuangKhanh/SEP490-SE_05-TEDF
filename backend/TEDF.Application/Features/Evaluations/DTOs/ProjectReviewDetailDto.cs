@@ -82,9 +82,6 @@ public record SimilarityMatchDto
     /// <summary>Explanations, e.g. "same tech stack with a different business domain".</summary>
     public List<string> Reasons { get; init; } = [];
 
-    /// <summary>A concrete revision suggestion for the student (DASSF M4 decision support).</summary>
-    public string? RevisionSuggestion { get; init; }
-
     /// <summary>The four DASSF sub-scores behind the composite.</summary>
     public DimensionBreakdownDto? Breakdown { get; init; }
 
@@ -127,3 +124,6 @@ public record SimilarityHighlightsDto
 {
     public List<FieldHighlightDto> Fields { get; init; } = [];
 }
+
+/// <summary>One field's plain-language "why these overlap" explanation (grounded in the highlights).</summary>
+public record FieldExplanationDto(string Field, string? Angle, double? Score, string Explanation);
