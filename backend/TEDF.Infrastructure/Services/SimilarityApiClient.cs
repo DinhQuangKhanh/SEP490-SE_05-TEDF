@@ -119,7 +119,6 @@ public class SimilarityApiClient : ISimilarityApiClient
         Action = m.Action,
         IsStructuralDuplication = m.IsStructuralDuplication,
         Reasons = m.Reasons ?? [],
-        RevisionSuggestion = m.RevisionSuggestion,
         Breakdown = m.Breakdown is null ? null
             : new DimensionBreakdownDto(m.Breakdown.Semantic, m.Breakdown.Lexical, m.Breakdown.Structure, m.Breakdown.Domain),
         Title = m.Other?.Title,
@@ -146,7 +145,45 @@ public class SimilarityApiClient : ISimilarityApiClient
 
     private static HighlightSpanDto MapSpan(SpanItem s) => new(s.Text ?? string.Empty, s.Angle ?? string.Empty);
 
+    public async Task<IReadOnlyList<FieldExplanationDto>> ExplainAsync(ExplainTopicRequest request, CancellationToken cancellationToken = default)
+    {
+        var body = new ExplainBody(ToTopicBody(request.Query), ToTopicBody(request.Match));
+
+        using var response = await _http.PostAsJsonAsync("/api/v1/similarity/explain", body, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ExplainData>>(JsonOptions, cancellationToken);
+        var fields = envelope?.Data?.Fields ?? [];
+        return fields
+            .Select(f => new FieldExplanationDto(f.Field ?? string.Empty, f.Angle, f.Score, f.Explanation ?? string.Empty))
+            .ToList();
+    }
+
+    private static TopicBody ToTopicBody(TopicContentPayload p) =>
+        new(p.Title, p.Description, p.Scope, p.Objectives, p.ExpectedResult, p.Technologies);
+
     // ── Wire shapes ─────────────────────────────────────────────────────────────
+
+    private sealed record ExplainBody(
+        [property: JsonPropertyName("query")] TopicBody Query,
+        [property: JsonPropertyName("match")] TopicBody Match);
+
+    private sealed record TopicBody(
+        [property: JsonPropertyName("title")] string? Title,
+        [property: JsonPropertyName("description")] string? Description,
+        [property: JsonPropertyName("scope")] string? Scope,
+        [property: JsonPropertyName("objectives")] string? Objectives,
+        [property: JsonPropertyName("expected_result")] string? ExpectedResult,
+        [property: JsonPropertyName("technologies")] IReadOnlyList<string> Technologies);
+
+    private sealed record ExplainData(
+        [property: JsonPropertyName("fields")] List<FieldExplanationItem>? Fields);
+
+    private sealed record FieldExplanationItem(
+        [property: JsonPropertyName("field")] string? Field,
+        [property: JsonPropertyName("angle")] string? Angle,
+        [property: JsonPropertyName("score")] double? Score,
+        [property: JsonPropertyName("explanation")] string? Explanation);
 
     private sealed record CreateThesisBody(
         [property: JsonPropertyName("thesis_id")] Guid ThesisId,
@@ -203,7 +240,6 @@ public class SimilarityApiClient : ISimilarityApiClient
         [property: JsonPropertyName("action")] string? Action,
         [property: JsonPropertyName("is_structural_duplication")] bool IsStructuralDuplication,
         [property: JsonPropertyName("reasons")] List<string>? Reasons,
-        [property: JsonPropertyName("revision_suggestion")] string? RevisionSuggestion,
         [property: JsonPropertyName("breakdown")] BreakdownItem? Breakdown,
         [property: JsonPropertyName("otherSemester")] string? OtherSemester,
         [property: JsonPropertyName("other")] OtherContent? Other,

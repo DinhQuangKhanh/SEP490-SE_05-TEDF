@@ -102,7 +102,7 @@ export function ProfilePage() {
         const newHiddenFields = hiddenFields.includes(fieldName)
             ? hiddenFields.filter(f => f !== fieldName)
             : [...hiddenFields, fieldName]
-        
+
         try {
             await profileService.updateMyProfile({
                 phoneNumber: profile?.phoneNumber,
@@ -194,7 +194,7 @@ export function ProfilePage() {
                         {/* Banner */}
                         <div className="h-48 sm:h-56 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative px-8 py-8 flex flex-col justify-end">
                             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDJ2LTJoMnptMC00VjhoMnYyMmgtMlYzMHptLTE2IDZWMjJoMnYxNGgtMnptMTAtMTBWMTRoMnYxMmgtMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-20" />
-                            
+
                             <div className="relative z-10 flex flex-col sm:flex-row sm:items-end gap-6 w-full">
                                 {/* Avatar */}
                                 <div className="relative shrink-0 sm:translate-y-12 translate-y-8">
@@ -232,7 +232,7 @@ export function ProfilePage() {
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* Spacing for the avatar that overlaps */}
                         <div className="h-12 sm:h-16 bg-white"></div>
                     </motion.div>
@@ -339,8 +339,8 @@ export function ProfilePage() {
                                         value={profile?.status === 'Active' ? 'Đang hoạt động' : 'Bị khóa'}
                                         valueColor={profile?.status === 'Active' ? 'text-green-600' : 'text-red-600'}
                                     />
-                                    
-                                    <button 
+
+                                    <button
                                         onClick={() => setIsPasswordModalOpen(true)}
                                         className="p-4 rounded-lg bg-slate-50 border border-slate-100 hover:border-primary/30 hover:bg-primary/5 hover:shadow-sm transition-all text-left group"
                                     >
@@ -352,7 +352,7 @@ export function ProfilePage() {
                                     </button>
                                 </div>
                             </div>
-                            
+
                             {/* Vai trò & Quyền hạn */}
                             <div className="bento-card p-6 rounded-md">
                                 <div className="flex items-center gap-2 mb-5">
@@ -596,7 +596,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
 
     return (
         <ModalWrapper title="Đổi Mật Khẩu" onClose={onClose}>
-                
+
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
                         <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu hiện tại</label>
@@ -610,7 +610,7 @@ function PasswordChangeModal({ onClose }: { onClose: () => void }) {
                         <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
                         <input id="confirmPassword" type="password" required minLength={6} className="w-full px-3 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
                     </div>
-                    
+
                     <div className="pt-4 flex gap-3">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200">
                             Hủy
@@ -641,12 +641,12 @@ function getRoleDescription(role: string): string {
     }
 }
 
-function ProfileEditModal({ 
-    profile, 
-    onClose, 
-    onSave 
-}: { 
-    profile: MyProfile | null, 
+function ProfileEditModal({
+    profile,
+    onClose,
+    onSave
+}: {
+    profile: MyProfile | null,
     onClose: () => void,
     onSave: (data: { phoneNumber?: string, birthDate?: string }) => Promise<void>
 }) {
@@ -672,7 +672,7 @@ function ProfileEditModal({
 
     return (
         <ModalWrapper title="Chỉnh sửa thông tin" onClose={onClose}>
-                
+
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
                         <label htmlFor="editPhone" className="block text-sm font-semibold text-slate-700 mb-1.5">Số điện thoại</label>
@@ -685,7 +685,7 @@ function ProfileEditModal({
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
                     </div>
-                    
+
                     <div>
                         <label htmlFor="editBirthDate" className="block text-sm font-semibold text-slate-700 mb-1.5">Ngày sinh</label>
                         <input
