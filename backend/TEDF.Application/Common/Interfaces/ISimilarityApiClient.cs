@@ -29,10 +29,29 @@ public interface ISimilarityApiClient
     /// <summary>
     /// Runs the full DASSF pipeline on a topic's content against the two most-recent semesters
     /// (POST /api/v1/similarity/analyze) and returns the top matches — each with the four sub-scores,
-    /// the matched topic's content, a revision suggestion, and per-dimension highlight spans.
+    /// the matched topic's content, and per-dimension highlight spans.
     /// </summary>
     Task<IReadOnlyList<SimilarityMatchDto>> AnalyzeAsync(AnalyzeTopicRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Explains the overlap between a topic under review and one matched topic, per field
+    /// (POST /api/v1/similarity/explain). Grounded in the same highlight spans; degrades to a
+    /// deterministic template when the (local) LLM is unavailable, so it never throws for that.
+    /// </summary>
+    Task<IReadOnlyList<FieldExplanationDto>> ExplainAsync(ExplainTopicRequest request, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The two topics (under review + matched) to explain the overlap between.</summary>
+public sealed record ExplainTopicRequest(TopicContentPayload Query, TopicContentPayload Match);
+
+/// <summary>A topic's comparable content (title = English title only; Vietnamese name is excluded).</summary>
+public sealed record TopicContentPayload(
+    string? Title,
+    string? Description,
+    string? Scope,
+    string? Objectives,
+    string? ExpectedResult,
+    IReadOnlyList<string> Technologies);
 
 /// <summary>The topic-under-review's content sent to the DASSF analyze endpoint.</summary>
 public sealed record AnalyzeTopicRequest(
