@@ -10,7 +10,7 @@ const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"];
 const VIDEO_EXTS = [".mp4", ".webm", ".ogg", ".mov"];
 const OFFICE_EXTS = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"];
 
-function getExt(value: string): string {
+export function getExt(value: string): string {
   // Strip query/hash so storage URLs like ".../{guid}.jpg?token=..." resolve correctly.
   const clean = value.split("?")[0].split("#")[0];
   const lastDot = clean.lastIndexOf(".");
@@ -22,7 +22,7 @@ function getExt(value: string): string {
 
 /** Detect the file extension from the URL (which always carries the real one, e.g.
  *  inline images whose display name is just "Hình ảnh"), falling back to the name. */
-function resolveExt(file: ViewerFile): string {
+export function resolveExt(file: ViewerFile): string {
   return getExt(file.url) || getExt(file.name);
 }
 

@@ -3,7 +3,14 @@ import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TopicPoolDto } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { validateFiles, formatFileSize, ACCEPTED_TYPES, MAX_ATTACHMENTS } from "@/lib/common/fileUploadUtils";
+import {
+  validateFiles,
+  validateRegisterFormFile,
+  formatFileSize,
+  ACCEPTED_TYPES,
+  MAX_ATTACHMENTS,
+  REGISTER_FORM_TYPES,
+} from "@/lib/common/fileUploadUtils";
 import { topicPoolService } from "@/lib";
 
 interface RegisterTopicModalProps {
@@ -173,6 +180,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     e.target.value = ""; // allow re-picking the same file after a rejection
     if (!file) return;
 
+    const error = validateRegisterFormFile(file);
+    if (error) {
+      setRegisterFormError(error);
     if (!REGISTER_FORM_TYPES.some((ext) => file.name.toLowerCase().endsWith(ext))) {
       setRegisterFormError("Phiếu đăng ký phải là tệp PDF hoặc DOCX.");
       return;

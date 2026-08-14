@@ -2,6 +2,24 @@ export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per file
 export const MAX_TOTAL_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB total
 export const MAX_ATTACHMENTS = 5;
 
+/** Accepted formats for a capstone register form (phiếu đăng ký). */
+export const REGISTER_FORM_TYPES = [".pdf", ".doc", ".docx"];
+
+/**
+ * Validates a register-form file (PDF/DOC/DOCX, ≤ 10 MB). Returns an error message, or null when valid.
+ * Mirrors the server-side `FileUploadValidator.IsAllowedRegisterFormExtension` + size check.
+ */
+export function validateRegisterFormFile(file: File): string | null {
+  const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+  if (!REGISTER_FORM_TYPES.includes(extension)) {
+    return "Phiếu đăng ký phải là PDF, DOC hoặc DOCX.";
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return `Phiếu đăng ký vượt quá ${formatFileSize(MAX_FILE_SIZE_BYTES)}.`;
+  }
+  return null;
+}
+
 export const ACCEPTED_TYPES = [
   ".pdf",
   ".doc",

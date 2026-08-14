@@ -69,7 +69,6 @@ export const routes = {
     projects: "/api/evaluations/projects",
     review: (projectId: string) => `/api/evaluations/projects/${projectId}/review`,
     similarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity`,
-    translateThesis: (thesisId: string) => `/api/evaluations/theses/${thesisId}/translate`,
     evaluate: (projectId: string) => `/api/evaluations/projects/${projectId}/evaluate`,
     checklist: (projectId: string) => `/api/evaluations/projects/${projectId}/checklist`,
     evaluatorChecklist: (projectId: string, evaluatorId: string) =>
@@ -120,6 +119,7 @@ export const routes = {
     list: "/api/topics",
     detail: (topicId: string) => `/api/topics/${topicId}`,
     documents: (topicId: string) => `/api/topics/${topicId}/documents`,
+    registerForm: (topicId: string) => `/api/topics/${topicId}/register-form`,
   },
   topicPools: {
     list: "/api/topic-pools",
