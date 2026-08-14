@@ -4,16 +4,12 @@ namespace TEDF.Application.Features.EvaluationChecklists.DTOs;
 
 /// <summary>
 /// One parsed row from an imported checklist Excel file, with any per-row validation errors.
-/// <see cref="MaxScore"/>/<see cref="PassScore"/> are null when the cell was blank or non-numeric
-/// (the corresponding error is then present in <see cref="Errors"/>).
 /// </summary>
 public record ChecklistImportRow(
     int RowNumber,
     string TitleVi,
     string TitleEn,
     string? Description,
-    decimal? MaxScore,
-    decimal? PassScore,
     IReadOnlyList<string> Errors)
 {
     public bool IsValid => Errors.Count == 0;
@@ -37,8 +33,6 @@ public record ChecklistImportPreviewRowDto(
     string TitleVi,
     string TitleEn,
     string? Description,
-    decimal? MaxScore,
-    decimal? PassScore,
     IReadOnlyList<string> Errors);
 
 /// <summary>

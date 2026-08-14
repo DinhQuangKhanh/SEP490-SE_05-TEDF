@@ -429,8 +429,11 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
 
     // ── TopicPools feature write operations (moved in from command handlers) ──
 
-    public async Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, byte[]? registerFormPdf = null, CancellationToken cancellationToken = default)
+    public async Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, byte[] registerForm, CancellationToken cancellationToken = default)
     {
+        if (registerForm is null || registerForm.Length == 0)
+            throw new BusinessRuleValidationException("Phiếu đăng ký (Capstone Project Register) là bắt buộc khi đề xuất đề tài.");
+
         var pool = await _topicPoolRepository.GetByIdAsync(poolId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(TopicPool), poolId);
 
@@ -463,7 +466,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
 
         project.AddMentor(mentorId, assignedBy: mentorId);
 
-        var roster = await ResolveRosterAsync(registerFormPdf, project.MaxStudents, cancellationToken);
+        var roster = await ResolveRosterAsync(registerForm, project.MaxStudents, cancellationToken);
         if (roster.Count > 0)
             project.SetProposedRoster(roster);
 
@@ -476,15 +479,14 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
     /// <summary>
     /// Turns the attached register form into student ids. Rows that cannot be matched to a user are
     /// skipped rather than rejected — the roster is an optional convenience, not a gate on proposing.
+    /// Attaching the form is required (guarded by the caller); reading its contents is not.
     /// </summary>
     private async Task<List<(Guid StudentId, bool IsLeader)>> ResolveRosterAsync(
-        byte[]? registerFormPdf, int maxStudents, CancellationToken cancellationToken)
+        byte[] registerForm, int maxStudents, CancellationToken cancellationToken)
     {
         var roster = new List<(Guid StudentId, bool IsLeader)>();
-        if (registerFormPdf is null || registerFormPdf.Length == 0)
-            return roster;
 
-        using var stream = new MemoryStream(registerFormPdf, writable: false);
+        using var stream = new MemoryStream(registerForm, writable: false);
         var rows = _registerFormParser.ExtractRoster(stream);
         if (rows.Count == 0)
             return roster;

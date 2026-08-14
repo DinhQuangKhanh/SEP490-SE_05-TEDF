@@ -47,6 +47,21 @@ namespace TEDF.Persistence.MongoDB.Repositories.Implementation
                  """,
                 cancellationToken);
 
+            // A project keeps only ONE active register form (phiếu đăng ký): when a new Proposal document
+            // is inserted, retire any previous one so re-uploading replaces it instead of stacking up.
+            if (rows > 0 && documentType == DocumentType.Proposal)
+            {
+                await _context.Database.ExecuteSqlAsync(
+                    $"""
+                     UPDATE Documents SET IsDeleted = 1
+                     WHERE ProjectId = {projectId}
+                       AND DocumentType = {(int)DocumentType.Proposal}
+                       AND Id <> {docId}
+                       AND IsDeleted = 0;
+                     """,
+                    cancellationToken);
+            }
+
             return rows > 0;
         }
     }

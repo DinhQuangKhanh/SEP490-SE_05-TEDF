@@ -14,6 +14,9 @@ public record StudentGroupDto
     /// </summary>
     public string DisplayName { get; init; } = null!;
     public string GroupStatus { get; init; } = null!;
+
+    /// <summary>True when the requesting student is this group's leader — drives who may disband it.</summary>
+    public bool IsLeader { get; init; }
     public int MaxMembers { get; init; }
     public bool IsOpenForRequests { get; init; }
     public Guid? ProjectId { get; init; }

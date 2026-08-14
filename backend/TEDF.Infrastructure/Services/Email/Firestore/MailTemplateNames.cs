@@ -16,4 +16,14 @@ public static class MailTemplateNames
     public const string EvaluationConsensusApproved = "evaluation-consensus-approved";
     public const string EvaluationConsensusRejected = "evaluation-consensus-rejected";
     public const string TopicFinalDecision = "topic-final-decision";
+
+    // Group membership
+    public const string GroupInvitation = "group-invitation";
+    public const string GroupJoinRequested = "group-join-requested";
+    public const string GroupJoinDecision = "group-join-decision";
+
+    // Support desk
+    public const string SupportTicketCreated = "support-ticket-created";
+    public const string SupportTicketReplied = "support-ticket-replied";
+    public const string SupportTicketResolved = "support-ticket-resolved";
 }

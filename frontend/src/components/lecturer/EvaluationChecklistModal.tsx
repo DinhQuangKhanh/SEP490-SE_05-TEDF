@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { ChecklistScoreItemInput, ProjectChecklistResponse } from "@/types";
+import type { ChecklistEvaluationItemInput, ProjectChecklistResponse } from "@/types";
 
 interface EvaluationChecklistModalProps {
   open: boolean;
@@ -8,24 +8,16 @@ interface EvaluationChecklistModalProps {
   readOnly?: boolean;
   checklist: ProjectChecklistResponse | null;
   onClose: () => void;
-  /** Persists the per-criterion scores + comments + note. Should throw on failure. */
-  onSave: (items: ChecklistScoreItemInput[], note: string) => Promise<void>;
+  /** Persists the per-criterion pass/fail decisions + comments + note. Should throw on failure. */
+  onSave: (items: ChecklistEvaluationItemInput[], note: string) => Promise<void>;
 }
 
-/** Parses a raw score input; returns null when blank, NaN when invalid. */
-function parseScore(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const value = Number(trimmed.replace(",", "."));
-  return Number.isFinite(value) ? value : Number.NaN;
-}
-
-/** Per-criterion score status styling/label (extracted so the markup has no nested ternaries). */
-function scoreStatus(hasScore: boolean, isPassed: boolean): { border: string; badge: string; label: string } {
-  if (!hasScore) return { border: "border-gray-200", badge: "bg-gray-100 text-slate-500", label: "Chưa chấm" };
+/** Per-criterion status styling/label. */
+function decisionStatus(isPassed: boolean | undefined): { border: string; badge: string; label: string } {
+  if (isPassed === undefined) return { border: "border-gray-200", badge: "bg-gray-100 text-slate-500", label: "Chưa chấm" };
   if (isPassed)
     return { border: "border-green-200 bg-green-50/50", badge: "bg-green-100 text-green-600", label: "Đạt" };
-  return { border: "border-amber-200 bg-amber-50/40", badge: "bg-amber-100 text-amber-600", label: "Chưa đạt" };
+  return { border: "border-amber-200 bg-amber-50/40", badge: "bg-amber-100 text-amber-600", label: "Không đạt" };
 }
 
 export function EvaluationChecklistModal({
@@ -36,7 +28,7 @@ export function EvaluationChecklistModal({
   onClose,
   onSave,
 }: Readonly<EvaluationChecklistModalProps>) {
-  const [scores, setScores] = useState<Record<string, string>>({});
+  const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -45,13 +37,15 @@ export function EvaluationChecklistModal({
   // Seed local state from the saved server state whenever the modal opens (preserves saved scores/comments).
   useEffect(() => {
     if (!open || !checklist) return;
-    const nextScores: Record<string, string> = {};
+    const nextDecisions: Record<string, boolean> = {};
     const nextComments: Record<string, string> = {};
     for (const item of checklist.items) {
-      nextScores[item.criterionId] = item.score != null ? String(item.score) : "";
+      if (checklist.isSaved) {
+        nextDecisions[item.criterionId] = item.isPassed;
+      }
       nextComments[item.criterionId] = item.comment ?? "";
     }
-    setScores(nextScores);
+    setDecisions(nextDecisions);
     setComments(nextComments);
     setNote(checklist.evaluatorNote ?? "");
     setError(null);
@@ -70,27 +64,20 @@ export function EvaluationChecklistModal({
     let scored = 0;
     let passed = 0;
     for (const item of sortedItems) {
-      const value = parseScore(scores[item.criterionId] ?? "");
-      if (value != null && !Number.isNaN(value)) {
+      const decision = decisions[item.criterionId];
+      if (decision !== undefined) {
         scored += 1;
-        if (value >= item.passScore) passed += 1;
+        if (decision) passed += 1;
       }
     }
     return { scoredCount: scored, passedCount: passed };
-  }, [sortedItems, scores]);
+  }, [sortedItems, decisions]);
 
   const meetsThreshold = required > 0 && passedCount >= required;
 
-  function setScore(criterionId: string, value: string, maxScore: number) {
+  function setDecision(criterionId: string, isPassed: boolean) {
     if (readOnly) return;
-    // Block negatives / invalid characters (no minus sign) and values above the criterion max —
-    // an out-of-range keystroke is ignored so the field can never hold an invalid score.
-    if (!/^\d*(?:\.\d*)?$/.test(value)) return;
-    if (value !== "") {
-      const num = Number(value);
-      if (Number.isNaN(num) || num > maxScore) return;
-    }
-    setScores((prev) => ({ ...prev, [criterionId]: value }));
+    setDecisions((prev) => ({ ...prev, [criterionId]: isPassed }));
   }
 
   function setComment(criterionId: string, value: string) {
@@ -99,13 +86,8 @@ export function EvaluationChecklistModal({
   }
 
   function validate(): string | null {
-    for (const item of sortedItems) {
-      const value = parseScore(scores[item.criterionId] ?? "");
-      if (value === null) continue;
-      if (Number.isNaN(value)) return `Tiêu chí "${item.titleVi}": điểm không hợp lệ.`;
-      if (value < 0) return `Tiêu chí "${item.titleVi}": điểm không được âm.`;
-      if (value > item.maxScore)
-        return `Tiêu chí "${item.titleVi}": điểm không được vượt quá ${item.maxScore}.`;
+    if (scoredCount < total) {
+      return "Vui lòng đánh giá Đạt/Không đạt cho tất cả các tiêu chí.";
     }
     return null;
   }
@@ -120,11 +102,10 @@ export function EvaluationChecklistModal({
     setSaving(true);
     setError(null);
     try {
-      const items: ChecklistScoreItemInput[] = sortedItems.map((item) => {
-        const value = parseScore(scores[item.criterionId] ?? "");
+      const items: ChecklistEvaluationItemInput[] = sortedItems.map((item) => {
         return {
           criterionId: item.criterionId,
-          score: value === null || Number.isNaN(value) ? null : value,
+          isPassed: decisions[item.criterionId] ?? false,
           comment: (comments[item.criterionId] ?? "").trim() || null,
         };
       });
@@ -174,10 +155,8 @@ export function EvaluationChecklistModal({
     return (
       <div className="space-y-3">
         {sortedItems.map((item) => {
-          const value = parseScore(scores[item.criterionId] ?? "");
-          const hasScore = value != null && !Number.isNaN(value);
-          const isPassed = hasScore && value >= item.passScore;
-          const status = scoreStatus(hasScore, isPassed);
+          const decision = decisions[item.criterionId];
+          const status = decisionStatus(decision);
           return (
             <div
               key={item.criterionId}
@@ -191,10 +170,6 @@ export function EvaluationChecklistModal({
                     {item.titleEn && <span className="text-xs text-slate-400">— {item.titleEn}</span>}
                   </div>
                   {item.description && <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>}
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Điểm tối đa: <span className="font-semibold text-slate-500">{item.maxScore}</span> • Điểm
-                    đạt: <span className="font-semibold text-slate-500">{item.passScore}</span>
-                  </p>
                 </div>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.badge}`}
@@ -204,25 +179,36 @@ export function EvaluationChecklistModal({
               </div>
 
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <div className="sm:w-40">
-                  <label
-                    htmlFor={`score-${item.criterionId}`}
-                    className="mb-1 block text-[11px] font-bold uppercase text-slate-400"
-                  >
-                    Điểm
+                <div className="sm:w-40 flex flex-col gap-2 justify-center">
+                  <label className="mb-1 block text-[11px] font-bold uppercase text-slate-400">
+                    Đánh giá
                   </label>
-                  <input
-                    id={`score-${item.criterionId}`}
-                    type="number"
-                    min={0}
-                    max={item.maxScore}
-                    step="0.5"
-                    value={scores[item.criterionId] ?? ""}
-                    disabled={readOnly}
-                    onChange={(e) => setScore(item.criterionId, e.target.value, item.maxScore)}
-                    placeholder={`0 - ${item.maxScore}`}
-                    className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => setDecision(item.criterionId, true)}
+                      className={`flex-1 h-9 rounded-lg border text-sm font-semibold transition-colors disabled:opacity-70 ${
+                        decision === true
+                          ? "bg-green-100 border-green-300 text-green-700"
+                          : "bg-gray-50 border-gray-200 text-slate-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      Đạt
+                    </button>
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => setDecision(item.criterionId, false)}
+                      className={`flex-1 h-9 rounded-lg border text-sm font-semibold transition-colors disabled:opacity-70 ${
+                        decision === false
+                          ? "bg-amber-100 border-amber-300 text-amber-700"
+                          : "bg-gray-50 border-gray-200 text-slate-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      Không đạt
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1">
                   <label

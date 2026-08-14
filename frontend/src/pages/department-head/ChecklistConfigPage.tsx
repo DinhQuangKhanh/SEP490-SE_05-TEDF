@@ -506,8 +506,6 @@ function ChecklistImportDialog({
                             <tr className="border-b border-gray-100 text-[10px] uppercase text-slate-500">
                               <th className="px-3 py-2">#</th>
                               <th className="px-3 py-2">Tên tiêu chí</th>
-                              <th className="px-3 py-2 text-right">Điểm tối đa</th>
-                              <th className="px-3 py-2 text-right">Điểm đạt</th>
                               <th className="px-3 py-2">Lỗi</th>
                             </tr>
                           </thead>
@@ -519,8 +517,6 @@ function ChecklistImportDialog({
                                   <div className="font-semibold text-slate-700">{row.titleVi || <span className="text-red-500">(trống)</span>}</div>
                                   {row.titleEn && <div className="text-slate-400">{row.titleEn}</div>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-slate-600">{row.maxScore ?? "—"}</td>
-                                <td className="px-3 py-2 text-right text-slate-600">{row.passScore ?? "—"}</td>
                                 <td className="px-3 py-2 text-red-600">{row.errors.join("; ")}</td>
                               </tr>
                             ))}
@@ -588,21 +584,19 @@ function ChecklistImportDialog({
 }
 
 // ── Editor (manual create / edit / view) ─────────────────────────────────────
-type EditorRow = { key: string; titleVi: string; titleEn: string; description: string; maxScore: string; passScore: string };
+type EditorRow = { key: string; titleVi: string; titleEn: string; description: string };
 
 let rowKeySeq = 0;
 const nextKey = () => `row-${rowKeySeq++}`;
 
 function toRows(
-  criteria: { titleVi: string; titleEn: string; description: string | null; maxScore: number; passScore: number }[],
+  criteria: { titleVi: string; titleEn: string; description: string | null }[],
 ): EditorRow[] {
   return criteria.map((c) => ({
     key: nextKey(),
     titleVi: c.titleVi,
     titleEn: c.titleEn,
     description: c.description ?? "",
-    maxScore: String(c.maxScore),
-    passScore: String(c.passScore),
   }));
 }
 
@@ -670,7 +664,7 @@ function ChecklistConfigEditor({
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { key: nextKey(), titleVi: "", titleEn: "", description: "", maxScore: "10", passScore: "7" }]);
+    setRows((prev) => [...prev, { key: nextKey(), titleVi: "", titleEn: "", description: "" }]);
   }
 
   function removeRow(key: string) {
@@ -682,11 +676,6 @@ function ChecklistConfigEditor({
     if (rows.length < 1) return "Checklist phải có ít nhất 1 tiêu chí.";
     for (const [i, r] of rows.entries()) {
       if (!r.titleVi.trim()) return `Tiêu chí ${i + 1}: tên (tiếng Việt) không được để trống.`;
-      const max = Number(r.maxScore);
-      const pass = Number(r.passScore);
-      if (!Number.isFinite(max) || max <= 0) return `Tiêu chí ${i + 1}: điểm tối đa phải lớn hơn 0.`;
-      if (!Number.isFinite(pass) || pass < 0) return `Tiêu chí ${i + 1}: điểm đạt không được âm.`;
-      if (pass > max) return `Tiêu chí ${i + 1}: điểm đạt không được lớn hơn điểm tối đa.`;
     }
     if (requiredPassCount < 1 || requiredPassCount > rows.length)
       return `Số tiêu chí tối thiểu cần đạt phải từ 1 đến ${rows.length}.`;
@@ -704,8 +693,6 @@ function ChecklistConfigEditor({
       titleVi: r.titleVi.trim(),
       titleEn: r.titleEn.trim(),
       description: r.description.trim() || null,
-      maxScore: Number(r.maxScore),
-      passScore: Number(r.passScore),
     }));
 
     setSaving(true);
@@ -833,44 +820,6 @@ function ChecklistConfigEditor({
                             rows={2}
                             className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
                           />
-                          <div className="grid grid-cols-2 gap-2 md:w-1/2">
-                            <div>
-                              <label
-                                htmlFor={`criterion-max-${row.key}`}
-                                className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400"
-                              >
-                                Điểm tối đa
-                              </label>
-                              <input
-                                id={`criterion-max-${row.key}`}
-                                type="number"
-                                min={0}
-                                step="0.5"
-                                value={row.maxScore}
-                                disabled={readOnly}
-                                onChange={(e) => updateRow(row.key, { maxScore: e.target.value })}
-                                className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
-                              />
-                            </div>
-                            <div>
-                              <label
-                                htmlFor={`criterion-pass-${row.key}`}
-                                className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400"
-                              >
-                                Điểm đạt
-                              </label>
-                              <input
-                                id={`criterion-pass-${row.key}`}
-                                type="number"
-                                min={0}
-                                step="0.5"
-                                value={row.passScore}
-                                disabled={readOnly}
-                                onChange={(e) => updateRow(row.key, { passScore: e.target.value })}
-                                className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm outline-none focus:border-primary focus:bg-white disabled:opacity-70"
-                              />
-                            </div>
-                          </div>
                         </div>
                         {!readOnly && (
                           <div className="flex flex-col gap-1">

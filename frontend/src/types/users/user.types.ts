@@ -39,17 +39,20 @@ export interface MyProfile {
   birthDate: string | null;
   privacySettings: string | null;
   academicTitle: string | null;
+  /** Bộ môn (Department) — CF/SE/AI/IA/IC. Set for lecturers. */
   departmentId: number | null;
   departmentName: string | null;
-  /** Chuyên ngành (Major) — set for students. */
+  /** Chuyên ngành (Major) — snapshotted onto the semester roster by the system, read-only. */
   majorId: number | null;
+  majorCode: string | null;
   majorName: string | null;
-  /** Chuyên ngành hẹp (MajorProgram) — set for students. ProgramCode = CurriculumCode_ComboCode. */
-  majorProgramId: number | null;
-  majorProgramCode: string | null;
-  majorProgramDescription: string | null;
-  /** Bộ môn đang giảng dạy (CF/SE/AI/IA/IC) — set for lecturers. */
-  division: string | null;
+  /** Chương trình đào tạo (Programs) — e.g. BIT_SE_K18C. Set for students. */
+  programId: number | null;
+  programCode: string | null;
+  programName: string | null;
+  /** Chuyên ngành hẹp (Combo) — e.g. .NET. Set for students. */
+  comboId: number | null;
+  comboName: string | null;
   status: string;
   roles: string[];
   createdAt: string;

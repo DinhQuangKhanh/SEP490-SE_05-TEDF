@@ -4,10 +4,8 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout";
 import { TopicCard, TopicCardSkeleton } from "@/components/student/TopicCard";
 import { TopicDetailDrawer } from "@/components/student/TopicDetailDrawer";
-import { WishlistDrawer } from "@/components/student/WishlistDrawer";
 import { RegistrationNoteEditor, buildRegistrationNote } from "@/components/student/RegistrationNoteEditor";
 import { Modal } from "@/components/common/Modal";
-import { useWishlist } from "@/hooks/useWishlist";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { topicService, studentGroupService } from "@/lib";
@@ -56,8 +54,6 @@ export function StudentTopicsPage() {
   const [majors, setMajors] = useState<MajorOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const [showWishlist, setShowWishlist] = useState(false);
-  const wishlist = useWishlist();
   const { showError } = useSystemError();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -218,21 +214,6 @@ export function StudentTopicsPage() {
                 Danh sách các đề tài do Giảng viên đề xuất cho sinh viên đăng ký thực hiện.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowWishlist(true)}
-                className="flex items-center gap-2 bg-white border border-[#e9ecf1] px-4 py-2 rounded-lg text-sm font-semibold text-[#101319] hover:bg-gray-50 transition-colors relative"
-              >
-                <span className="text-xl material-symbols-outlined">bookmark</span>
-                Quan tâm
-                {wishlist.count > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {wishlist.count}
-                  </span>
-                )}
-              </motion.button>
-            </div>
           </motion.div>
 
           {/* Filters */}
@@ -341,8 +322,6 @@ export function StudentTopicsPage() {
                 <TopicCard
                   key={topic.id}
                   topic={topic}
-                  isFavorite={wishlist.has(topic.id)}
-                  onToggleFavorite={() => wishlist.toggle(topic.id, topic)}
                   onViewDetail={() => setSelectedTopicId(topic.id)}
                   groupHasProject={myGroupHasProject}
                   hasGroup={!!myGroup}
@@ -439,27 +418,10 @@ export function StudentTopicsPage() {
         projectId={selectedTopicId}
         isOpen={!!selectedTopicId}
         onClose={() => setSelectedTopicId(null)}
-        isFavorite={selectedTopicId ? wishlist.has(selectedTopicId) : false}
-        onToggleFavorite={() => {
-          if (selectedTopicId) {
-            const topic = data?.items.find((t) => t.id === selectedTopicId);
-            wishlist.toggle(selectedTopicId, topic);
-          }
-        }}
         groupHasProject={myGroupHasProject}
         hasGroup={!!myGroup}
         isLeader={isLeader}
         onRegister={(topicId) => setRegisterTopicId(topicId)}
-      />
-
-      <WishlistDrawer
-        isOpen={showWishlist}
-        onClose={() => setShowWishlist(false)}
-        wishlist={wishlist}
-        onViewDetail={(id) => {
-          setShowWishlist(false);
-          setSelectedTopicId(id);
-        }}
       />
 
       {/* Registration Confirmation Modal */}

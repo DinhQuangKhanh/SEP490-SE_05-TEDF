@@ -69,7 +69,6 @@ export const routes = {
     projects: "/api/evaluations/projects",
     review: (projectId: string) => `/api/evaluations/projects/${projectId}/review`,
     similarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity`,
-    translateThesis: (thesisId: string) => `/api/evaluations/theses/${thesisId}/translate`,
     evaluate: (projectId: string) => `/api/evaluations/projects/${projectId}/evaluate`,
     checklist: (projectId: string) => `/api/evaluations/projects/${projectId}/checklist`,
     evaluatorChecklist: (projectId: string, evaluatorId: string) =>
@@ -108,6 +107,8 @@ export const routes = {
     invitations: (groupId: string) => `/api/groups/${groupId}/invitations`,
     bulkApproveJoinRequests: (groupId: string) => `/api/groups/${groupId}/join-requests/bulk-approve`,
     bulkRejectJoinRequests: (groupId: string) => `/api/groups/${groupId}/join-requests/bulk-reject`,
+    leave: (groupId: string) => `/api/groups/${groupId}/members/me`,
+    disband: (groupId: string) => `/api/groups/${groupId}`,
   },
   studentTopics: {
     registerTopic: (groupId: string) => `/api/topic-pools/${groupId}/topic-registrations`,
@@ -118,6 +119,7 @@ export const routes = {
     list: "/api/topics",
     detail: (topicId: string) => `/api/topics/${topicId}`,
     documents: (topicId: string) => `/api/topics/${topicId}/documents`,
+    registerForm: (topicId: string) => `/api/topics/${topicId}/register-form`,
   },
   topicPools: {
     list: "/api/topic-pools",

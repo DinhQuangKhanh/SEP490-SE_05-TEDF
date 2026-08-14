@@ -10,16 +10,18 @@ export function AutoResizeTextarea({ value, maxRows = 20, className = "", ...pro
 
   useEffect(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      // Reset height to auto to get the correct scrollHeight when text is deleted
-      textarea.style.height = "auto";
-      
-      // Calculate line height approximately based on computed styles, or just use CSS max-height
-      // We will rely on Tailwind's max-h-[x] or a calculated max-height
-      // The easiest way is to let the CSS max-height handle the maxRows limitation.
-      
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
+    if (!textarea) return;
+
+    // Reset to auto first, otherwise scrollHeight can only ever grow.
+    textarea.style.height = "auto";
+
+    // Tailwind's preflight makes every element border-box, so `height` has to cover the borders —
+    // but scrollHeight measures the content box only. Without adding them back the field ends up a
+    // couple of pixels short of its own text and the browser draws a scrollbar that never goes away.
+    const styles = window.getComputedStyle(textarea);
+    const borders = parseFloat(styles.borderTopWidth) + parseFloat(styles.borderBottomWidth);
+
+    textarea.style.height = `${textarea.scrollHeight + borders}px`;
   }, [value]);
 
   return (

@@ -212,6 +212,47 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         await _unitOfWork.SaveChangesAsync(ct);
     }
 
+    public async Task LeaveGroupAsync(Guid groupId, Guid studentId, CancellationToken ct = default)
+    {
+        var group = await _groupRepository.GetWithMembersAsync(groupId, ct)
+            ?? throw new EntityNotFoundException(nameof(Group), groupId);
+
+        await EnsureGroupHasNoLiveProjectAsync(groupId, "Nhóm đã có đề tài, bạn không thể rời nhóm.", ct);
+
+        group.LeaveGroup(studentId);
+
+        await _unitOfWork.SaveChangesAsync(ct);
+    }
+
+    public async Task DisbandGroupAsync(Guid groupId, Guid leaderId, CancellationToken ct = default)
+    {
+        // Disbanding closes pending invitations and join requests too, so they must be loaded.
+        var group = await _groupRepository.GetWithAllRelationsAsync(groupId, ct)
+            ?? throw new EntityNotFoundException(nameof(Group), groupId);
+
+        await EnsureGroupHasNoLiveProjectAsync(groupId, "Nhóm đã có đề tài, không thể giải tán nhóm.", ct);
+
+        group.Disband(leaderId);
+
+        await _unitOfWork.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Blocks membership changes once the group's topic is live. Draft/Rejected/Cancelled don't count —
+    /// those are the same states that still allow inviting and joining.
+    /// </summary>
+    private async Task EnsureGroupHasNoLiveProjectAsync(Guid groupId, string message, CancellationToken ct)
+    {
+        var groupProject = await _projectRepository.GetByGroupIdAsync(groupId, ct);
+        if (groupProject != null
+            && groupProject.Status != ProjectStatus.Rejected
+            && groupProject.Status != ProjectStatus.Cancelled
+            && groupProject.Status != ProjectStatus.Draft)
+        {
+            throw new BusinessRuleValidationException(message);
+        }
+    }
+
     private static bool IsUniqueViolation(DbUpdateException ex, string indexName)
         => ex.InnerException?.Message.Contains(indexName, StringComparison.OrdinalIgnoreCase) == true
            || ex.Message.Contains(indexName, StringComparison.OrdinalIgnoreCase);

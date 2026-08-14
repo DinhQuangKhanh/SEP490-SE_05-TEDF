@@ -25,6 +25,8 @@ const K = {
     MaintenanceMode: 'MaintenanceMode',
     EmailOnEvaluationResult: 'EmailOnEvaluationResult',
     NotifyMentorOnRegistration: 'NotifyMentorOnRegistration',
+    EmailOnGroupMembership: 'EmailOnGroupMembership',
+    EmailOnSupportTicket: 'EmailOnSupportTicket',
 } as const
 
 const colorThemes = [
@@ -252,8 +254,8 @@ export function SettingsPage() {
                                         <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-md p-3">
                                             <span className="material-symbols-outlined text-slate-500 mt-0.5">info</span>
                                             <p className="text-xs text-slate-600">
-                                                Thông tin máy chủ email (SMTP) được cấu hình an toàn phía máy chủ và không hiển thị tại đây.
-                                                Dùng nút bên dưới để kiểm tra kết nối gửi email.
+                                                Email được gửi qua dịch vụ Firebase, cấu hình an toàn phía máy chủ và không hiển thị tại đây.
+                                                Dùng nút bên dưới để kiểm tra đường gửi email đang hoạt động.
                                             </p>
                                         </div>
                                         <div className="space-y-4">
@@ -267,6 +269,16 @@ export function SettingsPage() {
                                                 description="Báo cho giảng viên khi một nhóm đăng ký đề tài của họ."
                                                 checked={getBool(K.NotifyMentorOnRegistration)}
                                                 onChange={(b) => setBool(K.NotifyMentorOnRegistration, b)} />
+                                            <ToggleRow
+                                                title="Email về thành viên nhóm"
+                                                description="Gửi email khi sinh viên được mời vào nhóm, xin vào nhóm hoặc khi yêu cầu được duyệt/từ chối."
+                                                checked={getBool(K.EmailOnGroupMembership)}
+                                                onChange={(b) => setBool(K.EmailOnGroupMembership, b)} />
+                                            <ToggleRow
+                                                title="Email về yêu cầu hỗ trợ"
+                                                description="Gửi email khi có ticket mới, có phản hồi trên ticket hoặc ticket được xử lý xong."
+                                                checked={getBool(K.EmailOnSupportTicket)}
+                                                onChange={(b) => setBool(K.EmailOnSupportTicket, b)} />
                                         </div>
                                         <div className="flex justify-end">
                                             <button onClick={handleTestEmail}
