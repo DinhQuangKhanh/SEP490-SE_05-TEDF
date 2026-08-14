@@ -6,9 +6,7 @@ public record ChecklistCriterionDto(
     int Order,
     string TitleVi,
     string TitleEn,
-    string? Description,
-    decimal MaxScore,
-    decimal PassScore);
+    string? Description);
 
 /// <summary>A checklist configuration (Department-Head view), including its criteria.</summary>
 public record ChecklistConfigDto(
@@ -46,6 +44,4 @@ public record ChecklistCriterionSeedDto(
     int Order,
     string TitleVi,
     string TitleEn,
-    string Description,
-    decimal MaxScore,
-    decimal PassScore);
+    string Description);

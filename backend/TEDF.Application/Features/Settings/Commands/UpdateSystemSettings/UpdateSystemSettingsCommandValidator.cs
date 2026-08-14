@@ -18,6 +18,8 @@ public class UpdateSystemSettingsCommandValidator : AbstractValidator<UpdateSyst
         SettingKeys.MaintenanceMode,
         SettingKeys.EmailOnEvaluationResult,
         SettingKeys.NotifyMentorOnRegistration,
+        SettingKeys.EmailOnGroupMembership,
+        SettingKeys.EmailOnSupportTicket,
     ];
 
     public UpdateSystemSettingsCommandValidator()

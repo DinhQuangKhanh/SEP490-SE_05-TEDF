@@ -12,6 +12,7 @@ import type {
   ProjectChecklistResponse,
   ChecklistScoreItemInput,
   TopicDocument,
+  ChecklistEvaluationItemInput,
 } from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
@@ -273,7 +274,7 @@ export function LecturerReviewPage() {
   }, [fetchChecklist]);
 
   const handleSaveChecklist = useCallback(
-    async (items: ChecklistScoreItemInput[], note: string) => {
+    async (items: ChecklistEvaluationItemInput[], note: string) => {
       if (!id) return;
       await checklistService.saveProjectChecklist(id, { items, note });
       fetchChecklist();

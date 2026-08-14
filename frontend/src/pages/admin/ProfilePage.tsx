@@ -160,6 +160,11 @@ export function ProfilePage() {
         .slice(-2)
         .toUpperCase()
 
+    // Chuyên ngành is read-only system data: "SE — Kỹ thuật phần mềm" when both parts are known.
+    const majorLabel = profile?.majorName
+        ? (profile.majorCode ? `${profile.majorCode} — ${profile.majorName}` : profile.majorName)
+        : null
+
     // Parse privacy settings (assume array of field names that are PRIVATE)
     let hiddenFields: string[] = []
     if (profile?.privacySettings) {
@@ -261,23 +266,21 @@ export function ProfilePage() {
                                 />
                                 {isStudent && (
                                     <>
+                                        {/* Chuyên ngành và chuyên ngành hẹp do hệ thống nhập (import danh sách
+                                            sinh viên đủ điều kiện của kỳ) — sinh viên không tự khai báo. */}
                                         <InfoRow
                                             icon="school"
                                             label="Chuyên ngành đang học"
-                                            value={profile?.majorName || "Chưa cập nhật"}
-                                            placeholder={!profile?.majorName}
+                                            value={majorLabel || "Hệ thống chưa ghi nhận"}
+                                            placeholder={!majorLabel}
                                             isPrivate={hiddenFields.includes('major')}
                                             onTogglePrivacy={() => togglePrivacy('major')}
                                         />
                                         <InfoRow
                                             icon="menu_book"
                                             label="Chuyên ngành hẹp đang học"
-                                            value={profile?.majorProgramCode
-                                                ? (profile.majorProgramDescription
-                                                    ? `${profile.majorProgramCode} — ${profile.majorProgramDescription}`
-                                                    : profile.majorProgramCode)
-                                                : "Chưa cập nhật"}
-                                            placeholder={!profile?.majorProgramCode}
+                                            value={profile?.comboName || "Hệ thống chưa ghi nhận"}
+                                            placeholder={!profile?.comboName}
                                             isPrivate={hiddenFields.includes('narrowMajor')}
                                             onTogglePrivacy={() => togglePrivacy('narrowMajor')}
                                         />
@@ -288,8 +291,8 @@ export function ProfilePage() {
                                         <InfoRow
                                             icon="business"
                                             label="Bộ môn đang giảng dạy"
-                                            value={profile?.division || "Chưa cập nhật"}
-                                            placeholder={!profile?.division}
+                                            value={profile?.departmentName || "Chưa cập nhật"}
+                                            placeholder={!profile?.departmentName}
                                             isPrivate={hiddenFields.includes('department')}
                                             onTogglePrivacy={() => togglePrivacy('department')}
                                         />

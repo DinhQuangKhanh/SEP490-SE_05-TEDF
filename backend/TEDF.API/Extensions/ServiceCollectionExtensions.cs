@@ -1,5 +1,7 @@
 ﻿using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
+using StackExchange.Redis;
+using TEDF.Infrastructure.Caching;
 using TEDF.API.Common.Security.Abstractions;
 using TEDF.API.Common.Security.Jobs;
 using TEDF.API.Common.Security.Options;
@@ -78,9 +80,39 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddSignalRServices(this IServiceCollection services)
+    /// <summary>
+    /// Registers SignalR and, when Redis is configured, the Redis backplane.
+    /// </summary>
+    /// <remarks>
+    /// Without a backplane each API instance only knows about the clients connected to itself, so a
+    /// notification raised on instance A never reaches a user whose browser happens to hold its socket on
+    /// instance B. That failure is silent and load-dependent — realtime looks "flaky" rather than broken —
+    /// so wire the backplane up front instead of after the first scale-out.
+    ///
+    /// Reuses <see cref="CacheSettings.RedisConnectionString"/> (the same Redis the hybrid cache uses) and
+    /// mirrors its fallback: no connection string configured → plain in-memory SignalR, which is correct for
+    /// a single instance and for local runs without Redis. SignalR keys its own channels, so it does not
+    /// collide with the cache's <c>cache:invalidate</c> pub/sub channel.
+    /// </remarks>
+    public static IServiceCollection AddSignalRServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSignalR();
+        var signalR = services.AddSignalR();
+
+        var redisConnectionString = configuration
+            .GetSection(CacheSettings.SectionName)
+            .Get<CacheSettings>()?
+            .RedisConnectionString;
+
+        if (!string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            signalR.AddStackExchangeRedis(redisConnectionString, options =>
+            {
+                // Namespaced so the backplane's keys stay distinguishable from the cache's in the same
+                // Redis instance.
+                options.Configuration.ChannelPrefix = RedisChannel.Literal("tedf:signalr");
+            });
+        }
+
         return services;
     }
 

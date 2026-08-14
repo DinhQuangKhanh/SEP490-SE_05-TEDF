@@ -11,14 +11,11 @@ public class SaveProjectChecklistCommandValidator : AbstractValidator<SaveProjec
         RuleFor(x => x.Items)
             .NotNull().WithMessage("Danh sách điểm không hợp lệ.");
 
-        // Shape-level guards only; the definitive [0, MaxScore] check is done by the domain against the
-        // per-criterion snapshot bounds (the client's MaxScore is never trusted).
+        // Shape-level guards only; the domain owns which criteria belong to the snapshot (entries whose
+        // criterion id is not part of it are ignored) and recomputes the passed count.
         RuleForEach(x => x.Items).ChildRules(item =>
         {
             item.RuleFor(i => i.CriterionId).NotEmpty().WithMessage("Thiếu mã tiêu chí.");
-            item.RuleFor(i => i.Score)
-                .GreaterThanOrEqualTo(0).When(i => i.Score.HasValue)
-                .WithMessage("Điểm chấm không được âm.");
             item.RuleFor(i => i.Comment)
                 .MaximumLength(2000).WithMessage("Nhận xét tiêu chí không được vượt quá 2000 ký tự.");
         });

@@ -23,6 +23,7 @@ using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.TopicPools.Commands.MentorResubmitPoolTopic;
 using TEDF.Application.Features.TopicPools.Commands.MentorUpdatePoolTopic;
+using TEDF.Domain.Enums.Document;
 
 namespace TEDF.API.Endpoints.Topics;
 
@@ -31,6 +32,16 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     private const long NoteAttachmentMaxBytes = 10 * 1024 * 1024; // 10 MB / file
     private const int MaxProposalAttachments = 5;                  // free attachments per proposal
     private const long ProposalMaxBytes = 60 * 1024 * 1024;       // 5×10MB attachments + register form
+
+    // Propose-topic upload budget: the register form plus up to five supporting documents.
+    private const long ProposalUploadMaxBytes = 25 * 1024 * 1024;
+    private const long PerFileMaxBytes = 10 * 1024 * 1024;
+    private const int MaxAttachmentCount = 6;
+
+    private static readonly string[] RegisterFormExtensions = [".pdf", ".docx"];
+
+    /// <summary>The multipart part name the client uses for the capstone register form.</summary>
+    private const string RegisterFormFieldName = "registerForm";
 
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
@@ -71,14 +82,20 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .Produces<TopicPoolStatisticsDto>()
             .Produces(401).Produces(404);
 
+        // Carries the register form plus up to five supporting documents, so it needs its own body
+        // limit. The rate limiter is defined in ServiceCollectionExtensions; this is the route that
+        // opts into it. No request-timeout policy on purpose: aborting mid-request could kill the
+        // call between "project committed" and "attachments queued", which the 201-with-warning
+        // response below is specifically designed to avoid.
         pool.MapPost("/{poolId:guid}/propose", ProposeTopicToPool)
             .RequireAuthorization(PolicyNames.RequireMentor)
             .DisableAntiforgery()
             .WithTags("TopicPools")
             .WithName("ProposeTopicToPool")
-            .WithMetadata(new RequestSizeLimitAttribute(ProposalMaxBytes))
-            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = ProposalMaxBytes })
-            .Produces(201).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
+            .WithMetadata(new RequestSizeLimitAttribute(ProposalUploadMaxBytes))
+            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = ProposalUploadMaxBytes })
+            .RequireRateLimiting("ProposeTopicUploadPolicy")
+            .Produces(201).Produces(400).Produces(401).Produces(403).Produces(404).Produces(429).Produces(503);
 
         pool.MapPost("/{groupId:guid}/topic-registrations", RequestTopicRegistration)
             .RequireAuthorization(PolicyNames.GroupLeader)
@@ -151,6 +168,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         [FromForm] ProposeTopicRequest body,
         HttpContext httpContext,
         [FromServices] IAttachmentScanWorkflow scanWorkflow,
+        [FromServices] IMalwareScanner malwareScanner,
         ICurrentUserService currentUser,
         ILogger<TopicPoolsEndpoints> logger,
         ISender sender,
@@ -165,11 +183,55 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
             if (!FileUploadValidator.IsAllowedRegisterFormExtension(registerForm.FileName))
                 return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là PDF, DOC hoặc DOCX."));
+        var userId = currentUser.UserId;
+        if (userId is null)
+            return Results.Unauthorized();
 
-            using var registerFormStream = new MemoryStream();
-            await registerForm.CopyToAsync(registerFormStream, cancellationToken);
-            registerFormPdf = registerFormStream.ToArray();
-        }
+        if (!httpContext.Request.HasFormContentType)
+            return Results.BadRequest(ApiResponse.Fail("Request phải là multipart/form-data."));
+
+        // ProjectName.Create rejects a blank name with an ArgumentException, which the exception
+        // middleware has no arm for — without these guards an empty name surfaces as a 500.
+        if (string.IsNullOrWhiteSpace(body.NameVi))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Việt."));
+
+        if (string.IsNullOrWhiteSpace(body.NameEn))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Anh."));
+
+        if (string.IsNullOrWhiteSpace(body.NameAbbr))
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên viết tắt của đề tài."));
+
+        // Read the files off the request rather than the bound model — see ProposeTopicRequest.
+        var files = httpContext.Request.Form.Files;
+
+        if (files.GetFile(RegisterFormFieldName) is not { Length: > 0 } registerForm)
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng tải lên phiếu đăng ký (Capstone Project Register)."));
+
+        var attachments = files
+            .Where(f => !ReferenceEquals(f, registerForm) && f.Length > 0)
+            .ToList();
+
+        var allFiles = attachments.Prepend(registerForm).ToList();
+
+        if (!FileUploadValidator.TryValidate(allFiles, PerFileMaxBytes, MaxAttachmentCount, out var uploadError))
+            return Results.BadRequest(ApiResponse.Fail(uploadError));
+
+        var registerFormExtension = Path.GetExtension(registerForm.FileName);
+        if (!RegisterFormExtensions.Contains(registerFormExtension, StringComparer.OrdinalIgnoreCase))
+            return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF hoặc DOCX."));
+
+        // Scanned inline rather than through the background queue, because the roster is parsed from
+        // this file in-process a few lines below — the content must be proven clean first. The queue
+        // below scans it a second time; that duplication is deliberate, not an oversight.
+        var scan = await malwareScanner.ScanAsync([registerForm], cancellationToken);
+        if (scan.ScannerUnavailable)
+            return Results.Json(ApiResponse.Fail(scan.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
+
+        if (!scan.IsClean)
+            return Results.BadRequest(ApiResponse.Fail(scan.Message));
+
+        using var registerFormStream = new MemoryStream();
+        await registerForm.CopyToAsync(registerFormStream, cancellationToken);
 
         if (body.Attachments is { Count: > 0 } attachments
             && !FileUploadValidator.TryValidate(attachments, NoteAttachmentMaxBytes, MaxProposalAttachments, out var attachmentError))
@@ -187,20 +249,81 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             Scope: body.Scope,
             Technologies: body.Technologies,
             ExpectedResults: body.ExpectedResults,
-            MaxStudents: body.MaxStudents,
-            RegisterFormPdf: registerFormPdf
+            RegisterForm: registerFormStream.ToArray(),
+            MaxStudents: body.MaxStudents
         );
 
+        // The project must be committed before the files are queued: the scan job ends by inserting
+        // a document row keyed on this project id.
         var projectId = await sender.Send(command, cancellationToken);
 
-        // Best-effort: quarantine + malware-scan the register form and attachments so they become viewable
-        // topic documents. The topic already exists, so a queue failure only logs — it never fails the proposal.
-        var scanResult = await ProposalUploadScanner.QueueAsync(
-            scanWorkflow, projectId, currentUser.UserId!.Value, body.RegisterForm, body.Attachments, cancellationToken);
-        if (!scanResult.Success)
-            logger.LogWarning("Proposal {ProjectId}: queueing uploads for malware scan failed: {Error}", projectId, scanResult.ErrorMessage);
+        var queued = await QueueProposalAttachmentsAsync(
+            scanWorkflow, logger, projectId, userId.Value, registerForm, attachments, cancellationToken);
 
-        return Created($"/api/topic-pools/topics/{projectId}", new { id = projectId }, "Đề xuất đề tài thành công.");
+        // Deliberately still a 201 when queueing failed. The project is already committed and cannot
+        // be rolled back here; reporting failure would push the mentor to propose the topic again and
+        // create a duplicate. The roster was read from the form above, so only the archived copy is
+        // at stake.
+        var message = queued.AllQueued
+            ? "Đề xuất đề tài thành công."
+            : "Đề xuất đề tài thành công. Một số tệp đính kèm chưa được đưa vào hàng đợi quét mã độc, "
+              + "vui lòng tải lên lại ở trang chi tiết đề tài.";
+
+        return Created(
+            $"/api/topic-pools/topics/{projectId}",
+            new { id = projectId, queuedAttachments = queued.Count, attachmentWarning = !queued.AllQueued },
+            message);
+    }
+
+    /// <summary>
+    /// Sends the uploaded files through the quarantine → scan → promote pipeline. Two passes, because
+    /// <see cref="AttachmentScanContext"/> carries a single document type and the register form has to
+    /// stay identifiable as <see cref="DocumentType.Proposal"/> afterwards.
+    /// </summary>
+    private static async Task<(int Count, bool AllQueued)> QueueProposalAttachmentsAsync(
+        IAttachmentScanWorkflow scanWorkflow,
+        ILogger logger,
+        Guid projectId,
+        Guid userId,
+        IFormFile registerForm,
+        IReadOnlyCollection<IFormFile> attachments,
+        CancellationToken cancellationToken)
+    {
+        AttachmentScanContext ContextFor(DocumentType documentType) => new(
+            FolderPrefix: "topic-proposals",
+            ProjectId: projectId,
+            UploadedBy: userId,
+            FolderPartitionId: projectId,
+            DocumentType: documentType);
+
+        var failures = new List<string>();
+        var queuedCount = 0;
+
+        var registerFormResult = await scanWorkflow.QueueAsync(
+            ContextFor(DocumentType.Proposal), [registerForm], cancellationToken);
+
+        queuedCount += registerFormResult.QueuedCount;
+        if (!registerFormResult.Success)
+            failures.Add($"phiếu đăng ký: {registerFormResult.ErrorMessage}");
+
+        if (attachments.Count > 0)
+        {
+            var attachmentsResult = await scanWorkflow.QueueAsync(
+                ContextFor(DocumentType.Other), attachments, cancellationToken);
+
+            queuedCount += attachmentsResult.QueuedCount;
+            if (!attachmentsResult.Success)
+                failures.Add($"tài liệu đính kèm: {attachmentsResult.ErrorMessage}");
+        }
+
+        if (failures.Count > 0)
+        {
+            logger.LogError(
+                "Propose topic {ProjectId}: could not queue every upload for scanning — {Failures}",
+                projectId, string.Join("; ", failures));
+        }
+
+        return (queuedCount, failures.Count == 0);
     }
 
     private static async Task<IResult> RequestTopicRegistration(Guid groupId, TopicRegistrationRequest body, ISender sender, CancellationToken ct)

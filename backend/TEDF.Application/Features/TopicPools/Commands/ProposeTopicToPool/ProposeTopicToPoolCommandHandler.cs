@@ -37,7 +37,7 @@ public class ProposeTopicToPoolCommandHandler : ICommandHandler<ProposeTopicToPo
             new PoolTopicContent(
                 request.NameVi, request.NameEn, request.NameAbbr, request.Description,
                 request.Objectives, request.Scope, request.Technologies, request.ExpectedResults, request.MaxStudents),
-            request.RegisterFormPdf,
+            request.RegisterForm,
             cancellationToken);
 
         // Register the topic in the similarity corpus under the SAME id, so a later "check duplicates"

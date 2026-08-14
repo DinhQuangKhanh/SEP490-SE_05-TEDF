@@ -28,7 +28,7 @@ Solution `TEDF.sln`, 5 projects following **Clean Architecture + DDD + CQRS** wi
 | Background jobs | Hangfire 1.8 (7 recurring jobs, SQL Server storage) |
 | Caching | Hybrid L1 `IMemoryCache` + L2 Redis; invalidated via `ICacheInvalidatingCommand` |
 | Logging | Serilog (+ Application Insights) |
-| Email / files | MailKit (SMTP) / Firebase Object Storage |
+| Email / files | Firestore `mail` collection → `firestore-send-email` extension / Firebase Object Storage |
 
 Commands (run inside `backend/`):
 ```powershell

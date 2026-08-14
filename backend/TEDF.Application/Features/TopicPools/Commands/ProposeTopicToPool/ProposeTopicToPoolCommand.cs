@@ -17,12 +17,14 @@ public record ProposeTopicToPoolCommand(
     string? Scope,
     string? Technologies,
     string? ExpectedResults,
-    int MaxStudents = 5,
     /// <summary>
-    /// Optional capstone register form. A form listing students seeds the topic's proposed roster,
-    /// which becomes a group once the topic passes evaluation.
+    /// The capstone register form (PDF or DOCX). Attaching it is required; a form listing students
+    /// additionally seeds the topic's proposed roster, which becomes a group once the topic passes
+    /// evaluation. Declared ahead of <paramref name="MaxStudents"/> because a required positional
+    /// parameter cannot follow one with a default value.
     /// </summary>
-    byte[]? RegisterFormPdf = null
+    byte[] RegisterForm,
+    int MaxStudents = 5
 ) : ICacheInvalidatingCommand<Guid>
 {
     public IReadOnlyCollection<string> CachePrefixesToInvalidate =>
