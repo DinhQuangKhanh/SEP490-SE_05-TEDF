@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
@@ -6,7 +6,9 @@ import { evaluatorService, checklistService } from "@/lib";
 import type {
   ProjectReviewResponse,
   SimilarityMatchDto,
-  TranslatedThesisDto,
+  CheckSimilarityRequest,
+  FieldHighlight,
+  HighlightSpan,
   ProjectChecklistResponse,
   ChecklistScoreItemInput,
 } from "@/types";
@@ -40,120 +42,118 @@ const FIELD_LABEL: Record<FieldKey, string> = {
   expectedResults: "Kết quả mong đợi",
 };
 
-interface ReasonMeta {
-  icon: string;
+/**
+ * The four DASSF dimensions the engine highlights. Each carries the colours used for its
+ * toggle chip, its sub-score bar, and the <mark> that paints its overlapping spans in both
+ * columns. Keys match both `SimilarityHighlights` and `DimensionBreakdown` (bar reads
+ * `structure` for the `structural` key).
+ */
+type CategoryKey = "semantic" | "domain" | "structural" | "lexical";
+
+interface CategoryMeta {
   label: string;
-  detail: string;
-  cls: string;
-  /** <mark> highlight classes for this reason's colour. */
+  icon: string;
+  hint: string;
+  /** Toggle-chip classes when the dimension is active. */
+  chip: string;
+  /** <mark> classes painting this dimension's spans. */
   mark: string;
-  /** Which content fields this reason is derived from (so we highlight the right text). */
-  fields: FieldKey[];
+  /** Sub-score bar fill. */
+  bar: string;
 }
 
-/**
- * Maps each DASSF reason phrase (produced by the Python score_calculator) to an icon, a
- * Vietnamese label, an explanation, and — crucially — the content fields it draws on, so
- * clicking a reason highlights exactly the overlapping text behind it.
- */
-const REASON_CATALOG: Record<string, ReasonMeta> = {
-  "same tech stack with a different business domain": {
-    icon: "layers",
-    label: "Cùng công nghệ · khác lĩnh vực",
-    detail: "Trùng ngăn xếp công nghệ / kiến trúc nhưng khác lĩnh vực nghiệp vụ — dấu hiệu “sao chép cấu trúc”.",
-    cls: "bg-amber-50 text-amber-700 border-amber-200",
-    mark: "bg-amber-200/70 text-amber-900",
-    fields: ["technologies", "scope"],
-  },
-  "same business domain": {
-    icon: "domain",
-    label: "Cùng lĩnh vực nghiệp vụ",
-    detail: "Hai đề tài cùng giải quyết một lĩnh vực / bài toán nghiệp vụ.",
-    cls: "bg-purple-50 text-purple-700 border-purple-200",
-    mark: "bg-purple-200/70 text-purple-900",
-    fields: ["description", "objectives"],
-  },
-  "similar architecture or scope": {
-    icon: "architecture",
-    label: "Kiến trúc · phạm vi tương tự",
-    detail: "Cùng kiểu kiến trúc, công nghệ hoặc phạm vi triển khai.",
-    cls: "bg-blue-50 text-blue-700 border-blue-200",
-    mark: "bg-blue-200/70 text-blue-900",
-    fields: ["scope", "description", "technologies"],
-  },
-  "shared weighted terms across fields": {
-    icon: "match_word",
-    label: "Trùng nhiều thuật ngữ trọng số",
-    detail: "Nhiều từ khoá quan trọng (TF-IDF) xuất hiện ở cả hai đề tài.",
-    cls: "bg-teal-50 text-teal-700 border-teal-200",
-    mark: "bg-teal-200/70 text-teal-900",
-    fields: ALL_FIELDS,
-  },
-  "similar semantic content": {
+/** Priority order — also the order highlighters are layered (earlier wins a shared span). */
+const CATEGORY_ORDER: CategoryKey[] = ["semantic", "domain", "structural", "lexical"];
+
+const CATEGORIES: Record<CategoryKey, CategoryMeta> = {
+  semantic: {
+    label: "Ngữ nghĩa",
     icon: "psychology",
-    label: "Ngữ nghĩa tương đồng",
-    detail: "Nội dung tổng thể của 5 trường mô tả tương đồng.",
-    cls: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    hint: "Những câu có ý nghĩa gần nhau nhất giữa hai đề tài (mô hình SBERT).",
+    chip: "bg-indigo-50 text-indigo-700 border-indigo-300",
     mark: "bg-indigo-200/70 text-indigo-900",
-    fields: ALL_FIELDS,
+    bar: "bg-indigo-500",
+  },
+  domain: {
+    label: "Lĩnh vực",
+    icon: "domain",
+    hint: "Các thực thể / lĩnh vực nghiệp vụ dùng chung theo ontology SEDO.",
+    chip: "bg-pink-50 text-pink-700 border-pink-300",
+    mark: "bg-pink-200/70 text-pink-900",
+    bar: "bg-pink-500",
+  },
+  structural: {
+    label: "Cấu trúc",
+    icon: "layers",
+    hint: "Công nghệ, phương pháp và kiểu nhiệm vụ trùng nhau (SEDO).",
+    chip: "bg-violet-50 text-violet-700 border-violet-300",
+    mark: "bg-violet-200/70 text-violet-900",
+    bar: "bg-violet-500",
+  },
+  lexical: {
+    label: "Từ vựng",
+    icon: "match_word",
+    hint: "Các thuật ngữ trọng số (TF-IDF) xuất hiện ở cả hai đề tài.",
+    chip: "bg-teal-50 text-teal-700 border-teal-300",
+    mark: "bg-teal-200/70 text-teal-900",
+    bar: "bg-teal-500",
   },
 };
 
 const pct = (score: number) => Math.round(score * 100);
 
-// ── Token overlap + highlighting ────────────────────────────────────────────────
-// Words to ignore when computing overlap — generic EN/VN terms that add noise, not signal.
-const STOPWORDS = new Set<string>([
-  "the", "and", "for", "with", "using", "use", "from", "are", "based", "into",
-  "system", "application", "app", "web", "website", "platform", "management", "managing",
-  "build", "building", "develop", "developing", "development", "project", "projects", "data",
-  "user", "users", "support", "supporting", "online", "service", "services", "software",
-  "và", "cho", "các", "một", "của", "với", "hệ", "thống", "xây", "dựng", "sử", "dụng",
-  "ứng", "quản", "lý", "dữ", "liệu", "người", "dùng", "trên", "theo", "được", "có",
-  "tại", "đề", "tài", "phần", "mềm", "nền", "tảng", "hỗ", "trợ", "giải", "pháp", "thông", "tin",
-]);
+// ── Span highlighting ───────────────────────────────────────────────────────────
+// The Python engine returns, PER FIELD, the exact overlapping spans on each side
+// (`a` = topic under review, `b` = matched topic), each tagged with its angle. We paint every
+// occurrence of those spans in the angle's colour, matching on WHOLE-WORD boundaries only.
 
-const WORD_RE = /[\p{L}\p{N}][\p{L}\p{N}+#]*/gu;
-
-function tokenize(text: string | null | undefined): Set<string> {
-  const out = new Set<string>();
-  for (const m of (text ?? "").toLowerCase().matchAll(WORD_RE)) {
-    if (m[0].length >= 3 && !STOPWORDS.has(m[0])) out.add(m[0]);
-  }
-  return out;
+/** Escapes a string for literal use inside a RegExp. */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Significant tokens appearing in BOTH texts — the concrete overlap that drives similarity. */
-function sharedTokens(a: string | null | undefined, b: string | null | undefined): Set<string> {
-  const bs = tokenize(b);
-  const shared = new Set<string>();
-  for (const t of tokenize(a)) if (bs.has(t)) shared.add(t);
-  return shared;
-}
-
-/** Renders text with the shared tokens wrapped in a coloured <mark>. */
+/**
+ * Renders `text` with each overlap span wrapped in its angle's coloured <mark>. Spans are matched
+ * case-insensitively and longest-first (so a semantic passage wins over a short term nested inside
+ * it), and ONLY on Unicode word boundaries — so a term like "is" never bleeds into "distance" or
+ * "Redis". When two angles claim the same string, the first span (higher priority) wins its colour.
+ */
 function HighlightedText({
   text,
-  tokens,
-  markCls,
-}: Readonly<{ text: string | null | undefined; tokens: Set<string>; markCls: string }>) {
+  spans,
+}: Readonly<{ text: string | null | undefined; spans: HighlightSpan[] }>) {
   if (!text) return <span className="text-slate-400">—</span>;
-  if (tokens.size === 0) return <>{text}</>;
 
-  const segments = text.split(/([\p{L}\p{N}+#]+)/gu);
-  return (
-    <>
-      {segments.map((seg, i) =>
-        tokens.has(seg.toLowerCase()) ? (
-          <mark key={i} className={`rounded px-0.5 ${markCls}`}>
-            {seg}
-          </mark>
-        ) : (
-          <span key={i}>{seg}</span>
-        ),
-      )}
-    </>
+  const spanCls = new Map<string, string>();
+  for (const span of spans) {
+    const key = span.text.trim().toLowerCase();
+    if (key.length >= 2 && !spanCls.has(key)) spanCls.set(key, CATEGORIES[span.angle].mark);
+  }
+  if (spanCls.size === 0) return <>{text}</>;
+
+  const ordered = [...spanCls.keys()].sort((a, b) => b.length - a.length);
+  // Lookarounds enforce whole-word matches (Unicode-aware) instead of substring bleed.
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}])(?:${ordered.map(escapeRe).join("|")})(?![\\p{L}\\p{N}])`,
+    "giu",
   );
+
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const m of text.matchAll(re)) {
+    const start = m.index ?? 0;
+    if (start > last) nodes.push(<span key={key++}>{text.slice(last, start)}</span>);
+    const cls = spanCls.get(m[0].toLowerCase()) ?? "";
+    nodes.push(
+      <mark key={key++} className={`rounded px-0.5 ${cls}`}>
+        {m[0]}
+      </mark>,
+    );
+    last = start + m[0].length;
+  }
+  if (last < text.length) nodes.push(<span key={key++}>{text.slice(last)}</span>);
+  return <>{nodes}</>;
 }
 
 /** Why the "Duyệt" verdict is blocked — shared by the submit guard and the button tooltip. */
@@ -301,18 +301,32 @@ export function LecturerReviewPage() {
   }, [id, joinProjectChannel, leaveProjectChannel]);
 
   const handleCheckSimilarity = useCallback(async () => {
-    if (!id) return;
+    if (!id || !project) return;
     setLoadingSimilarity(true);
     setShowSimilarity(true);
     try {
-      const result = await evaluatorService.checkSimilarity(id);
+      // The DASSF engine prioritises full content (title + 5 fields) and only falls back to
+      // title-only when the topic has nothing else. Technologies is stored as one string.
+      const technologies = (project.technologies ?? "")
+        .split(/[,;\n]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const body: CheckSimilarityRequest = {
+        title: project.nameEn || project.nameVi,
+        description: project.description || null,
+        scope: project.scope,
+        objectives: project.objectives || null,
+        expectedResult: project.expectedResults,
+        technologies,
+      };
+      const result = await evaluatorService.checkSimilarity(id, body);
       setMatches(result);
     } catch {
       showError("Không thể kiểm tra trùng lặp. Vui lòng thử lại sau.");
     } finally {
       setLoadingSimilarity(false);
     }
-  }, [id, showError]);
+  }, [id, project, showError]);
 
   const checklistRequired = checklist?.requiredPassCount ?? 0;
   const checklistTotal = checklist?.totalCriteria ?? 0;
@@ -835,33 +849,47 @@ function SimilarityResults({
             {pct(top.overallScore)}% · {topStyle.label}
           </p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Top {shown.length} trên {matches.length} đề tài tương đồng — bấm một{" "}
-            <span className="font-semibold">lý do</span> để tô sáng phần trùng tương ứng ở hai cột.
+            Top {shown.length} trên {matches.length} đề tài tương đồng — mỗi trường được đối chiếu riêng, tô sáng
+            đúng <span className="font-semibold">đoạn trùng mạnh nhất</span> A↔B kèm nhãn góc độ; bấm một hạng mục
+            để bật/tắt màu tương ứng.
           </p>
         </div>
       </div>
 
       {shown.map((m, idx) => (
-        <MatchComparison key={m.otherThesisId} match={m} project={project} index={idx} />
+        <MatchComparison key={`${m.title ?? "match"}-${idx}`} match={m} project={project} index={idx} />
       ))}
     </div>
   );
 }
 
-/** One matched topic shown side-by-side with the one under review, with per-reason highlighting. */
+/** The matched topic's `structural` highlight key reads `structure` in the breakdown. */
+function breakdownValue(match: SimilarityMatchDto, c: CategoryKey): number {
+  const b = match.breakdown;
+  if (!b) return 0;
+  return c === "structural" ? b.structure : b[c];
+}
+
+/**
+ * One matched topic shown side-by-side with the one under review. Each of the four DASSF
+ * dimensions is a toggle that both reports its sub-score and paints its most-overlapping
+ * spans (returned by the engine) in the two columns, in its own colour.
+ */
 function MatchComparison({
   match,
   project,
   index,
 }: Readonly<{ match: SimilarityMatchDto; project: ProjectReviewResponse; index: number }>) {
   const s = levelStyle(match.level);
-  const [activeReason, setActiveReason] = useState<string | null>(null);
-  const [translated, setTranslated] = useState<TranslatedThesisDto | null>(null);
-  const [translating, setTranslating] = useState(false);
-  const [showTranslated, setShowTranslated] = useState(false);
-  const [translateError, setTranslateError] = useState(false);
-
-  const isVi = showTranslated && translated != null;
+  // All four dimensions highlighted by default; each chip toggles its own colour on/off.
+  const [active, setActive] = useState<Set<CategoryKey>>(() => new Set(CATEGORY_ORDER));
+  const toggle = (c: CategoryKey) =>
+    setActive((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
 
   const current: Record<FieldKey, string | null> = {
     title: project.nameEn || project.nameVi,
@@ -871,162 +899,136 @@ function MatchComparison({
     technologies: project.technologies,
     expectedResults: project.expectedResults,
   };
-  const other: Record<FieldKey, string | null> = isVi
-    ? {
-        title: translated.title,
-        description: translated.description,
-        objectives: translated.objectives,
-        scope: translated.scope,
-        technologies: translated.technologies.length > 0 ? translated.technologies.join(", ") : null,
-        expectedResults: translated.expectedResult,
-      }
-    : {
-        title: match.title,
-        description: match.description,
-        objectives: match.objectives,
-        scope: match.scope,
-        technologies: match.technologies.length > 0 ? match.technologies.join(", ") : null,
-        expectedResults: match.expectedResult,
-      };
-
-  // Shared tokens per field — recomputed when the match changes or we switch VI/EN. Translating
-  // the matched topic to Vietnamese lets its domain terms overlap with the Vietnamese project.
-  const sharedByField = useMemo(() => {
-    const out = {} as Record<FieldKey, Set<string>>;
-    for (const f of ALL_FIELDS) out[f] = sharedTokens(current[f], other[f]);
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.otherThesisId, isVi]);
-
-  const handleTranslate = async () => {
-    if (translated) {
-      setShowTranslated((v) => !v);
-      return;
-    }
-    setTranslating(true);
-    setTranslateError(false);
-    try {
-      const result = await evaluatorService.translateThesis(match.otherThesisId);
-      setTranslated(result);
-      setShowTranslated(true);
-      if (!result.translated) setTranslateError(true);
-    } catch {
-      setTranslateError(true);
-    } finally {
-      setTranslating(false);
-    }
+  const other: Record<FieldKey, string | null> = {
+    title: match.title,
+    description: match.description,
+    objectives: match.objectives,
+    scope: match.scope,
+    technologies: match.technologies.length > 0 ? match.technologies.join(", ") : null,
+    expectedResults: match.expectedResult,
   };
 
-  const activeMeta = activeReason ? REASON_CATALOG[activeReason] : null;
-  // Default (no reason selected) highlights every field's overlap in a neutral colour.
-  const highlightFields = new Set<FieldKey>(activeMeta ? activeMeta.fields : ALL_FIELDS);
-  const markCls = activeMeta ? activeMeta.mark : "bg-amber-200/70 text-amber-900";
+  // Field-aligned overlaps keyed by FieldKey, so each field highlights only its own spans.
+  const alignments = new Map<string, FieldHighlight>(
+    (match.highlights?.fields ?? []).map((f) => [f.field, f]),
+  );
 
   return (
     <div className="rounded-xl border border-gray-200 overflow-hidden">
-      {/* Header: score + reason chips (toggle highlight) */}
+      {/* Header: rank + score + level (+ structural-duplication flag + matched title) */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-gray-200">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-[10px] font-mono text-slate-400">Kết quả #{index + 1}</span>
           <span className={`text-xl font-extrabold ${s.text}`}>{pct(match.overallScore)}%</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.bg} ${s.text} ${s.border}`}>
             {s.label}
           </span>
+          {match.isStructuralDuplication && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-amber-50 text-amber-700 border-amber-200">
+              <span className="material-symbols-outlined text-[12px]">content_copy</span>
+              Sao chép cấu trúc
+            </span>
+          )}
           {match.semester && <span className="text-[10px] text-slate-400">{match.semester}</span>}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleTranslate}
-            disabled={translating}
-            title="Dịch đề tài trùng sang tiếng Việt để đối chiếu và tô sáng phần trùng theo lĩnh vực/ngữ nghĩa"
-            className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-[14px] ${translating ? "animate-spin" : ""}`}>
-              {translating ? "progress_activity" : "translate"}
-            </span>
-            {translating ? "Đang dịch..." : translated ? (isVi ? "Xem bản gốc (EN)" : "Xem bản dịch (VI)") : "Dịch sang tiếng Việt"}
-          </button>
-          {match.reasons.length === 0 && <span className="text-[11px] text-slate-400">Không có lý do chi tiết</span>}
-          {match.reasons.map((r) => {
-            const meta = REASON_CATALOG[r];
-            const on = activeReason === r;
-            return (
-              <button
-                key={r}
-                type="button"
-                title={meta?.detail ?? r}
-                onClick={() => setActiveReason(on ? null : r)}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                  meta?.cls ?? "bg-slate-50 text-slate-600 border-slate-200"
-                } ${on ? "ring-2 ring-offset-1 ring-primary/50" : "hover:brightness-95"}`}
-              >
-                {meta && <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>}
-                {meta?.label ?? r}
-              </button>
-            );
-          })}
-        </div>
+        {match.title && (
+          <span className="text-[11px] font-semibold text-slate-600 truncate max-w-[45%]" title={match.title}>
+            {match.title}
+          </span>
+        )}
       </div>
 
-      {/* Active-reason hint */}
-      {activeMeta && (
-        <div className="px-4 py-2 text-[11px] text-slate-600 bg-white border-b border-gray-100">
-          <span className="font-semibold">{activeMeta.label}:</span> {activeMeta.detail} Đã tô sáng phần trùng ở{" "}
-          <span className="font-semibold">{activeMeta.fields.map((f) => FIELD_LABEL[f]).join(", ")}</span>.
-        </div>
-      )}
+      {/* Four dimension toggles, each doubling as its sub-score bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 py-3 bg-white border-b border-gray-100">
+        {CATEGORY_ORDER.map((c) => {
+          const meta = CATEGORIES[c];
+          const on = active.has(c);
+          const v = breakdownValue(match, c);
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => toggle(c)}
+              title={meta.hint}
+              aria-pressed={on}
+              className={`flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                on ? `${meta.chip} shadow-sm` : "bg-slate-50 text-slate-400 border-slate-200"
+              }`}
+            >
+              <span className="flex items-center gap-1 text-[11px] font-bold">
+                <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>
+                {meta.label}
+                <span className="ml-auto tabular-nums">{pct(v)}%</span>
+              </span>
+              <span className="h-1.5 w-full rounded-full bg-black/5 overflow-hidden">
+                <span
+                  className={`block h-full rounded-full ${on ? meta.bar : "bg-slate-300"}`}
+                  style={{ width: `${Math.max(4, pct(v))}%` }}
+                />
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Translation status */}
-      {translateError && (
-        <div className="px-4 py-2 text-[11px] text-amber-700 bg-amber-50 border-b border-amber-100">
-          Không dịch được (dịch vụ AI chưa sẵn sàng) — đang hiển thị bản gốc tiếng Anh.
-        </div>
-      )}
-      {isVi && !translateError && (
-        <div className="px-4 py-2 text-[11px] text-emerald-700 bg-emerald-50 border-b border-emerald-100">
-          Đã dịch đề tài trùng sang tiếng Việt — phần trùng về lĩnh vực/ngữ nghĩa giờ được tô sáng chính xác hơn.
-        </div>
-      )}
+      {/* Hint */}
+      <div className="px-4 py-2 text-[11px] text-slate-500 bg-white border-b border-gray-100">
+        Mỗi trường có <span className="font-semibold">nhãn góc độ + mức trùng</span> riêng; đoạn/thuật ngữ trùng
+        mạnh nhất được tô ở cả hai cột. Trường không trùng đáng kể để trơn. Bấm hạng mục trên để bật/tắt màu.
+      </div>
 
-      {/* Two columns */}
+      {/* Two columns, side-by-side (rows are field-aligned: mô tả A ↔ mô tả B, …) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-        <ThesisColumn
-          heading="Đề tài đang thẩm định"
-          tone="blue"
-          content={current}
-          shared={sharedByField}
-          highlightFields={highlightFields}
-          markCls={markCls}
-        />
-        <ThesisColumn
-          heading={isVi ? "Đề tài trùng · đã dịch (VI)" : "Đề tài trùng (EN)"}
-          tone="amber"
-          content={other}
-          shared={sharedByField}
-          highlightFields={highlightFields}
-          markCls={markCls}
-        />
+        <ThesisColumn heading="Đề tài đang thẩm định" tone="blue" side="a" content={current} alignments={alignments} active={active} />
+        <ThesisColumn heading="Đề tài có khả năng trùng" tone="amber" side="b" content={other} alignments={alignments} active={active} />
       </div>
+
+      {/* Revision suggestion */}
+      {match.revisionSuggestion && (
+        <div className="flex items-start gap-2 px-4 py-3 bg-emerald-50 border-t border-emerald-100">
+          <span className="material-symbols-outlined text-[16px] text-emerald-600 mt-0.5">lightbulb</span>
+          <p className="text-[11px] text-emerald-800">
+            <span className="font-bold">Gợi ý điều chỉnh: </span>
+            {match.revisionSuggestion}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
-/** One column (a single topic's fields) inside a comparison, with shared tokens highlighted. */
+/** Small pill next to a field label: the field's dominant overlap angle + (semantic) score. */
+function AngleBadge({ angle, score }: Readonly<{ angle: CategoryKey; score: number | null }>) {
+  const meta = CATEGORIES[angle];
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${meta.chip}`}
+    >
+      <span className="material-symbols-outlined text-[11px]">{meta.icon}</span>
+      {meta.label}
+      {score != null && <span className="tabular-nums">· {pct(score)}%</span>}
+    </span>
+  );
+}
+
+/**
+ * One column (a single topic's fields) inside a comparison. Each field pulls its own alignment,
+ * shows an angle badge, and highlights only that field's spans (filtered by the active angles).
+ */
 function ThesisColumn({
   heading,
   tone,
+  side,
   content,
-  shared,
-  highlightFields,
-  markCls,
+  alignments,
+  active,
 }: Readonly<{
   heading: string;
   tone: "blue" | "amber";
+  side: "a" | "b";
   content: Record<FieldKey, string | null>;
-  shared: Record<FieldKey, Set<string>>;
-  highlightFields: Set<FieldKey>;
-  markCls: string;
+  alignments: Map<string, FieldHighlight>;
+  active: Set<CategoryKey>;
 }>) {
   const toneCls =
     tone === "blue"
@@ -1035,18 +1037,23 @@ function ThesisColumn({
   return (
     <div className="p-4 space-y-3 min-w-0">
       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${toneCls}`}>{heading}</span>
-      {ALL_FIELDS.map((f) => (
-        <div key={f}>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{FIELD_LABEL[f]}</p>
-          <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line leading-relaxed break-words">
-            <HighlightedText
-              text={content[f]}
-              tokens={highlightFields.has(f) ? shared[f] : new Set()}
-              markCls={markCls}
-            />
-          </p>
-        </div>
-      ))}
+      {ALL_FIELDS.map((f) => {
+        const align = alignments.get(f);
+        const spans: HighlightSpan[] = align
+          ? (side === "a" ? align.a : align.b).filter((sp) => active.has(sp.angle))
+          : [];
+        return (
+          <div key={f}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{FIELD_LABEL[f]}</p>
+              {align && active.has(align.angle) && <AngleBadge angle={align.angle} score={align.score} />}
+            </div>
+            <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line leading-relaxed break-words">
+              <HighlightedText text={content[f]} spans={spans} />
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }
