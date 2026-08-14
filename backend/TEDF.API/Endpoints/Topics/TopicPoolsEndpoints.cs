@@ -16,6 +16,7 @@ using TEDF.API.Endpoints.Topics.Requests;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 using Microsoft.AspNetCore.Mvc;
+using TEDF.API.Common.Security;
 using TEDF.API.Common.Security.Abstractions;
 using TEDF.API.Common.Security.Validation;
 using TEDF.Application.Common;
@@ -28,6 +29,8 @@ namespace TEDF.API.Endpoints.Topics;
 public sealed class TopicPoolsEndpoints : IEndpoint
 {
     private const long NoteAttachmentMaxBytes = 10 * 1024 * 1024; // 10 MB / file
+    private const int MaxProposalAttachments = 5;                  // free attachments per proposal
+    private const long ProposalMaxBytes = 60 * 1024 * 1024;       // 5×10MB attachments + register form
 
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
@@ -73,6 +76,8 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .DisableAntiforgery()
             .WithTags("TopicPools")
             .WithName("ProposeTopicToPool")
+            .WithMetadata(new RequestSizeLimitAttribute(ProposalMaxBytes))
+            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = ProposalMaxBytes })
             .Produces(201).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
 
         pool.MapPost("/{groupId:guid}/topic-registrations", RequestTopicRegistration)
@@ -151,18 +156,25 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         ISender sender,
         CancellationToken cancellationToken)
     {
+        // Validate every upload BEFORE creating the topic, so a bad file fails fast (no orphan project).
         byte[]? registerFormPdf = null;
         if (body.RegisterForm is { Length: > 0 } registerForm)
         {
             if (!FileUploadValidator.TryValidate([registerForm], NoteAttachmentMaxBytes, maxAttachmentCount: 1, out var registerFormError))
                 return Results.BadRequest(ApiResponse.Fail(registerFormError));
 
-            if (!Path.GetExtension(registerForm.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF."));
+            if (!FileUploadValidator.IsAllowedRegisterFormExtension(registerForm.FileName))
+                return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là PDF, DOC hoặc DOCX."));
 
             using var registerFormStream = new MemoryStream();
             await registerForm.CopyToAsync(registerFormStream, cancellationToken);
             registerFormPdf = registerFormStream.ToArray();
+        }
+
+        if (body.Attachments is { Count: > 0 } attachments
+            && !FileUploadValidator.TryValidate(attachments, NoteAttachmentMaxBytes, MaxProposalAttachments, out var attachmentError))
+        {
+            return Results.BadRequest(ApiResponse.Fail(attachmentError));
         }
 
         var command = new ProposeTopicToPoolCommand(
@@ -180,6 +192,14 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         );
 
         var projectId = await sender.Send(command, cancellationToken);
+
+        // Best-effort: quarantine + malware-scan the register form and attachments so they become viewable
+        // topic documents. The topic already exists, so a queue failure only logs — it never fails the proposal.
+        var scanResult = await ProposalUploadScanner.QueueAsync(
+            scanWorkflow, projectId, currentUser.UserId!.Value, body.RegisterForm, body.Attachments, cancellationToken);
+        if (!scanResult.Success)
+            logger.LogWarning("Proposal {ProjectId}: queueing uploads for malware scan failed: {Error}", projectId, scanResult.ErrorMessage);
+
         return Created($"/api/topic-pools/topics/{projectId}", new { id = projectId }, "Đề xuất đề tài thành công.");
     }
 

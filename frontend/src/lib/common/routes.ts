@@ -117,6 +117,7 @@ export const routes = {
     list: "/api/topics",
     detail: (topicId: string) => `/api/topics/${topicId}`,
     documents: (topicId: string) => `/api/topics/${topicId}/documents`,
+    registerForm: (topicId: string) => `/api/topics/${topicId}/register-form`,
   },
   topicPools: {
     list: "/api/topic-pools",

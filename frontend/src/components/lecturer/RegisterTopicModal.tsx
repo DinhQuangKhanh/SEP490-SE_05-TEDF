@@ -3,7 +3,14 @@ import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TopicPoolDto } from "@/types";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { validateFiles, formatFileSize, ACCEPTED_TYPES, MAX_ATTACHMENTS } from "@/lib/common/fileUploadUtils";
+import {
+  validateFiles,
+  validateRegisterFormFile,
+  formatFileSize,
+  ACCEPTED_TYPES,
+  MAX_ATTACHMENTS,
+  REGISTER_FORM_TYPES,
+} from "@/lib/common/fileUploadUtils";
 import { topicPoolService } from "@/lib";
 
 interface RegisterTopicModalProps {
@@ -43,9 +50,6 @@ const STEPS = [
   { label: "Nội dung", icon: "description" },
   { label: "Tài liệu", icon: "attachment" },
 ];
-
-/** Matches the server-side limit for the register form upload. */
-const MAX_REGISTER_FORM_BYTES = 10 * 1024 * 1024;
 
 // ── Input classes ───────────────────────────────────────────────────────────
 
@@ -156,12 +160,9 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     e.target.value = ""; // allow re-picking the same file after a rejection
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setRegisterFormError("Phiếu đăng ký phải là tệp PDF.");
-      return;
-    }
-    if (file.size > MAX_REGISTER_FORM_BYTES) {
-      setRegisterFormError("Phiếu đăng ký vượt quá 10MB.");
+    const error = validateRegisterFormFile(file);
+    if (error) {
+      setRegisterFormError(error);
       return;
     }
 
@@ -687,9 +688,9 @@ function StepAttachments({
         {/* A heading, not a control label — the file input carries its own label below. */}
         <p className={labelClass}>Phiếu đăng ký (tùy chọn)</p>
         <p className="mb-2 text-xs text-slate-500">
-          Tệp PDF theo mẫu &ldquo;Capstone Project Register&rdquo;. Nếu phiếu đã điền danh sách sinh viên, hệ thống sẽ tự
-          tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành
-          công. Để trống thì đề tài chỉ vào kho như bình thường.
+          Tệp PDF, DOC hoặc DOCX theo mẫu &ldquo;Capstone Project Register&rdquo;. Nếu là <span className="font-semibold">PDF</span>{" "}
+          đã điền danh sách sinh viên, hệ thống sẽ tự tạo nhóm cho các sinh viên đó (nhóm trưởng lấy theo dòng
+          &ldquo;Leader&rdquo;) sau khi đề tài thẩm định thành công. Để trống thì đề tài chỉ vào kho như bình thường.
         </p>
         {registerForm ? (
           <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
@@ -710,8 +711,13 @@ function StepAttachments({
           <label className="flex items-center gap-2 px-4 py-3 text-sm transition-colors border-2 border-dashed cursor-pointer border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 hover:border-primary/40">
             <span className="material-symbols-outlined text-[20px] text-slate-400">upload_file</span>
             <span className="font-medium text-primary">Chọn phiếu đăng ký</span>
-            <span className="text-xs text-slate-400">PDF &mdash; tối đa 10MB</span>
-            <input type="file" className="sr-only" accept=".pdf" onChange={onRegisterFormChange} />
+            <span className="text-xs text-slate-400">PDF, DOC, DOCX &mdash; tối đa 10MB</span>
+            <input
+              type="file"
+              className="sr-only"
+              accept={REGISTER_FORM_TYPES.join(",")}
+              onChange={onRegisterFormChange}
+            />
           </label>
         )}
         {registerFormError && (

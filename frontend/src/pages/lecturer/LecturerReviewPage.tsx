@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSystemError } from "@/contexts/SystemErrorContext";
-import { evaluatorService, checklistService } from "@/lib";
+import { evaluatorService, checklistService, topicService } from "@/lib";
 import type {
   ProjectReviewResponse,
   SimilarityMatchDto,
@@ -11,10 +11,12 @@ import type {
   HighlightSpan,
   ProjectChecklistResponse,
   ChecklistScoreItemInput,
+  TopicDocument,
 } from "@/types";
 import { useSignalR, type ProjectStatusUpdatedPayload } from "@/hooks/useSignalR";
 import { useNotificationTargetRefresh } from "@/hooks/useNotificationTargetRefresh";
 import { EvaluationChecklistModal } from "@/components/lecturer";
+import { TopicAttachmentList } from "@/components/common/TopicAttachmentList";
 
 /** Level bucket (from the DASSF engine) → colours + Vietnamese label for the score pill. */
 function levelStyle(level: string): { bg: string; text: string; border: string; ring: string; label: string } {
@@ -208,6 +210,9 @@ export function LecturerReviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Attachments (register form + documents) for the topic under review.
+  const [documents, setDocuments] = useState<TopicDocument[]>([]);
+
   // Similarity state
   const [matches, setMatches] = useState<SimilarityMatchDto[]>([]);
   const [showSimilarity, setShowSimilarity] = useState(false);
@@ -242,6 +247,15 @@ export function LecturerReviewPage() {
   useEffect(() => {
     fetchProjectForReview();
   }, [fetchProjectForReview]);
+
+  // Attachments come from a separate endpoint; a failure just leaves the list empty.
+  useEffect(() => {
+    if (!id) return;
+    topicService
+      .getTopicDocuments(id)
+      .then(setDocuments)
+      .catch(() => setDocuments([]));
+  }, [id]);
 
   const fetchChecklist = useCallback(() => {
     if (!id) return;
@@ -536,6 +550,17 @@ export function LecturerReviewPage() {
                   </div>
                 )}
               </div>
+            </motion.div>
+
+            {/* Attachments (register form + documents) — preview inline, no download */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="bg-white rounded-xl border border-gray-200 p-5"
+            >
+              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Tài liệu đính kèm</h3>
+              <TopicAttachmentList documents={documents} title={null} />
             </motion.div>
 
             {/* Meta info */}
