@@ -68,8 +68,8 @@ export interface SimilarityHighlights {
 
 /**
  * Element of POST /api/evaluations/projects/{id}/similarity — one match from the DASSF engine,
- * enriched with the matched topic's content, the four sub-scores, a revision suggestion, and the
- * per-dimension highlight spans that drive the side-by-side view.
+ * enriched with the matched topic's content, the four sub-scores, and the per-dimension highlight
+ * spans that drive the side-by-side view. (Per-field "why" text is fetched on demand via …/explain.)
  */
 export interface SimilarityMatchDto {
   /** Id of the other topic in the pair (empty for corpus topics loaded from JSON). */
@@ -84,8 +84,6 @@ export interface SimilarityMatchDto {
   isStructuralDuplication: boolean;
   /** Explanations, e.g. "same tech stack with a different business domain". */
   reasons: string[];
-  /** A concrete revision suggestion for the student. */
-  revisionSuggestion: string | null;
   /** The four sub-scores behind the composite. */
   breakdown: DimensionBreakdown | null;
   /** Overlap spans per dimension for highlighting. */
@@ -108,6 +106,34 @@ export interface CheckSimilarityRequest {
   objectives: string | null;
   expectedResult: string | null;
   technologies: string[];
+}
+
+/** One topic's comparable content for the explain call (title = English title only). */
+export interface TopicContent {
+  title: string | null;
+  description: string | null;
+  scope: string | null;
+  objectives: string | null;
+  expectedResult: string | null;
+  technologies: string[];
+}
+
+/** POST /api/evaluations/projects/{id}/similarity/explain body — the two topics to compare. */
+export interface ExplainSimilarityRequest {
+  query: TopicContent;
+  match: TopicContent;
+}
+
+/**
+ * One field's plain-language "why these overlap" explanation, returned by …/similarity/explain.
+ * Grounded in the same highlight spans the side-by-side view paints, so the two always agree.
+ */
+export interface FieldExplanation {
+  /** FieldKey: title | description | objectives | scope | technologies | expectedResults. */
+  field: string;
+  angle: HighlightAngle | null;
+  score: number | null;
+  explanation: string;
 }
 
 /** POST /api/evaluations/projects/{id}/evaluate */

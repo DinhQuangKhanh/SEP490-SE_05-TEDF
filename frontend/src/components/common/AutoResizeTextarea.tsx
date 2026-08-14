@@ -28,7 +28,7 @@ export function AutoResizeTextarea({ value, maxRows = 20, className = "", ...pro
     <textarea
       ref={textareaRef}
       value={value}
-      // Calculate approximate max height (e.g. 24px per line + padding) 
+      // Calculate approximate max height (e.g. 24px per line + padding)
       // Tailwind text-sm is 20px line-height. py-2.5 is 20px (10px top + 10px bottom).
       // So max height = 20 * 20px + 20px = 420px.
       style={{ maxHeight: "420px", ...props.style }}

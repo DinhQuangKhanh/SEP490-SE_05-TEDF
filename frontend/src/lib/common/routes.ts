@@ -69,6 +69,7 @@ export const routes = {
     projects: "/api/evaluations/projects",
     review: (projectId: string) => `/api/evaluations/projects/${projectId}/review`,
     similarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity`,
+    explainSimilarity: (projectId: string) => `/api/evaluations/projects/${projectId}/similarity/explain`,
     evaluate: (projectId: string) => `/api/evaluations/projects/${projectId}/evaluate`,
     checklist: (projectId: string) => `/api/evaluations/projects/${projectId}/checklist`,
     evaluatorChecklist: (projectId: string, evaluatorId: string) =>
