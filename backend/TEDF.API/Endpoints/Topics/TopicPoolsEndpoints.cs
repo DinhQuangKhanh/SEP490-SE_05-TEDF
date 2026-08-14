@@ -183,6 +183,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
             if (!FileUploadValidator.IsAllowedRegisterFormExtension(registerForm.FileName))
                 return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là PDF, DOC hoặc DOCX."));
+        }
         var userId = currentUser.UserId;
         if (userId is null)
             return Results.Unauthorized();
