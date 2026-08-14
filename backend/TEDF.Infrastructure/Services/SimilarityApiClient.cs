@@ -97,25 +97,54 @@ public class SimilarityApiClient : ISimilarityApiClient
         }
     }
 
-    public async Task<ThesisContentResult?> GetThesisTranslatedAsync(Guid thesisId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SimilarityMatchDto>> AnalyzeAsync(AnalyzeTopicRequest request, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var envelope = await _http.GetFromJsonAsync<Envelope<TranslatedThesisData>>(
-                $"/api/v1/theses/{thesisId}/translate", JsonOptions, cancellationToken);
-            var d = envelope?.Data;
-            if (d is null) return null;
+        var body = new AnalyzeBody(
+            request.Title, request.Description, request.Scope, request.Objectives,
+            request.ExpectedResult, request.Technologies);
 
-            return new ThesisContentResult(
-                d.Title, d.Description, d.Scope, d.Objectives, d.ExpectedResult, null, null,
-                d.Technologies ?? new List<string>(), d.Translated);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not translate thesis {ThesisId} via the similarity service.", thesisId);
-            return null;
-        }
+        using var response = await _http.PostAsJsonAsync("/api/v1/similarity/analyze", body, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<AnalyzeData>>(JsonOptions, cancellationToken);
+        var top = envelope?.Data?.TopMatches ?? [];
+        return top.Select(MapMatch).ToList();
     }
+
+    private static SimilarityMatchDto MapMatch(MatchItem m) => new()
+    {
+        OtherThesisId = Guid.Empty,   // corpus topics come from the JSON, not the web DB
+        OverallScore = m.OverallScore,
+        Level = m.Level ?? string.Empty,
+        Action = m.Action,
+        IsStructuralDuplication = m.IsStructuralDuplication,
+        Reasons = m.Reasons ?? [],
+        RevisionSuggestion = m.RevisionSuggestion,
+        Breakdown = m.Breakdown is null ? null
+            : new DimensionBreakdownDto(m.Breakdown.Semantic, m.Breakdown.Lexical, m.Breakdown.Structure, m.Breakdown.Domain),
+        Title = m.Other?.Title,
+        Description = m.Other?.Description,
+        Scope = m.Other?.Scope,
+        Objectives = m.Other?.Objectives,
+        ExpectedResult = m.Other?.ExpectedResult,
+        Semester = m.OtherSemester,
+        Technologies = m.Other?.Technologies ?? [],
+        Highlights = m.Highlights is null ? null : new SimilarityHighlightsDto
+        {
+            Fields = (m.Highlights.Fields ?? []).Select(MapField).ToList(),
+        },
+    };
+
+    private static FieldHighlightDto MapField(FieldHighlightItem f) => new()
+    {
+        Field = f.Field ?? string.Empty,
+        Angle = f.Angle ?? string.Empty,
+        Score = f.Score,
+        A = (f.A ?? []).Select(MapSpan).ToList(),
+        B = (f.B ?? []).Select(MapSpan).ToList(),
+    };
+
+    private static HighlightSpanDto MapSpan(SpanItem s) => new(s.Text ?? string.Empty, s.Angle ?? string.Empty);
 
     // ── Wire shapes ─────────────────────────────────────────────────────────────
 
@@ -156,12 +185,55 @@ public class SimilarityApiClient : ISimilarityApiClient
         [property: JsonPropertyName("program")] string? Program,
         [property: JsonPropertyName("technologies")] List<string>? Technologies);
 
-    private sealed record TranslatedThesisData(
+    // ── analyze wire shapes ─────────────────────────────────────────────────────
+    private sealed record AnalyzeBody(
+        [property: JsonPropertyName("title")] string Title,
+        [property: JsonPropertyName("description")] string? Description,
+        [property: JsonPropertyName("scope")] string? Scope,
+        [property: JsonPropertyName("objectives")] string? Objectives,
+        [property: JsonPropertyName("expected_result")] string? ExpectedResult,
+        [property: JsonPropertyName("technologies")] IReadOnlyList<string> Technologies);
+
+    private sealed record AnalyzeData(
+        [property: JsonPropertyName("topMatches")] List<MatchItem>? TopMatches);
+
+    private sealed record MatchItem(
+        [property: JsonPropertyName("overall_score")] double OverallScore,
+        [property: JsonPropertyName("level")] string? Level,
+        [property: JsonPropertyName("action")] string? Action,
+        [property: JsonPropertyName("is_structural_duplication")] bool IsStructuralDuplication,
+        [property: JsonPropertyName("reasons")] List<string>? Reasons,
+        [property: JsonPropertyName("revision_suggestion")] string? RevisionSuggestion,
+        [property: JsonPropertyName("breakdown")] BreakdownItem? Breakdown,
+        [property: JsonPropertyName("otherSemester")] string? OtherSemester,
+        [property: JsonPropertyName("other")] OtherContent? Other,
+        [property: JsonPropertyName("highlights")] HighlightsItem? Highlights);
+
+    private sealed record BreakdownItem(
+        [property: JsonPropertyName("semantic")] double Semantic,
+        [property: JsonPropertyName("lexical")] double Lexical,
+        [property: JsonPropertyName("structure")] double Structure,
+        [property: JsonPropertyName("domain")] double Domain);
+
+    private sealed record OtherContent(
         [property: JsonPropertyName("title")] string? Title,
         [property: JsonPropertyName("description")] string? Description,
         [property: JsonPropertyName("scope")] string? Scope,
         [property: JsonPropertyName("objectives")] string? Objectives,
         [property: JsonPropertyName("expected_result")] string? ExpectedResult,
-        [property: JsonPropertyName("technologies")] List<string>? Technologies,
-        [property: JsonPropertyName("translated")] bool Translated);
+        [property: JsonPropertyName("technologies")] List<string>? Technologies);
+
+    private sealed record HighlightsItem(
+        [property: JsonPropertyName("fields")] List<FieldHighlightItem>? Fields);
+
+    private sealed record FieldHighlightItem(
+        [property: JsonPropertyName("field")] string? Field,
+        [property: JsonPropertyName("angle")] string? Angle,
+        [property: JsonPropertyName("score")] double? Score,
+        [property: JsonPropertyName("a")] List<SpanItem>? A,
+        [property: JsonPropertyName("b")] List<SpanItem>? B);
+
+    private sealed record SpanItem(
+        [property: JsonPropertyName("text")] string? Text,
+        [property: JsonPropertyName("angle")] string? Angle);
 }

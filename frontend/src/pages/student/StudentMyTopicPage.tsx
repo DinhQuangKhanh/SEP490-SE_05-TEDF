@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { MemberProfileModal } from "@/components/common/MemberProfileModal";
+import { TopicAttachmentList } from "@/components/common/TopicAttachmentList";
 import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
 import { notificationService, studentGroupService, topicService } from "@/lib";
 import type { GroupMemberDto, GroupRegistrationDto, StudentGroupDto, TopicDetail, TopicDocument } from "@/types";
@@ -238,29 +239,7 @@ function TopicSidePanels({ documents, group }: { documents: TopicDocument[]; gro
           <h3 className="font-bold text-[#101319]">Tài liệu đính kèm</h3>
         </div>
         <div className="p-5">
-          {documents.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {documents.map((doc) => {
-                const ext = `.${doc.originalFileName.split(".").pop()?.toLowerCase() ?? ""}`;
-                return (
-                  <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50">
-                    <span className="material-symbols-outlined text-primary shrink-0">{FILE_ICON_MAP[ext] ?? "draft"}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-[#101319] truncate">{doc.originalFileName}</p>
-                      <p className="text-[10px] text-[#58698d]">
-                        {formatFileSize(doc.fileSize)} · {formatDate(doc.uploadedAt)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-              <span className="text-3xl text-gray-300 material-symbols-outlined">folder_open</span>
-              <p className="text-xs text-[#58698d]">Chưa có tài liệu đính kèm.</p>
-            </div>
-          )}
+          <TopicAttachmentList documents={documents} title={null} />
         </div>
       </div>
 
@@ -997,34 +976,14 @@ export function StudentMyTopicPage() {
                       </div>
                     )}
 
-                    {/* Uploaded documents list */}
-                    {documents.length > 0 ? (
-                      <div className="flex flex-col gap-2 overflow-y-auto max-h-64">
-                        {documents.map((doc) => {
-                          const ext = `.${doc.originalFileName.split(".").pop()?.toLowerCase() ?? ""}`;
-                          const icon = FILE_ICON_MAP[ext] ?? "draft";
-                          return (
-                            <div
-                              key={doc.id}
-                              className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                            >
-                              <span className="text-xl material-symbols-outlined text-primary shrink-0">{icon}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-[#101319] truncate">{doc.originalFileName}</p>
-                                <p className="text-[10px] text-[#58698d]">
-                                  {formatFileSize(doc.fileSize)} · {formatDate(doc.uploadedAt)} · {doc.uploadedByName}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-                        <span className="text-3xl text-gray-300 material-symbols-outlined">folder_open</span>
-                        <p className="text-xs text-[#58698d]">Chưa có tài liệu nào được tải lên.</p>
-                      </div>
-                    )}
+                    {/* Uploaded documents list (click to preview inline) */}
+                    <div className="overflow-y-auto max-h-64">
+                      <TopicAttachmentList
+                        documents={documents}
+                        title={null}
+                        emptyText="Chưa có tài liệu nào được tải lên."
+                      />
+                    </div>
 
                     {/* Pending files */}
                     {pendingFiles.length > 0 && (
