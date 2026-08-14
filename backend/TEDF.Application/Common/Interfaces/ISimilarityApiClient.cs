@@ -27,11 +27,21 @@ public interface ISimilarityApiClient
     Task<ThesisContentResult?> GetThesisAsync(Guid thesisId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Fetches a topic's content translated to Vietnamese (GET /api/v1/theses/{id}/translate) so a
-    /// reviewer can compare in one language. Falls back to the original text if the LLM is off.
+    /// Runs the full DASSF pipeline on a topic's content against the two most-recent semesters
+    /// (POST /api/v1/similarity/analyze) and returns the top matches — each with the four sub-scores,
+    /// the matched topic's content, a revision suggestion, and per-dimension highlight spans.
     /// </summary>
-    Task<ThesisContentResult?> GetThesisTranslatedAsync(Guid thesisId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SimilarityMatchDto>> AnalyzeAsync(AnalyzeTopicRequest request, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The topic-under-review's content sent to the DASSF analyze endpoint.</summary>
+public sealed record AnalyzeTopicRequest(
+    string Title,
+    string? Description,
+    string? Scope,
+    string? Objectives,
+    string? ExpectedResult,
+    IReadOnlyList<string> Technologies);
 
 /// <summary>The content of a topic in the similarity corpus, for the comparison view.</summary>
 public sealed record ThesisContentResult(

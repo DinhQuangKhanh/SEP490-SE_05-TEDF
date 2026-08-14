@@ -16,6 +16,7 @@ using TEDF.API.Endpoints.Topics.Requests;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
 using Microsoft.AspNetCore.Mvc;
+using TEDF.API.Common.Security;
 using TEDF.API.Common.Security.Abstractions;
 using TEDF.API.Common.Security.Validation;
 using TEDF.Application.Common;
@@ -29,6 +30,8 @@ namespace TEDF.API.Endpoints.Topics;
 public sealed class TopicPoolsEndpoints : IEndpoint
 {
     private const long NoteAttachmentMaxBytes = 10 * 1024 * 1024; // 10 MB / file
+    private const int MaxProposalAttachments = 5;                  // free attachments per proposal
+    private const long ProposalMaxBytes = 60 * 1024 * 1024;       // 5×10MB attachments + register form
 
     // Propose-topic upload budget: the register form plus up to five supporting documents.
     private const long ProposalUploadMaxBytes = 25 * 1024 * 1024;
@@ -220,6 +223,12 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
         using var registerFormStream = new MemoryStream();
         await registerForm.CopyToAsync(registerFormStream, cancellationToken);
+
+        if (attachments.Count > 0
+            && !FileUploadValidator.TryValidate(attachments, NoteAttachmentMaxBytes, MaxProposalAttachments, out var attachmentError))
+        {
+            return Results.BadRequest(ApiResponse.Fail(attachmentError));
+        }
 
         var command = new ProposeTopicToPoolCommand(
             PoolId: poolId,
