@@ -50,10 +50,7 @@ const STEPS = [
   { label: "Tài liệu", icon: "attachment" },
 ];
 
-/** Matches the server-side limit for the register form upload. */
-const MAX_REGISTER_FORM_BYTES = 10 * 1024 * 1024;
-
-/** The formats the server can read a roster out of. */
+/** The formats the server can read a roster out of (size + extension are enforced by validateRegisterFormFile). */
 const REGISTER_FORM_TYPES = [".pdf", ".docx"];
 
 // ── Input classes ───────────────────────────────────────────────────────────
@@ -179,272 +176,266 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     e.target.value = ""; // allow re-picking the same file after a rejection
     if (!file) return;
 
+    // validateRegisterFormFile checks both the extension (PDF/DOC/DOCX) and the size cap.
     const error = validateRegisterFormFile(file);
     if (error) {
       setRegisterFormError(error);
-      if (!REGISTER_FORM_TYPES.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-        setRegisterFormError("Phiếu đăng ký phải là tệp PDF hoặc DOCX.");
-        return;
-      }
-      if (file.size > MAX_REGISTER_FORM_BYTES) {
-        setRegisterFormError("Phiếu đăng ký vượt quá 10MB.");
-        return;
-      }
+      return;
+    }
 
-      setRegisterFormError(null);
-      setRegisterForm(file);
-    };
+    setRegisterFormError(null);
+    setRegisterForm(file);
+  };
 
-    const removeFile = (idx: number) => {
-      setAttachments((prev) => prev.filter((_, i) => i !== idx));
-      setFileWarnings([]);
-    };
+  const removeFile = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+    setFileWarnings([]);
+  };
 
-    const handleSubmit = async () => {
-      setSubmitting(true);
-      setError(null);
-      try {
-        const fd = new window.FormData();
-        fd.append("nameVi", form.nameVi);
-        fd.append("nameEn", form.nameEn);
-        fd.append("nameAbbr", form.nameAbbr);
-        fd.append("description", form.description);
-        fd.append("objectives", form.objectives);
-        if (form.scope) fd.append("scope", form.scope);
-        if (form.technologies) fd.append("technologies", form.technologies);
-        if (form.expectedResults) fd.append("expectedResults", form.expectedResults);
-        fd.append("maxStudents", form.maxStudents.toString());
-        attachments.forEach((f) => fd.append("attachments", f));
-        if (registerForm) fd.append("registerForm", registerForm);
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const fd = new window.FormData();
+      fd.append("nameVi", form.nameVi);
+      fd.append("nameEn", form.nameEn);
+      fd.append("nameAbbr", form.nameAbbr);
+      fd.append("description", form.description);
+      fd.append("objectives", form.objectives);
+      if (form.scope) fd.append("scope", form.scope);
+      if (form.technologies) fd.append("technologies", form.technologies);
+      if (form.expectedResults) fd.append("expectedResults", form.expectedResults);
+      fd.append("maxStudents", form.maxStudents.toString());
+      attachments.forEach((f) => fd.append("attachments", f));
+      if (registerForm) fd.append("registerForm", registerForm);
 
-        await topicPoolService.proposeTopic(form.poolId, fd);
-        setShowSuccess(true);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Đề xuất thất bại. Vui lòng thử lại.");
-      } finally {
-        setSubmitting(false);
-      }
-    };
+      await topicPoolService.proposeTopic(form.poolId, fd);
+      setShowSuccess(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Đề xuất thất bại. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    const selectedPool = pools.find((p) => p.id === form.poolId);
+  const selectedPool = pools.find((p) => p.id === form.poolId);
 
-    return (
-      <AnimatePresence>
-        {isOpen && (
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => onClose()}
+        >
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-            onClick={() => onClose()}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            onClick={(e) => e.stopPropagation()}
+            // ~90% of the viewport, capped so the form does not stretch to unreadable line lengths
+            // on ultrawide monitors: 90% at 1280px, 83% at 1920px.
+            className="bg-white w-[90vw] max-w-[1600px] max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              // ~90% of the viewport, capped so the form does not stretch to unreadable line lengths
-              // on ultrawide monitors: 90% at 1280px, 83% at 1920px.
-              className="bg-white w-[90vw] max-w-[1600px] max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-            >
-              {/* Success overlay */}
-              {showSuccess ? (
-                <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
-                    className="flex items-center justify-center mb-6 rounded-full size-20 bg-emerald-100"
+            {/* Success overlay */}
+            {showSuccess ? (
+              <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", damping: 15, stiffness: 200, delay: 0.1 }}
+                  className="flex items-center justify-center mb-6 rounded-full size-20 bg-emerald-100"
+                >
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3, type: "spring", damping: 12 }}
+                    className="material-symbols-outlined text-emerald-600 text-[40px]"
                   >
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.3, type: "spring", damping: 12 }}
-                      className="material-symbols-outlined text-emerald-600 text-[40px]"
-                    >
-                      check_circle
-                    </motion.span>
-                  </motion.div>
-                  <motion.h2
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="mb-3 text-xl font-bold text-slate-900"
+                    check_circle
+                  </motion.span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="mb-3 text-xl font-bold text-slate-900"
+                >
+                  Đề xuất thành công!
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="max-w-md mb-8 text-sm leading-relaxed text-slate-600"
+                >
+                  Đã đề xuất thành công, chủ nhiệm bộ môn sẽ phân công người thẩm định và sớm gửi kết quả thẩm định về
+                  cho bạn.
+                </motion.p>
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  onClick={() => onClose(true)}
+                  className="px-8 py-3 text-sm font-semibold text-white transition-all shadow-lg rounded-xl bg-primary hover:bg-primary/90 shadow-blue-900/10"
+                >
+                  Đóng
+                </motion.button>
+              </div>
+            ) : (
+              <>
+                {/* Header with breadcrumb */}
+                <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 shrink-0">
+                  <div>
+                    <h1 className="text-xl font-extrabold text-slate-900">Đăng Ký Đề Tài Mới</h1>
+                    <p className="text-xs text-slate-500 mt-0.5">Điền thông tin để đề xuất đề tài vào kho</p>
+                  </div>
+                  <button
+                    onClick={() => onClose()}
+                    className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg"
                   >
-                    Đề xuất thành công!
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="max-w-md mb-8 text-sm leading-relaxed text-slate-600"
-                  >
-                    Đã đề xuất thành công, chủ nhiệm bộ môn sẽ phân công người thẩm định và sớm gửi kết quả thẩm định về
-                    cho bạn.
-                  </motion.p>
-                  <motion.button
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    onClick={() => onClose(true)}
-                    className="px-8 py-3 text-sm font-semibold text-white transition-all shadow-lg rounded-xl bg-primary hover:bg-primary/90 shadow-blue-900/10"
-                  >
-                    Đóng
-                  </motion.button>
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
                 </div>
-              ) : (
-                <>
-                  {/* Header with breadcrumb */}
-                  <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 shrink-0">
-                    <div>
-                      <h1 className="text-xl font-extrabold text-slate-900">Đăng Ký Đề Tài Mới</h1>
-                      <p className="text-xs text-slate-500 mt-0.5">Điền thông tin để đề xuất đề tài vào kho</p>
+
+                {/* Step indicator */}
+                <div className="px-8 py-4 border-b border-slate-50 bg-slate-50/50 shrink-0">
+                  <div className="flex items-center gap-2">
+                    {STEPS.map((s, idx) => (
+                      <div key={s.label} className="flex items-center flex-1 gap-2">
+                        <div
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${idx < step
+                            ? "bg-emerald-100 text-emerald-700"
+                            : idx === step
+                              ? "bg-primary text-white shadow-sm"
+                              : "bg-slate-100 text-slate-400"
+                            }`}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            {idx < step ? "check_circle" : s.icon}
+                          </span>
+                          <span className="hidden sm:inline">{s.label}</span>
+                        </div>
+                        {idx < STEPS.length - 1 && (
+                          <div className={`flex-1 h-px ${idx < step ? "bg-emerald-300" : "bg-slate-200"}`} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Content area */}
+                <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[420px]">
+                  <AnimatePresence mode="wait" custom={dir}>
+                    <motion.div
+                      key={step}
+                      custom={dir}
+                      variants={slideVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                    >
+                      {step === 0 && (
+                        <StepPool
+                          pools={pools}
+                          loading={loadingPools}
+                          selectedId={form.poolId}
+                          onSelect={(id) => set("poolId", id)}
+                        />
+                      )}
+                      {step === 1 && <StepBasicInfo form={form} set={set} />}
+                      {step === 2 && <StepContent form={form} set={set} />}
+                      {step === 3 && (
+                        <StepAttachments
+                          attachments={attachments}
+                          warnings={fileWarnings}
+                          fileInputRef={fileInputRef}
+                          onFileChange={handleFiles}
+                          onDrop={handleDrop}
+                          onRemove={removeFile}
+                          selectedPool={selectedPool}
+                          form={form}
+                          registerForm={registerForm}
+                          registerFormError={registerFormError}
+                          onRegisterFormChange={handleRegisterForm}
+                        />
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <div className="px-8 py-2">
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[18px]">error</span>
+                      {error}
                     </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-8 py-5 border-t bg-slate-50 border-slate-200 shrink-0">
+                  <div>
+                    {step > 0 && (
+                      <button
+                        onClick={goPrev}
+                        className="px-4 py-2.5 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                        Quay lại
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
                     <button
                       onClick={() => onClose()}
-                      className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-100 rounded-lg"
+                      className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
                     >
-                      <span className="material-symbols-outlined">close</span>
+                      Hủy bỏ
                     </button>
-                  </div>
-
-                  {/* Step indicator */}
-                  <div className="px-8 py-4 border-b border-slate-50 bg-slate-50/50 shrink-0">
-                    <div className="flex items-center gap-2">
-                      {STEPS.map((s, idx) => (
-                        <div key={s.label} className="flex items-center flex-1 gap-2">
-                          <div
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${idx < step
-                              ? "bg-emerald-100 text-emerald-700"
-                              : idx === step
-                                ? "bg-primary text-white shadow-sm"
-                                : "bg-slate-100 text-slate-400"
-                              }`}
-                          >
-                            <span className="material-symbols-outlined text-[14px]">
-                              {idx < step ? "check_circle" : s.icon}
-                            </span>
-                            <span className="hidden sm:inline">{s.label}</span>
-                          </div>
-                          {idx < STEPS.length - 1 && (
-                            <div className={`flex-1 h-px ${idx < step ? "bg-emerald-300" : "bg-slate-200"}`} />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Content area */}
-                  <div className="flex-1 overflow-y-auto px-8 py-6 relative min-h-[420px]">
-                    <AnimatePresence mode="wait" custom={dir}>
-                      <motion.div
-                        key={step}
-                        custom={dir}
-                        variants={slideVariants}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
-                        transition={{ duration: 0.25, ease: "easeInOut" }}
-                      >
-                        {step === 0 && (
-                          <StepPool
-                            pools={pools}
-                            loading={loadingPools}
-                            selectedId={form.poolId}
-                            onSelect={(id) => set("poolId", id)}
-                          />
-                        )}
-                        {step === 1 && <StepBasicInfo form={form} set={set} />}
-                        {step === 2 && <StepContent form={form} set={set} />}
-                        {step === 3 && (
-                          <StepAttachments
-                            attachments={attachments}
-                            warnings={fileWarnings}
-                            fileInputRef={fileInputRef}
-                            onFileChange={handleFiles}
-                            onDrop={handleDrop}
-                            onRemove={removeFile}
-                            selectedPool={selectedPool}
-                            form={form}
-                            registerForm={registerForm}
-                            registerFormError={registerFormError}
-                            onRegisterFormChange={handleRegisterForm}
-                          />
-                        )}
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Error */}
-                  {error && (
-                    <div className="px-8 py-2">
-                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[18px]">error</span>
-                        {error}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between px-8 py-5 border-t bg-slate-50 border-slate-200 shrink-0">
-                    <div>
-                      {step > 0 && (
-                        <button
-                          onClick={goPrev}
-                          className="px-4 py-2.5 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                          Quay lại
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex gap-3">
+                    {step < STEPS.length - 1 ? (
                       <button
-                        onClick={() => onClose()}
-                        className="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold shadow-sm hover:bg-slate-50 transition-all"
+                        onClick={goNext}
+                        disabled={!canProceed()}
+                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Hủy bỏ
+                        Tiếp theo
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                       </button>
-                      {step < STEPS.length - 1 ? (
-                        <button
-                          onClick={goNext}
-                          disabled={!canProceed()}
-                          className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Tiếp theo
-                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleSubmit}
-                          disabled={submitting || !canProceed()}
-                          title={registerForm ? undefined : "Vui lòng tải lên phiếu đăng ký trước khi gửi."}
-                          className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {submitting ? (
-                            <>
-                              <span className="border-2 rounded-full size-4 border-white/30 border-t-white animate-spin" />
-                              Đang gửi...
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined text-[18px]">send</span>
-                              Gửi phê duyệt
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !canProceed()}
+                        title={registerForm ? undefined : "Vui lòng tải lên phiếu đăng ký trước khi gửi."}
+                        className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-md shadow-blue-900/10 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? (
+                          <>
+                            <span className="border-2 rounded-full size-4 border-white/30 border-t-white animate-spin" />
+                            Đang gửi...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">send</span>
+                            Gửi phê duyệt
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
-                </>
-              )}
-            </motion.div>
+                </div>
+              </>
+            )}
           </motion.div>
-        )}
-      </AnimatePresence>
-    );
-  }
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   // ── Step 0: Pool Selection ──────────────────────────────────────────────────
 
