@@ -166,6 +166,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
+    // Never serve API reads from the HTTP cache. Otherwise an in-app refetch right after a mutation
+    // (e.g. re-uploading the register form) can be answered from cache and the UI only updates after a
+    // full page reload (which revalidates). Freshness is managed by the app, not the browser cache.
+    cache: "no-store",
     headers,
   });
 
@@ -212,7 +216,7 @@ export const apiClient = {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    const response = await fetch(`${API_BASE}${path}`, { headers });
+    const response = await fetch(`${API_BASE}${path}`, { headers, cache: "no-store" });
     if (!response.ok) {
       const { message, code } = await buildErrorMessage(response);
       throw new ApiError(message, response.status, code);
