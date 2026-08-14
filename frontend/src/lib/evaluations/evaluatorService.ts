@@ -6,6 +6,8 @@ import {
   EvaluatorHistoryResponse,
   EvaluatorProjectsFilters,
   EvaluatorProjectsResponse,
+  ExplainSimilarityRequest,
+  FieldExplanation,
   ProjectReviewResponse,
   SimilarityMatchDto,
 } from "@/types";
@@ -43,6 +45,10 @@ export const evaluatorService = {
 
   checkSimilarity: (projectId: string, body: CheckSimilarityRequest): Promise<SimilarityMatchDto[]> =>
     apiClient.post<SimilarityMatchDto[]>(routes.evaluator.similarity(projectId), body),
+
+  /** Fetch the per-field "why these overlap" explanations for one match (grounded in the highlights). */
+  explainSimilarity: (projectId: string, body: ExplainSimilarityRequest): Promise<FieldExplanation[]> =>
+    apiClient.post<FieldExplanation[]>(routes.evaluator.explainSimilarity(projectId), body),
 
   submitEvaluation: (projectId: string, data: { result: number; feedback?: string }): Promise<string> =>
     apiClient.post<string>(routes.evaluator.evaluate(projectId), data),

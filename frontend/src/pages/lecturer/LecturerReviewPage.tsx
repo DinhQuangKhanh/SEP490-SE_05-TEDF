@@ -7,10 +7,11 @@ import type {
   ProjectReviewResponse,
   SimilarityMatchDto,
   CheckSimilarityRequest,
+  ExplainSimilarityRequest,
+  FieldExplanation,
   FieldHighlight,
   HighlightSpan,
   ProjectChecklistResponse,
-  ChecklistScoreItemInput,
   TopicDocument,
   ChecklistEvaluationItemInput,
 } from "@/types";
@@ -187,9 +188,8 @@ function ChecklistBadge({
   if (checklist?.hasActiveConfig) {
     return (
       <span
-        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-          canApprove ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-700"
-        }`}
+        className={`rounded-full px-2 py-0.5 text-xs font-bold ${canApprove ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-700"
+          }`}
       >
         {checklist.passedCount}/{total}
       </span>
@@ -673,23 +673,20 @@ export function LecturerReviewPage() {
                         ? approveGateMessage(hasActiveConfig, checklistRequired, checklistTotal)
                         : undefined
                     }
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-                      selected
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${selected
                         ? `border-${color}-500 bg-${color}-50`
                         : `border-gray-200 hover:border-${color}-300`
-                    }`}
+                      }`}
                   >
                     <span
-                      className={`material-symbols-outlined text-2xl mb-1 ${
-                        selected ? `text-${color}-600` : "text-gray-400"
-                      }`}
+                      className={`material-symbols-outlined text-2xl mb-1 ${selected ? `text-${color}-600` : "text-gray-400"
+                        }`}
                     >
                       {icon}
                     </span>
                     <span
-                      className={`text-xs font-bold ${
-                        selected ? `text-${color}-600` : "text-slate-500"
-                      }`}
+                      className={`text-xs font-bold ${selected ? `text-${color}-600` : "text-slate-500"
+                        }`}
                     >
                       {label}
                     </span>
@@ -939,6 +936,47 @@ function MatchComparison({
     (match.highlights?.fields ?? []).map((f) => [f.field, f]),
   );
 
+  // Per-field "why these overlap" text, fetched on demand. Grounded in the SAME highlight spans
+  // above, so the narrative can never disagree with the colours painted in the two columns.
+  const [explanations, setExplanations] = useState<FieldExplanation[] | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+
+  const handleExplain = useCallback(async () => {
+    setExplaining(true);
+    setExplainError(null);
+    try {
+      // Same technologies parsing as the similarity check: the field is stored as one string.
+      const queryTech = (project.technologies ?? "")
+        .split(/[,;\n]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const body: ExplainSimilarityRequest = {
+        query: {
+          title: project.nameEn || project.nameVi,
+          description: project.description || null,
+          scope: project.scope,
+          objectives: project.objectives || null,
+          expectedResult: project.expectedResults,
+          technologies: queryTech,
+        },
+        match: {
+          title: match.title,
+          description: match.description,
+          scope: match.scope,
+          objectives: match.objectives,
+          expectedResult: match.expectedResult,
+          technologies: match.technologies,
+        },
+      };
+      setExplanations(await evaluatorService.explainSimilarity(project.projectId, body));
+    } catch {
+      setExplainError("Không thể tạo giải thích. Vui lòng thử lại sau.");
+    } finally {
+      setExplaining(false);
+    }
+  }, [project, match]);
+
   return (
     <div className="rounded-xl border border-gray-200 overflow-hidden">
       {/* Header: rank + score + level (+ structural-duplication flag + matched title) */}
@@ -977,9 +1015,8 @@ function MatchComparison({
               onClick={() => toggle(c)}
               title={meta.hint}
               aria-pressed={on}
-              className={`flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-left transition-all ${
-                on ? `${meta.chip} shadow-sm` : "bg-slate-50 text-slate-400 border-slate-200"
-              }`}
+              className={`flex flex-col gap-1 rounded-lg border px-2.5 py-2 text-left transition-all ${on ? `${meta.chip} shadow-sm` : "bg-slate-50 text-slate-400 border-slate-200"
+                }`}
             >
               <span className="flex items-center gap-1 text-[11px] font-bold">
                 <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>
@@ -1003,22 +1040,53 @@ function MatchComparison({
         mạnh nhất được tô ở cả hai cột. Trường không trùng đáng kể để trơn. Bấm hạng mục trên để bật/tắt màu.
       </div>
 
+      {/* Explain overlap — per field, grounded in the same highlight spans painted below */}
+      <div className="px-4 py-3 bg-white border-b border-gray-100">
+        {!explanations && (
+          <button
+            type="button"
+            onClick={handleExplain}
+            disabled={explaining}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-[13px] font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:opacity-60"
+          >
+            <span className={`material-symbols-outlined text-[16px] ${explaining ? "animate-spin" : ""}`}>
+              {explaining ? "progress_activity" : "chat"}
+            </span>
+            {explaining ? "Đang tạo giải thích…" : "Giải thích trùng lặp (AI)"}
+          </button>
+        )}
+
+        {explainError && <p className="mt-1 text-[11px] font-medium text-red-600">{explainError}</p>}
+
+        {explanations &&
+          (explanations.length === 0 ? (
+            <p className="text-[11px] text-slate-500">Không có hạng mục nào trùng đáng kể để giải thích.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                <span className="material-symbols-outlined text-[15px] text-indigo-600">chat</span>
+                Giải thích trùng lặp theo từng hạng mục
+              </p>
+              {explanations.map((e) => (
+                <div key={e.field} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {FIELD_LABEL[e.field as FieldKey] ?? e.field}
+                    </span>
+                    {e.angle && <AngleBadge angle={e.angle as CategoryKey} score={e.score} />}
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-slate-700">{e.explanation}</p>
+                </div>
+              ))}
+            </div>
+          ))}
+      </div>
+
       {/* Two columns, side-by-side (rows are field-aligned: mô tả A ↔ mô tả B, …) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
         <ThesisColumn heading="Đề tài đang thẩm định" tone="blue" side="a" content={current} alignments={alignments} active={active} />
         <ThesisColumn heading="Đề tài có khả năng trùng" tone="amber" side="b" content={other} alignments={alignments} active={active} />
       </div>
-
-      {/* Revision suggestion */}
-      {match.revisionSuggestion && (
-        <div className="flex items-start gap-2 px-4 py-3 bg-emerald-50 border-t border-emerald-100">
-          <span className="material-symbols-outlined text-[16px] text-emerald-600 mt-0.5">lightbulb</span>
-          <p className="text-[11px] text-emerald-800">
-            <span className="font-bold">Gợi ý điều chỉnh: </span>
-            {match.revisionSuggestion}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
