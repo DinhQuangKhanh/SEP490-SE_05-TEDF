@@ -593,9 +593,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
             onChange={(e) => set("objectives", e.target.value)}
             className={textareaClass}
             placeholder="Mô tả mục tiêu chính mà sinh viên cần đạt được..."
-            maxLength={500}
           />
-          <p className="mt-1 text-xs text-right text-slate-400">{form.objectives.length}/500 ký tự</p>
         </div>
         <div>
           <label className={labelClass}>
