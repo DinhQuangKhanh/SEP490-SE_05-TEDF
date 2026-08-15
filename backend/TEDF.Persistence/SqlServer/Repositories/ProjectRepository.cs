@@ -194,11 +194,19 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
         public async Task<List<Project>> GetExpirablePoolTopicsAsync(int currentSemesterId, CancellationToken cancellationToken = default)
         {
+            // Semester Ids are handed out by creation order (MAX(Id)+1), not chronological order, so
+            // "is this expiry semester in the past" has to be asked of StartDate, never of the Id.
+            var currentStart = await _context.Semesters.AsNoTracking()
+                .Where(s => s.Id == currentSemesterId)
+                .Select(s => (DateTime?)s.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (currentStart is null) return [];
+            var startedBefore = currentStart.Value;
+
             return await _dbSet
                 .Where(p => p.SourceType == ProjectSourceType.FromPool &&
                            p.PoolStatus == PoolTopicStatus.Available &&
-                           p.ExpirationSemesterId.HasValue &&
-                           p.ExpirationSemesterId.Value < currentSemesterId)
+                           _context.Semesters.Any(s => s.Id == p.ExpirationSemesterId && s.StartDate < startedBefore))
                 .ToListAsync(cancellationToken);
         }
 
@@ -208,7 +216,6 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .Where(p => p.SourceType == ProjectSourceType.FromPool &&
                            p.PoolStatus == PoolTopicStatus.Available &&
                            p.Status == ProjectStatus.Approved &&
-                           p.CreatedInSemesterId.HasValue &&
                            p.TopicPoolId.HasValue &&
                            !p.ExpirationSemesterId.HasValue)
                 .ToListAsync(cancellationToken);
@@ -289,13 +296,22 @@ namespace TEDF.Persistence.SqlServer.Repositories
 
         public async Task<List<(Guid MentorId, int MajorId)>> GetPoolMentorAssignmentsForSemesterAsync(int semesterId, CancellationToken cancellationToken = default)
         {
+            // Chronological, not by Id — semester Ids follow creation order (see GetExpirablePoolTopicsAsync).
+            var semesterStart = await _context.Semesters.AsNoTracking()
+                .Where(s => s.Id == semesterId)
+                .Select(s => (DateTime?)s.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (semesterStart is null) return [];
+            var startedOnOrAfter = semesterStart.Value;
+
             var rows = await _dbSet
                 .AsNoTracking()
                 .Where(p => p.SourceType == ProjectSourceType.FromPool &&
                            (p.PoolStatus == PoolTopicStatus.Available || p.PoolStatus == PoolTopicStatus.Reserved) &&
                            p.Status != ProjectStatus.Cancelled &&
                            p.Status != ProjectStatus.Rejected &&
-                           (p.ExpirationSemesterId == null || p.ExpirationSemesterId >= semesterId))
+                           (p.ExpirationSemesterId == null ||
+                            _context.Semesters.Any(s => s.Id == p.ExpirationSemesterId && s.StartDate >= startedOnOrAfter)))
                 .SelectMany(p => p.Mentors
                     .Where(m => m.Status == ProjectMentorStatus.Active)
                     .Select(m => new { m.MentorId, p.MajorId }))
