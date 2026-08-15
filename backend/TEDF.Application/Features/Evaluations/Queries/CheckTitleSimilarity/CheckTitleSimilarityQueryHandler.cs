@@ -19,28 +19,19 @@ public class CheckTitleSimilarityQueryHandler : IQueryHandler<CheckTitleSimilari
 
     public async Task<List<SimilarityMatchDto>> Handle(CheckTitleSimilarityQuery request, CancellationToken cancellationToken)
     {
-        var matches = await _similarityApi.RunSimilarityForNewAsync(request.ProjectId, cancellationToken);
+        // Send the topic's full content to the DASSF analyze endpoint, which compares it against the
+        // two most-recent semesters and returns the top matches already enriched with the matched
+        // topic's content, the four sub-scores, a revision suggestion, and per-dimension highlights.
+        var matches = await _similarityApi.AnalyzeAsync(
+            new AnalyzeTopicRequest(
+                request.Title,
+                request.Description,
+                request.Scope,
+                request.Objectives,
+                request.ExpectedResult,
+                request.Technologies),
+            cancellationToken);
 
-        // Only the top 5 matter to a reviewer. Enrich each with the matched topic's content
-        // (fetched from the similarity service) so the UI can show it side-by-side and highlight
-        // the overlapping text.
-        var enriched = await Task.WhenAll(matches.Take(5).Select(async match =>
-        {
-            var content = await _similarityApi.GetThesisAsync(match.OtherThesisId, cancellationToken);
-            if (content is null) return match;
-
-            return match with
-            {
-                Title = content.Title,
-                Description = content.Description,
-                Scope = content.Scope,
-                Objectives = content.Objectives,
-                ExpectedResult = content.ExpectedResult,
-                Semester = content.Semester,
-                Technologies = content.Technologies.ToList(),
-            };
-        }));
-
-        return enriched.ToList();
+        return matches.ToList();
     }
 }

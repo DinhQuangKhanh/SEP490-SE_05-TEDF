@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 import { Modal } from "@/components/common/Modal";
+import { TopicAttachmentList } from "@/components/common/TopicAttachmentList";
+import { validateRegisterFormFile, REGISTER_FORM_TYPES } from "@/lib/common/fileUploadUtils";
 import { motion, AnimatePresence } from "framer-motion";
 import { RegisterTopicModal } from "@/components/lecturer";
 import {
@@ -195,24 +197,10 @@ function ReadonlyTopicDetail({
       {detail.technologies && <DetailSection title="Công nghệ sử dụng" content={detail.technologies} />}
       {detail.expectedResults && <DetailSection title="Kết quả mong đợi" content={detail.expectedResults} />}
 
-      {documents.length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tài liệu đính kèm</h4>
-          <div className="space-y-2">
-            {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <span className="material-symbols-outlined text-slate-400 text-[20px]">attach_file</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{doc.originalFileName}</p>
-                  <p className="text-xs text-slate-400">
-                    {(doc.fileSize / 1024).toFixed(1)} KB &middot; {formatDate(doc.uploadedAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div>
+        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tài liệu đính kèm</h4>
+        <TopicAttachmentList documents={documents} title={null} />
+      </div>
     </div>
   );
 }
@@ -226,6 +214,7 @@ function DetailModalShell({
   headerExtra,
   onClose,
   children,
+  maxWidthClass = "max-w-2xl",
 }: {
   code: string;
   statusValue: number;
@@ -234,6 +223,8 @@ function DetailModalShell({
   headerExtra?: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  /** Tailwind max-width class for the card (default max-w-2xl). */
+  maxWidthClass?: string;
 }) {
   const sc = statusConfig(statusValue);
   return (
@@ -248,7 +239,7 @@ function DetailModalShell({
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidthClass} max-h-[88vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -1153,8 +1144,35 @@ function TopicDetailModal({
   const [editError, setEditError] = useState<string | null>(null);
   const [resubmitLoading, setResubmitLoading] = useState(false);
   const [resubmitError, setResubmitError] = useState<string | null>(null);
+  // Register-form upload (edit mode)
+  const [uploadingForm, setUploadingForm] = useState(false);
+  const [formUploadError, setFormUploadError] = useState<string | null>(null);
+  const [formUploadSuccess, setFormUploadSuccess] = useState(false);
 
   const isPoolNeedsModification = topic.sourceType === 0 && topic.status === 2;
+
+  const handleRegisterFormUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file after a rejection
+    if (!file) return;
+    const validationError = validateRegisterFormFile(file);
+    if (validationError) {
+      setFormUploadError(validationError);
+      return;
+    }
+    setFormUploadError(null);
+    setFormUploadSuccess(false);
+    setUploadingForm(true);
+    try {
+      await topicService.uploadRegisterForm(topic.id, file);
+      setFormUploadSuccess(true);
+      setDocuments(await topicService.getTopicDocuments(topic.id));
+    } catch (err) {
+      setFormUploadError(err instanceof Error ? err.message : "Tải phiếu đăng ký thất bại.");
+    } finally {
+      setUploadingForm(false);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -1191,6 +1209,7 @@ function TopicDetailModal({
       nameVi={topic.nameVi}
       nameEn={topic.nameEn}
       onClose={onClose}
+      maxWidthClass="max-w-4xl"
       headerExtra={
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -1316,6 +1335,50 @@ function TopicDetailModal({
                     onChange={(e) => setEditForm({ ...editForm, expectedResults: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
+                </div>
+
+                {/* Phiếu đăng ký — upload/replace (PDF/DOC/DOCX), xem inline */}
+                <div className="pt-3 border-t border-slate-100">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Phiếu đăng ký
+                  </label>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    PDF, DOC, DOCX &mdash; tối đa 10MB. Tải lên phiếu mới sẽ thay thế phiếu cũ.
+                  </p>
+                  <TopicAttachmentList
+                    documents={documents.filter((d) => d.documentType === "Proposal")}
+                    title={null}
+                    emptyText="Chưa có phiếu đăng ký."
+                  />
+                  {formUploadSuccess && (
+                    <div className="mt-2 flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                      <p className="text-xs text-emerald-700">Đã tải lên phiếu đăng ký.</p>
+                    </div>
+                  )}
+                  {formUploadError && (
+                    <p className="mt-2 text-xs text-red-600 flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-[14px] mt-0.5">error</span>
+                      {formUploadError}
+                    </p>
+                  )}
+                  <label className="mt-2 inline-flex items-center gap-2 px-3 py-2 text-sm cursor-pointer border-2 border-dashed border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 hover:border-primary/40 transition-colors">
+                    <span
+                      className={`material-symbols-outlined text-[18px] ${uploadingForm ? "animate-spin" : "text-slate-400"}`}
+                    >
+                      {uploadingForm ? "progress_activity" : "upload_file"}
+                    </span>
+                    <span className="font-medium text-primary">
+                      {uploadingForm ? "Đang tải lên..." : "Chọn phiếu đăng ký"}
+                    </span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept={REGISTER_FORM_TYPES.join(",")}
+                      disabled={uploadingForm}
+                      onChange={handleRegisterFormUpload}
+                    />
+                  </label>
                 </div>
               </div>
             ) : (

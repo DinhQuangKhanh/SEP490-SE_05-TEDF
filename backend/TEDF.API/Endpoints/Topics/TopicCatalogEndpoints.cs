@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using TEDF.API.Common.Security;
 using TEDF.API.Common.Security.Abstractions;
 using TEDF.API.Common.Security.Validation;
 using TEDF.Application.Common;
@@ -49,6 +50,22 @@ public sealed class TopicCatalogEndpoints : IEndpoint
             .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = MaxUploadBytes })
             .DisableAntiforgery()
             .RequireAuthorization();
+
+        // Replace/attach a topic's capstone register form (phiếu đăng ký). Route uses {projectId}
+        // so the MentorOfProject handler can resolve the project. Stored as a Proposal document
+        // (viewable), scanned; it does NOT re-parse the roster (that only happens at proposal time).
+        group.MapPost("/{projectId:guid}/register-form", UploadRegisterForm)
+            .RequireAuthorization(PolicyNames.MentorOfProject)
+            .WithTags("Topics")
+            .WithName("UploadTopicRegisterForm")
+            .Produces<object>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status503ServiceUnavailable)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxUploadBytes))
+            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = MaxUploadBytes })
+            .DisableAntiforgery();
 
         // Topics owned by the current mentor (moved from the Mentor role folder).
         // Literal "mentor" never matches the {topicId:guid} route, so there is no conflict.
@@ -107,7 +124,7 @@ public sealed class TopicCatalogEndpoints : IEndpoint
         HttpContext httpContext,
         [FromServices] IAttachmentScanWorkflow scanWorkflow,
         ICurrentUserService currentUser,
-        ILogger<TopicCatalogEndpoints> logger,              
+        ILogger<TopicCatalogEndpoints> logger,
         CancellationToken cancellationToken)
     {
         var userId = currentUser.UserId;
@@ -156,5 +173,46 @@ public sealed class TopicCatalogEndpoints : IEndpoint
             return Results.BadRequest(ApiResponse.Fail(queueResult.ErrorMessage ?? message));
 
         return Ok(new { queuedCount = queueResult.QueuedCount }, message);
+    }
+
+    private static async Task<IResult> UploadRegisterForm(
+        Guid projectId,
+        IFormFile file,
+        [FromServices] IMalwareScanner scanner,
+        IFileStorageService storage,
+        IProjectDocumentWriteService documentWriter,
+        ICurrentUserService currentUser,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId;
+        if (userId is null)
+            return Results.Unauthorized();
+
+        if (file is null || file.Length == 0)
+            return Results.BadRequest(ApiResponse.Fail("Không có tệp nào được gửi lên."));
+
+        if (!FileUploadValidator.IsAllowedRegisterFormExtension(file.FileName))
+            return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là PDF, DOC hoặc DOCX."));
+
+        if (!FileUploadValidator.TryValidate([file], PerFileMaxBytes, maxAttachmentCount: 1, out var error))
+            return Results.BadRequest(ApiResponse.Fail(error));
+
+        // Synchronous: scan → store (only if clean) → commit the Proposal document, all in-request, so the
+        // client's refetch shows it in ~1-2s. InsertDocumentAsync retires the previous register form (replace).
+        // No roster parsing here (that is proposal-only).
+        var result = await SynchronousAttachmentStore.ScanStoreAsync(
+            scanner, storage, documentWriter, "registration-forms", projectId, userId.Value,
+            DocumentType.Proposal, file, cancellationToken);
+
+        return result.Status switch
+        {
+            SyncUploadStatus.Stored => Ok(new { stored = true }, "Đã tải lên phiếu đăng ký."),
+            SyncUploadStatus.Infected => Results.BadRequest(
+                ApiResponse.Fail(result.Message ?? "Tệp bị phát hiện chứa mã độc.")),
+            SyncUploadStatus.ScannerUnavailable => Results.Json(
+                ApiResponse.Fail(result.Message ?? "Dịch vụ quét mã độc tạm thời không khả dụng. Vui lòng thử lại sau."),
+                statusCode: StatusCodes.Status503ServiceUnavailable),
+            _ => Results.BadRequest(ApiResponse.Fail(result.Message ?? "Tải phiếu đăng ký thất bại.")),
+        };
     }
 }

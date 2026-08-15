@@ -30,20 +30,65 @@ export interface ProjectReviewResponse {
   existingResult: string | null;
 }
 
+/** The four DASSF sub-scores behind the composite, each in [0, 1]. */
+export interface DimensionBreakdown {
+  semantic: number;
+  lexical: number;
+  structure: number;
+  domain: number;
+}
+
+/** The four DASSF angles a span can come from. */
+export type HighlightAngle = "semantic" | "lexical" | "structural" | "domain";
+
+/** One overlapping span + the angle (dimension) it came from. */
+export interface HighlightSpan {
+  text: string;
+  angle: HighlightAngle;
+}
+
 /**
- * Element of GET /api/evaluations/projects/{id}/similarity — one match from the DASSF
- * similarity engine. The UI shows only the overall score and the reasons.
+ * Overlap of ONE content field between the two topics: the dominant angle, an optional score
+ * (the semantic cosine when angle is "semantic"), and the spans to paint on each side
+ * (`a` = topic under review, `b` = matched topic).
+ */
+export interface FieldHighlight {
+  /** FieldKey: title | description | objectives | scope | technologies | expectedResults. */
+  field: string;
+  angle: HighlightAngle;
+  score: number | null;
+  a: HighlightSpan[];
+  b: HighlightSpan[];
+}
+
+/** Field-aligned overlap spans; only fields with a meaningful overlap are present. */
+export interface SimilarityHighlights {
+  fields: FieldHighlight[];
+}
+
+/**
+ * Element of POST /api/evaluations/projects/{id}/similarity — one match from the DASSF engine,
+ * enriched with the matched topic's content, the four sub-scores, and the per-dimension highlight
+ * spans that drive the side-by-side view. (Per-field "why" text is fetched on demand via …/explain.)
  */
 export interface SimilarityMatchDto {
-  /** Id of the other topic in the pair (equals its project id). */
+  /** Id of the other topic in the pair (empty for corpus topics loaded from JSON). */
   otherThesisId: string;
   /** MDDM composite score in [0, 1]. */
   overallScore: number;
   /** Level bucket: Low | Moderate | High | Critical. */
   level: string;
+  /** Committee action for the level. */
+  action: string | null;
+  /** Same tech stack, different business domain (the paper's structural-duplication case). */
+  isStructuralDuplication: boolean;
   /** Explanations, e.g. "same tech stack with a different business domain". */
   reasons: string[];
-  // Matched topic content (populated for the top matches) for the side-by-side comparison.
+  /** The four sub-scores behind the composite. */
+  breakdown: DimensionBreakdown | null;
+  /** Overlap spans per dimension for highlighting. */
+  highlights: SimilarityHighlights | null;
+  // Matched topic content for the side-by-side comparison.
   title: string | null;
   description: string | null;
   scope: string | null;
@@ -53,17 +98,42 @@ export interface SimilarityMatchDto {
   technologies: string[];
 }
 
-/** GET /api/evaluations/theses/{id}/translate — a matched topic translated to Vietnamese. */
-export interface TranslatedThesisDto {
-  otherThesisId: string;
+/** POST /api/evaluations/projects/{id}/similarity body — the topic-under-review's content. */
+export interface CheckSimilarityRequest {
+  title: string;
+  description: string | null;
+  scope: string | null;
+  objectives: string | null;
+  expectedResult: string | null;
+  technologies: string[];
+}
+
+/** One topic's comparable content for the explain call (title = English title only). */
+export interface TopicContent {
   title: string | null;
   description: string | null;
   scope: string | null;
   objectives: string | null;
   expectedResult: string | null;
   technologies: string[];
-  /** False when the LLM was unavailable and the original (English) text was returned. */
-  translated: boolean;
+}
+
+/** POST /api/evaluations/projects/{id}/similarity/explain body — the two topics to compare. */
+export interface ExplainSimilarityRequest {
+  query: TopicContent;
+  match: TopicContent;
+}
+
+/**
+ * One field's plain-language "why these overlap" explanation, returned by …/similarity/explain.
+ * Grounded in the same highlight spans the side-by-side view paints, so the two always agree.
+ */
+export interface FieldExplanation {
+  /** FieldKey: title | description | objectives | scope | technologies | expectedResults. */
+  field: string;
+  angle: HighlightAngle | null;
+  score: number | null;
+  explanation: string;
 }
 
 /** POST /api/evaluations/projects/{id}/evaluate */

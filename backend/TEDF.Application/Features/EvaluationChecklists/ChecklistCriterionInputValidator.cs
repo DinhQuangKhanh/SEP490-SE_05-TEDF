@@ -16,11 +16,5 @@ public sealed class ChecklistCriterionInputValidator : AbstractValidator<Checkli
             .MaximumLength(300);
         RuleFor(i => i.TitleEn).MaximumLength(300);
         RuleFor(i => i.Description).MaximumLength(2000);
-
-        RuleFor(i => i.MaxScore)
-            .GreaterThan(0).WithMessage("Điểm tối đa của tiêu chí phải lớn hơn 0.");
-        RuleFor(i => i.PassScore)
-            .GreaterThanOrEqualTo(0).WithMessage("Điểm đạt của tiêu chí không được âm.")
-            .LessThanOrEqualTo(i => i.MaxScore).WithMessage("Điểm đạt không được lớn hơn điểm tối đa.");
     }
 }

@@ -34,6 +34,13 @@ internal static class FileUploadValidator
   private static readonly Regex DangerousFileNamePattern =
       new(@"\.(php|phtml|asp|aspx|jsp|exe|dll|bat|cmd|ps1|sh|js)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+  /// <summary>The document formats accepted for a capstone register form (phiếu đăng ký).</summary>
+  private static readonly string[] RegisterFormExtensions = [".pdf", ".doc", ".docx"];
+
+  /// <summary>True when the file's extension is an accepted register-form format (PDF / DOC / DOCX).</summary>
+  public static bool IsAllowedRegisterFormExtension(string fileName) =>
+      RegisterFormExtensions.Contains(Path.GetExtension(fileName).ToLowerInvariant());
+
   public static bool TryValidate(
       IReadOnlyCollection<IFormFile>? attachments,
       long perFileMaxBytes,
