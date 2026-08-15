@@ -57,6 +57,12 @@ public class SemestersDomainService : ISemestersDomainService
         return semester?.Id;
     }
 
+    public async Task<int?> GetRegistrationTargetSemesterIdAsync(CancellationToken ct = default)
+    {
+        var semester = await _semesterRepository.GetRegistrationTargetSemesterAsync(ct);
+        return semester?.Id;
+    }
+
     public async Task<int?> GetCurrentPhaseIdAsync(int semesterId, CancellationToken ct = default)
     {
         var semester = await _semesterRepository.GetWithPhasesAsync(semesterId, ct);
