@@ -156,6 +156,11 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (project.Status != ProjectStatus.Approved)
             throw new BusinessRuleValidationException("Only approved topics can be registered for.");
 
+        // Group and topic must run in the same semester. Without this the mismatch stays invisible
+        // until much later — it is how topics stamped with the wrong semester went unnoticed.
+        if (group.SemesterId != project.SemesterId)
+            throw new BusinessRuleValidationException("Nhóm và đề tài không thuộc cùng một học kỳ.");
+
         // Block registration when the topic's mentor already supervises the max number of groups
         // this semester. Unlike the proposal screen, pending pool registrations are NOT counted here.
         var topicMentorId = project.Mentors.FirstOrDefault(m => m.IsActive)?.MentorId;
@@ -385,7 +390,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         var resolvedCount = 0;
         foreach (var project in candidates)
         {
-            if (!project.TopicPoolId.HasValue || !project.CreatedInSemesterId.HasValue)
+            if (!project.TopicPoolId.HasValue)
             {
                 continue;
             }
@@ -396,10 +401,15 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
                 continue;
             }
 
+            // ExpirationSemesters counts registration rounds from the semester the topic runs in, so
+            // the hop count is offset-1 from SemesterId. Rows written before SemesterId and
+            // CreatedInSemesterId were told apart carry the *proposal* semester in both columns —
+            // for those, keep the original offset so their expiry does not move a semester earlier.
             var expirationOffset = Math.Max(1, pool.ExpirationSemesters);
+            var isLegacyStamp = project.CreatedInSemesterId == project.SemesterId;
             var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(
-                project.CreatedInSemesterId.Value,
-                expirationOffset,
+                project.SemesterId,
+                isLegacyStamp ? expirationOffset : expirationOffset - 1,
                 cancellationToken);
 
             if (!expirationSemesterId.HasValue)
@@ -437,13 +447,23 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (!pool.IsAcceptingProposals())
             throw new BusinessRuleValidationException("This topic pool is not currently accepting new topic proposals.");
 
-        var createdSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken)
-            ?? throw new BusinessRuleValidationException("Không tìm thấy học kỳ đang hoạt động để tạo đề tài từ topic pool.");
+        // The topic belongs to the semester whose Registration/Evaluation phase is open — the one
+        // *after* the semester running right now. Using the running semester stamped Fall topics
+        // with the Summer code and pushed them out of every Fall-filtered list.
+        var targetSemesterId = await _semesterDomainService.GetRegistrationTargetSemesterIdAsync(cancellationToken)
+            ?? throw new BusinessRuleValidationException(
+                "Chưa có học kỳ nào đang mở đăng ký đề tài. Vui lòng liên hệ quản trị viên tạo học kỳ kế tiếp trước khi đề xuất đề tài.");
 
-        var code = await _projectsDomainService.GenerateProjectCodeAsync(createdSemesterId, pool.MajorId, cancellationToken);
+        // Recorded for the pool-expiry audit trail only; null between semesters, which is fine.
+        var createdInSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken);
 
+        var code = await _projectsDomainService.GenerateProjectCodeAsync(targetSemesterId, pool.MajorId, cancellationToken);
+
+        // ExpirationSemesters counts registration rounds starting with the target semester itself,
+        // so offset from the target, not past it — 1 still means "expires after the target semester",
+        // the same lifetime the old proposal-semester + 1 arithmetic produced.
         var expirationOffset = Math.Max(1, pool.ExpirationSemesters);
-        var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(createdSemesterId, expirationOffset, cancellationToken);
+        var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(targetSemesterId, expirationOffset - 1, cancellationToken);
 
         var project = Project.CreateFromPool(
             code: code,
@@ -456,9 +476,10 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
             technologyStack: content.Technologies is not null ? TechnologyStack.Create(content.Technologies) : null,
             expectedResults: content.ExpectedResults,
             majorId: pool.MajorId,
-            semesterId: createdSemesterId,
+            semesterId: targetSemesterId,
             maxStudents: content.MaxStudents,
             topicPoolId: pool.Id,
+            createdInSemesterId: createdInSemesterId,
             expirationSemesterId: expirationSemesterId);
 
         project.AddMentor(mentorId, assignedBy: mentorId);
