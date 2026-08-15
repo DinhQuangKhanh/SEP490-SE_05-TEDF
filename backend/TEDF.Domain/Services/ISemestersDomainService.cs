@@ -8,6 +8,15 @@ public interface ISemestersDomainService
 {
     // --- Helper queries used by other features' write flows ---
     Task<int?> GetActiveSemesterIdAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The semester a topic proposed right now will be carried out in — the semester currently in its
+    /// Registration/Evaluation phase, else the earliest upcoming one. Null when neither exists.
+    /// Use this (not <see cref="GetActiveSemesterIdAsync"/>) whenever stamping a new topic: topics are
+    /// proposed during semester N-1 for semester N.
+    /// </summary>
+    Task<int?> GetRegistrationTargetSemesterIdAsync(CancellationToken cancellationToken = default);
+
     Task<int?> GetCurrentPhaseIdAsync(int semesterId, CancellationToken cancellationToken = default);
     Task<bool> IsWithinPhaseAsync(int semesterId, int phaseId, DateTime date, CancellationToken cancellationToken = default);
     Task<int?> GetSemesterAfterAsync(int semesterId, int count, CancellationToken cancellationToken = default);

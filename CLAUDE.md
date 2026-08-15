@@ -52,7 +52,7 @@ npm run build    # tsc -b && vite build
 npm run lint     # ESLint
 ```
 
-> There are currently no test projects in the repo — do not assume `dotnet test` or any test runner exists.
+> The only test project is `backend/TEDF.Tests` (xUnit + NSubstitute, no database): `dotnet test TEDF.Tests/TEDF.Tests.csproj`. The frontend has no test runner.
 
 ## Infrastructure & services
 
@@ -70,6 +70,18 @@ npm run lint     # ESLint
 - **DirectRegistration** (student-initiated): Student group creates a topic → submits to mentor → mentor approves → `PendingEvaluation` → assign evaluators → review. If `NeedsModification`: returns to student to edit → resubmit to mentor → evaluator results reset.
 
 Each project has 2 evaluators; if both agree → final result, if they conflict → DepartmentHead decides. A resubmission increments `SubmissionNumber` and resets the assignments.
+
+### Which semester an entity belongs to
+
+A semester's Registration and Evaluation phases run **during the previous semester** — topics for Fall 2026 are proposed and vetted while Summer 2026 is still running. So "the semester that is running right now" is never the semester a new topic or group belongs to:
+
+| Field | Meaning | Resolved by |
+|---|---|---|
+| `Project.SemesterId` | Semester the topic is carried out in. Every "filter by semester" screen matches on this. | `RegistrationTargetSemesterPolicy` — semester with an open Registration/Evaluation phase, else the earliest upcoming one |
+| `Project.CreatedInSemesterId` | Semester that was running at proposal time. Audit trail for pool expiry only; null between semesters | `ISemestersDomainService.GetActiveSemesterIdAsync` |
+| `Group.SemesterId` | Semester the group works in — always equal to its project's `SemesterId` | `ISemesterRepository.GetEligibleSemesterForStudentAsync` (earliest not-yet-ended semester the student is rostered on) |
+
+`GetActiveSemesterIdAsync` means strictly "the semester the clock is inside" — use it for reporting on the present, never for stamping a new topic. `Semester.Status`/`IsActive` are computed from `StartDate`/`EndDate` and are **not** columns, so they cannot appear in an EF `Where`. Semester `Id`s follow creation order, not chronological order — order semesters by `StartDate`.
 
 ## Commit convention
 
