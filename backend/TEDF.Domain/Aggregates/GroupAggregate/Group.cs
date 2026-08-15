@@ -312,10 +312,10 @@ namespace TEDF.Domain.Aggregates.GroupAggregate
                 throw new BusinessRuleValidationException("Join request has expired.");
             }
 
-            CheckRule(new GroupCannotExceedMaxMembersRule(ActiveMemberCount, MaxMembers)); 
+            CheckRule(new GroupCannotExceedMaxMembersRule(ActiveMemberCount, MaxMembers));
 
             request.Approve();
-            
+
             RaiseDomainEvent(new JoinRequestApprovedEvent(Id, Code.Value, request.StudentId));
             AddMember(request.StudentId);
 

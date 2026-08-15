@@ -218,16 +218,8 @@ namespace TEDF.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<decimal>("MaxScore")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
                     b.Property<int>("Order")
                         .HasColumnType("int");
-
-                    b.Property<decimal>("PassScore")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
 
                     b.Property<string>("TitleEn")
                         .IsRequired()
@@ -243,12 +235,7 @@ namespace TEDF.Persistence.Migrations
 
                     b.HasIndex("ChecklistConfigId");
 
-                    b.ToTable("ChecklistCriteria", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ChecklistCriteria_MaxScore", "[MaxScore] > 0");
-
-                            t.HasCheckConstraint("CK_ChecklistCriteria_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
-                        });
+                    b.ToTable("ChecklistCriteria", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.Entities.ChecklistResultItem", b =>
@@ -267,23 +254,11 @@ namespace TEDF.Persistence.Migrations
                     b.Property<bool>("IsPassed")
                         .HasColumnType("bit");
 
-                    b.Property<decimal>("MaxScore")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
                     b.Property<int>("Order")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("PassScore")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
                     b.Property<Guid>("ProjectEvaluationChecklistId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("Score")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
 
                     b.Property<string>("TitleVi")
                         .IsRequired()
@@ -294,14 +269,7 @@ namespace TEDF.Persistence.Migrations
 
                     b.HasIndex("ProjectEvaluationChecklistId");
 
-                    b.ToTable("ChecklistResultItems", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ChecklistResultItems_MaxScore", "[MaxScore] > 0");
-
-                            t.HasCheckConstraint("CK_ChecklistResultItems_PassScore", "[PassScore] >= 0 AND [PassScore] <= [MaxScore]");
-
-                            t.HasCheckConstraint("CK_ChecklistResultItems_Score", "[Score] IS NULL OR ([Score] >= 0 AND [Score] <= [MaxScore])");
-                        });
+                    b.ToTable("ChecklistResultItems", (string)null);
                 });
 
             modelBuilder.Entity("TEDF.Domain.Aggregates.EvaluationChecklistAggregate.ProjectEvaluationChecklist", b =>

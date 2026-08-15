@@ -15,7 +15,7 @@ public class CreateChecklistConfigCommandHandler : ICommandHandler<CreateCheckli
     public Task<Guid> Handle(CreateChecklistConfigCommand request, CancellationToken cancellationToken)
     {
         var criteria = request.Criteria
-            .Select(c => new ChecklistCriterionData(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
+            .Select(c => new ChecklistCriterionData(c.TitleVi, c.TitleEn, c.Description))
             .ToList();
 
         return _checklist.CreateConfigAsync(request.SemesterId, criteria, request.RequiredPassCount, cancellationToken);

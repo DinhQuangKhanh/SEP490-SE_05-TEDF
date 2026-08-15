@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { NotificationDropdown } from "@/components/layout";
 import { MemberProfileModal } from "@/components/common/MemberProfileModal";
+import { TopicAttachmentList } from "@/components/common/TopicAttachmentList";
 import { RegistrationNoteView } from "@/components/student/RegistrationNoteEditor";
 import { useSystemError } from "@/contexts/SystemErrorContext";
 import { statusConfig, studentGroupService, topicPoolService, topicService } from "@/lib";
@@ -32,23 +33,8 @@ const PROJECT_STATUS_CODE: Record<string, number> = {
   PendingMentorReview: 8,
 };
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("vi-VN");
-}
-
-function docIcon(fileType: string): { icon: string; cls: string } {
-  const t = (fileType ?? "").toLowerCase();
-  if (t.includes("pdf")) return { icon: "picture_as_pdf", cls: "bg-rose-50 text-rose-600" };
-  if (t.includes("doc") || t.includes("word")) return { icon: "description", cls: "bg-blue-50 text-blue-600" };
-  if (t.includes("png") || t.includes("jpg") || t.includes("jpeg") || t.includes("image"))
-    return { icon: "image", cls: "bg-amber-50 text-amber-600" };
-  return { icon: "draft", cls: "bg-slate-100 text-slate-500" };
 }
 
 export function LecturerGroupDetailPage() {
@@ -259,29 +245,8 @@ export function LecturerGroupDetailPage() {
                     {documents.length} files
                   </span>
                 </div>
-                <div className="p-4 space-y-2">
-                  {documents.length === 0 && (
-                    <p className="text-sm italic text-slate-400">Chưa có tài liệu nào.</p>
-                  )}
-                  {documents.map((file) => {
-                    const { icon, cls } = docIcon(file.fileType);
-                    return (
-                      <div
-                        key={file.id}
-                        className="flex items-center gap-3 p-2 transition-colors rounded-lg hover:bg-slate-50"
-                      >
-                        <div className={`flex items-center justify-center rounded size-9 ${cls}`}>
-                          <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold truncate text-slate-800">{file.originalFileName}</p>
-                          <p className="text-[10px] text-slate-400 uppercase font-medium">
-                            {formatFileSize(file.fileSize)} • {formatDate(file.uploadedAt)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="p-4">
+                  <TopicAttachmentList documents={documents} title={null} emptyText="Chưa có tài liệu nào." />
                 </div>
               </section>
 

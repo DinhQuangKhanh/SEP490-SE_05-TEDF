@@ -1,13 +1,15 @@
 import {
+  CheckSimilarityRequest,
   DepartmentEvaluator,
   EvaluatorFilterOptionsResponse,
   EvaluatorHistoryFilters,
   EvaluatorHistoryResponse,
   EvaluatorProjectsFilters,
   EvaluatorProjectsResponse,
+  ExplainSimilarityRequest,
+  FieldExplanation,
   ProjectReviewResponse,
   SimilarityMatchDto,
-  TranslatedThesisDto,
 } from "@/types";
 import { apiClient } from "../common/apiClient";
 import { routes } from "../common/routes";
@@ -41,11 +43,12 @@ export const evaluatorService = {
   getProjectForReview: (projectId: string): Promise<ProjectReviewResponse> =>
     apiClient.get<ProjectReviewResponse>(routes.evaluator.review(projectId)),
 
-  checkSimilarity: (projectId: string): Promise<SimilarityMatchDto[]> =>
-    apiClient.get<SimilarityMatchDto[]>(routes.evaluator.similarity(projectId)),
+  checkSimilarity: (projectId: string, body: CheckSimilarityRequest): Promise<SimilarityMatchDto[]> =>
+    apiClient.post<SimilarityMatchDto[]>(routes.evaluator.similarity(projectId), body),
 
-  translateThesis: (thesisId: string): Promise<TranslatedThesisDto> =>
-    apiClient.get<TranslatedThesisDto>(routes.evaluator.translateThesis(thesisId)),
+  /** Fetch the per-field "why these overlap" explanations for one match (grounded in the highlights). */
+  explainSimilarity: (projectId: string, body: ExplainSimilarityRequest): Promise<FieldExplanation[]> =>
+    apiClient.post<FieldExplanation[]>(routes.evaluator.explainSimilarity(projectId), body),
 
   submitEvaluation: (projectId: string, data: { result: number; feedback?: string }): Promise<string> =>
     apiClient.post<string>(routes.evaluator.evaluate(projectId), data),

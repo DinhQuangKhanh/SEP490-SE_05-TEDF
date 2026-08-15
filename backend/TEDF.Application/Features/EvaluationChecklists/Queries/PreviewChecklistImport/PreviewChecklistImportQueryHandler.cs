@@ -21,7 +21,7 @@ public class PreviewChecklistImportQueryHandler
 
         var rows = result.Rows
             .Select((r, index) => new ChecklistImportPreviewRowDto(
-                r.RowNumber, index + 1, r.TitleVi, r.TitleEn, r.Description, r.MaxScore, r.PassScore, r.Errors))
+                r.RowNumber, index + 1, r.TitleVi, r.TitleEn, r.Description, r.Errors))
             .ToList();
 
         var errors = result.GlobalErrors

@@ -1,4 +1,3 @@
-using System.Globalization;
 using ClosedXML.Excel;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.EvaluationChecklists.DTOs;
@@ -81,47 +80,23 @@ public sealed class ChecklistExcelService : IChecklistExcelService
         var titleVi = GetString(row, columns, ColumnKey.TitleVi);
         var titleEn = GetString(row, columns, ColumnKey.TitleEn);
         var description = GetString(row, columns, ColumnKey.Description);
-        var maxRaw = GetString(row, columns, ColumnKey.MaxScore);
-        var passRaw = GetString(row, columns, ColumnKey.PassScore);
 
-        if (IsBlankRow(titleVi, titleEn, description, maxRaw, passRaw))
+        if (IsBlankRow(titleVi, titleEn, description))
             return null;
 
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(titleVi))
             errors.Add("Tên tiêu chí (tiếng Việt) không được để trống.");
 
-        var maxScore = TryParseScore(maxRaw, out var maxOk);
-        var passScore = TryParseScore(passRaw, out var passOk);
-        ValidateScores(maxScore, maxOk, passScore, passOk, errors);
-
         return new ChecklistImportRow(
             RowNumber: rowNumber,
             TitleVi: titleVi.Trim(),
             TitleEn: titleEn.Trim(),
             Description: string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-            MaxScore: maxOk ? maxScore : null,
-            PassScore: passOk ? passScore : null,
             Errors: errors);
     }
 
     private static bool IsBlankRow(params string[] values) => values.All(string.IsNullOrWhiteSpace);
-
-    private static void ValidateScores(decimal maxScore, bool maxOk, decimal passScore, bool passOk, List<string> errors)
-    {
-        if (!maxOk)
-            errors.Add("Điểm tối đa không hợp lệ (phải là số).");
-        else if (maxScore <= 0)
-            errors.Add("Điểm tối đa phải lớn hơn 0.");
-
-        if (!passOk)
-            errors.Add("Điểm đạt không hợp lệ (phải là số).");
-        else if (passScore < 0)
-            errors.Add("Điểm đạt không được âm.");
-
-        if (maxOk && passOk && maxScore > 0 && passScore > maxScore)
-            errors.Add("Điểm đạt không được lớn hơn điểm tối đa.");
-    }
 
     public byte[] GenerateTemplate()
     {
@@ -131,7 +106,7 @@ public sealed class ChecklistExcelService : IChecklistExcelService
         string[] headers =
         [
             "STT", "Tên tiêu chí (tiếng Việt)", "Tên tiêu chí (tiếng Anh)",
-            "Mô tả / Nội dung", "Điểm tối đa", "Điểm đạt"
+            "Mô tả / Nội dung"
         ];
 
         for (var c = 0; c < headers.Length; c++)
@@ -150,8 +125,6 @@ public sealed class ChecklistExcelService : IChecklistExcelService
             ws.Cell(rowNumber, 2).Value = item.TitleVi;
             ws.Cell(rowNumber, 3).Value = item.TitleEn;
             ws.Cell(rowNumber, 4).Value = item.Description;
-            ws.Cell(rowNumber, 5).Value = DefaultChecklistCriteria.DefaultMaxScore;
-            ws.Cell(rowNumber, 6).Value = DefaultChecklistCriteria.DefaultPassScore;
             rowNumber++;
             order++;
         }
@@ -166,13 +139,11 @@ public sealed class ChecklistExcelService : IChecklistExcelService
     }
 
     // ── Column mapping ───────────────────────────────────────────────────────
-    private enum ColumnKey { Order, TitleVi, TitleEn, Description, MaxScore, PassScore }
+    private enum ColumnKey { Order, TitleVi, TitleEn, Description }
 
     private static readonly (ColumnKey Key, string Header)[] RequiredColumns =
     [
-        (ColumnKey.TitleVi, "Tên tiêu chí (tiếng Việt)"),
-        (ColumnKey.MaxScore, "Điểm tối đa"),
-        (ColumnKey.PassScore, "Điểm đạt"),
+        (ColumnKey.TitleVi, "Tên tiêu chí (tiếng Việt)")
     ];
 
     /// <summary>
@@ -181,8 +152,6 @@ public sealed class ChecklistExcelService : IChecklistExcelService
     /// </summary>
     private static readonly (ColumnKey Key, Func<string, bool> Matches)[] HeaderRules =
     [
-        (ColumnKey.MaxScore, t => t.Contains("tối đa")),
-        (ColumnKey.PassScore, t => t.Contains("điểm đạt") || (t.Contains("đạt") && t.Contains("điểm"))),
         (ColumnKey.TitleEn, t => t.Contains("anh")),
         (ColumnKey.TitleVi, t => t.Contains("việt") || t.Contains("tên tiêu chí")),
         (ColumnKey.Description, t => t.Contains("mô tả") || t.Contains("nội dung")),
@@ -221,19 +190,4 @@ public sealed class ChecklistExcelService : IChecklistExcelService
 
     private static string GetString(IXLRow row, IReadOnlyDictionary<ColumnKey, int> columns, ColumnKey key)
         => columns.TryGetValue(key, out var col) ? row.Cell(col).GetString() : string.Empty;
-
-    private static decimal TryParseScore(string raw, out bool ok)
-    {
-        raw = (raw ?? string.Empty).Trim();
-        if (raw.Length == 0)
-        {
-            ok = false;
-            return 0m;
-        }
-
-        // Accept both "7.5" and Vietnamese "7,5".
-        var normalized = raw.Replace(",", ".");
-        ok = decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var value);
-        return ok ? value : 0m;
-    }
 }

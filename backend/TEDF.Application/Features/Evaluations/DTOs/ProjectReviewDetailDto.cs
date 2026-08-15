@@ -64,7 +64,7 @@ public record SimilarTitleDto
 /// </summary>
 public record SimilarityMatchDto
 {
-    /// <summary>Id of the other topic/thesis in the pair (equals its web project id).</summary>
+    /// <summary>Id of the other topic/thesis in the pair (Guid.Empty for corpus topics from the JSON).</summary>
     public Guid OtherThesisId { get; init; }
 
     /// <summary>MDDM composite score in [0, 1].</summary>
@@ -73,8 +73,20 @@ public record SimilarityMatchDto
     /// <summary>Level bucket: Low | Moderate | High | Critical.</summary>
     public string Level { get; init; } = string.Empty;
 
+    /// <summary>Committee action for the level (Accept / Warn… / Require revision / Reject).</summary>
+    public string? Action { get; init; }
+
+    /// <summary>Same tech stack, different business domain (the paper's structural-duplication case).</summary>
+    public bool IsStructuralDuplication { get; init; }
+
     /// <summary>Explanations, e.g. "same tech stack with a different business domain".</summary>
     public List<string> Reasons { get; init; } = [];
+
+    /// <summary>The four DASSF sub-scores behind the composite.</summary>
+    public DimensionBreakdownDto? Breakdown { get; init; }
+
+    /// <summary>Field-aligned overlap spans for the side-by-side highlight view.</summary>
+    public SimilarityHighlightsDto? Highlights { get; init; }
 
     // ── Matched topic content (populated for the top matches, for the side-by-side view) ──
     public string? Title { get; init; }
@@ -86,16 +98,32 @@ public record SimilarityMatchDto
     public List<string> Technologies { get; init; } = [];
 }
 
-/// <summary>A matched topic's content translated to Vietnamese (on-demand comparison view).</summary>
-public record TranslatedThesisDto
+/// <summary>The four MDDM sub-scores (each in [0, 1]).</summary>
+public record DimensionBreakdownDto(double Semantic, double Lexical, double Structure, double Domain);
+
+/// <summary>One overlapping span + which angle (semantic | lexical | structural | domain) it came from.</summary>
+public record HighlightSpanDto(string Text, string Angle);
+
+/// <summary>
+/// Overlap of ONE content field between the two topics: the dominant angle, an optional score
+/// (the semantic cosine when angle == semantic), and the spans to paint on each side
+/// (A = topic under review, B = matched topic).
+/// </summary>
+public record FieldHighlightDto
 {
-    public Guid OtherThesisId { get; init; }
-    public string? Title { get; init; }
-    public string? Description { get; init; }
-    public string? Scope { get; init; }
-    public string? Objectives { get; init; }
-    public string? ExpectedResult { get; init; }
-    public List<string> Technologies { get; init; } = [];
-    /// <summary>False when the LLM was unavailable and the original text was returned.</summary>
-    public bool Translated { get; init; }
+    /// <summary>Frontend FieldKey: title | description | objectives | scope | technologies | expectedResults.</summary>
+    public string Field { get; init; } = string.Empty;
+    public string Angle { get; init; } = string.Empty;
+    public double? Score { get; init; }
+    public List<HighlightSpanDto> A { get; init; } = [];
+    public List<HighlightSpanDto> B { get; init; } = [];
 }
+
+/// <summary>Field-aligned overlap spans; only fields with a meaningful overlap are present.</summary>
+public record SimilarityHighlightsDto
+{
+    public List<FieldHighlightDto> Fields { get; init; } = [];
+}
+
+/// <summary>One field's plain-language "why these overlap" explanation (grounded in the highlights).</summary>
+public record FieldExplanationDto(string Field, string? Angle, double? Score, string Explanation);
