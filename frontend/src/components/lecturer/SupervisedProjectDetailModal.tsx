@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { SupervisedProject } from '@/types'
+import type { SupervisedProject, TopicDocument } from '@/types'
+import { topicService } from '@/lib'
+import { TopicAttachmentList } from '@/components/common/TopicAttachmentList'
 import { projectStatusLabel, projectStatusColor, getDefenseResult } from '@/lib/projects/projectStatus'
 
 function formatDate(value: string | null): string {
@@ -17,12 +19,19 @@ export function SupervisedProjectDetailModal({
     project: SupervisedProject
     onClose: () => void
 }) {
+    const [documents, setDocuments] = useState<TopicDocument[]>([])
+
     // Close on Escape for keyboard accessibility.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
     }, [onClose])
+
+    // Attachments (register form + documents); a failure just leaves the list empty.
+    useEffect(() => {
+        topicService.getTopicDocuments(project.id).then(setDocuments).catch(() => setDocuments([]))
+    }, [project.id])
 
     const defense = getDefenseResult(project.statusValue)
 
@@ -75,6 +84,11 @@ export function SupervisedProjectDetailModal({
 
                     {project.description && <Field label="Mô tả" value={project.description} multiline />}
                     {project.objectives && <Field label="Mục tiêu" value={project.objectives} multiline />}
+
+                    <div>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-1">Tài liệu đính kèm</p>
+                        <TopicAttachmentList documents={documents} title={null} />
+                    </div>
 
                     <p className="text-[11px] text-slate-400 italic pt-3 border-t border-slate-100">
                         * "Kết quả bảo vệ" hiện được suy ra từ trạng thái đồ án — hệ thống chưa có trường điểm/kết quả bảo vệ riêng.
