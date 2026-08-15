@@ -238,45 +238,18 @@ public class TopicsQueryService : ITopicsQueryService
         Guid mentorId, int? semesterId, string? search,
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        // For selected semester N:
-        // - Pool topics are from previous semester N-1
-        // - Direct-registration topics are in semester N
-        int? previousSemesterId = null;
-        if (semesterId.HasValue)
-        {
-            var selectedSemester = await _context.Semesters.AsNoTracking()
-                .Where(s => s.Id == semesterId.Value)
-                .Select(s => new { s.Id, s.StartDate })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (selectedSemester != null)
-            {
-                var previousSemester = await _context.Semesters.AsNoTracking()
-                    .Where(s => s.StartDate < selectedSemester.StartDate)
-                    .OrderByDescending(s => s.StartDate)
-                    .Select(s => s.Id)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                // If previous semester found (non-default int), keep it for pool-topic filtering
-                if (previousSemester != 0)
-                    previousSemesterId = previousSemester;
-            }
-        }
-
         var query = from p in _context.Projects.AsNoTracking()
                     where p.Mentors.Any(pm => pm.MentorId == mentorId && pm.Status == ProjectMentorStatus.Active)
                     join m in _context.Set<Major>() on p.MajorId equals m.Id
                     join s in _context.Semesters.AsNoTracking() on p.SemesterId equals s.Id
                     select new { Project = p, MajorName = m.Name, SemesterName = s.Name };
 
+        // SemesterId is the semester the topic runs in for every source type, so no per-source
+        // shifting: pool topics are stamped with their target semester at proposal time.
         if (semesterId.HasValue)
         {
             var selectedSemesterId = semesterId.Value;
-            var targetPoolSemesterId = previousSemesterId;
-
-            query = query.Where(x =>
-                (x.Project.SourceType == ProjectSourceType.DirectRegistration && x.Project.SemesterId == selectedSemesterId) ||
-                (x.Project.SourceType == ProjectSourceType.FromPool && targetPoolSemesterId.HasValue && x.Project.SemesterId == targetPoolSemesterId.Value));
+            query = query.Where(x => x.Project.SemesterId == selectedSemesterId);
         }
 
         if (!string.IsNullOrWhiteSpace(search))

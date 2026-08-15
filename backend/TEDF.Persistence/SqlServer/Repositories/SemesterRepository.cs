@@ -49,6 +49,22 @@ namespace TEDF.Persistence.SqlServer.Repositories
             return await FirstOrDefaultAsync(spec, cancellationToken);
         }
 
+        /// <inheritdoc/>
+        public async Task<Semester?> GetRegistrationTargetSemesterAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            // Narrow to semesters that have not ended — the target is always one of those — then let
+            // the domain policy pick. The phase-based rule cannot be expressed as a single indexable
+            // predicate, so the ranking stays in memory over a handful of rows.
+            var candidates = await _dbSet
+                .Include(s => s.Phases)
+                .Where(s => s.EndDate >= now)
+                .ToListAsync(cancellationToken);
+
+            return RegistrationTargetSemesterPolicy.Resolve(candidates, now);
+        }
+
         public async Task<IEnumerable<Semester>> GetByAcademicYearAsync(string academicYear, CancellationToken cancellationToken = default)
         {
             var spec = new SemesterByAcademicYearSpec(academicYear);

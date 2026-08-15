@@ -10,6 +10,15 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
         /// <summary>Loads a semester with phases and the full eligibility roster (students + mentors) tracked for writes.</summary>
         Task<Semester?> GetWithRosterAsync(int id, CancellationToken cancellationToken = default);
         Task<Semester?> GetActiveAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The semester a topic proposed right now will be carried out in — see
+        /// <see cref="RegistrationTargetSemesterPolicy"/>. This is deliberately <b>not</b>
+        /// <see cref="GetActiveAsync"/>: the Registration/Evaluation phases of semester N run during
+        /// semester N-1, so the running semester is never the one a new topic belongs to.
+        /// </summary>
+        Task<Semester?> GetRegistrationTargetSemesterAsync(CancellationToken cancellationToken = default);
+
         Task<Semester?> GetNextSemesterAsync(int? semesterId, CancellationToken cancellationToken);
         Task<IEnumerable<Semester>> GetByAcademicYearAsync(string academicYear, CancellationToken cancellationToken = default);
         Task<IEnumerable<Semester>> GetUpcomingAsync(CancellationToken cancellationToken = default);
