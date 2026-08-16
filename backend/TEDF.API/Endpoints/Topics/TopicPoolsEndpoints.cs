@@ -174,16 +174,6 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         ISender sender,
         CancellationToken cancellationToken)
     {
-        // Validate every upload BEFORE creating the topic, so a bad file fails fast (no orphan project).
-        byte[]? registerFormPdf = null;
-        if (body.RegisterForm is { Length: > 0 } registerForm)
-        {
-            if (!FileUploadValidator.TryValidate([registerForm], NoteAttachmentMaxBytes, maxAttachmentCount: 1, out var registerFormError))
-                return Results.BadRequest(ApiResponse.Fail(registerFormError));
-
-            if (!FileUploadValidator.IsAllowedRegisterFormExtension(registerForm.FileName))
-                return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là PDF, DOC hoặc DOCX."));
-        }
         var userId = currentUser.UserId;
         if (userId is null)
             return Results.Unauthorized();
@@ -234,7 +224,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         using var registerFormStream = new MemoryStream();
         await registerForm.CopyToAsync(registerFormStream, cancellationToken);
 
-        if (body.Attachments is { Count: > 0 } attachments
+        if (attachments.Count > 0
             && !FileUploadValidator.TryValidate(attachments, NoteAttachmentMaxBytes, MaxProposalAttachments, out var attachmentError))
         {
             return Results.BadRequest(ApiResponse.Fail(attachmentError));
