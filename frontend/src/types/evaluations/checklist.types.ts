@@ -8,13 +8,9 @@ export interface ProjectChecklistItemDto {
   titleVi: string;
   titleEn: string;
   description: string | null;
-  maxScore: number;
-  passScore: number;
-  /** The evaluator's score for this criterion; null until scored. */
-  score: number | null;
   /** The evaluator's per-criterion comment. */
   comment: string | null;
-  /** Server-computed: score != null && score >= passScore. */
+  /** The evaluator's pass/fail decision. */
   isPassed: boolean;
 }
 
@@ -37,14 +33,14 @@ export interface ProjectChecklistResponse {
   items: ProjectChecklistItemDto[];
 }
 
-export interface ChecklistScoreItemInput {
+export interface ChecklistEvaluationItemInput {
   criterionId: string;
-  score: number | null;
+  isPassed: boolean;
   comment?: string | null;
 }
 
 export interface SaveProjectChecklistRequest {
-  items: ChecklistScoreItemInput[];
+  items: ChecklistEvaluationItemInput[];
   note?: string | null;
 }
 
@@ -57,8 +53,6 @@ export interface ChecklistCriterionDto {
   titleVi: string;
   titleEn: string;
   description: string | null;
-  maxScore: number;
-  passScore: number;
 }
 
 export interface ChecklistConfigDto {
@@ -97,8 +91,6 @@ export interface ChecklistCriterionSeedDto {
   titleVi: string;
   titleEn: string;
   description: string;
-  maxScore: number;
-  passScore: number;
 }
 
 /** Editable criterion payload sent to create/update endpoints. */
@@ -106,8 +98,6 @@ export interface ChecklistCriterionInput {
   titleVi: string;
   titleEn: string;
   description?: string | null;
-  maxScore: number;
-  passScore: number;
 }
 
 export interface CreateChecklistConfigRequest {
@@ -132,8 +122,6 @@ export interface ChecklistImportPreviewRowDto {
   titleVi: string;
   titleEn: string;
   description: string | null;
-  maxScore: number | null;
-  passScore: number | null;
   errors: string[];
 }
 

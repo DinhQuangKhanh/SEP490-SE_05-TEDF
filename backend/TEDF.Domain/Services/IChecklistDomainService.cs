@@ -10,12 +10,12 @@ namespace TEDF.Domain.Services
         // ── Evaluator ──
 
         /// <summary>
-        /// Upserts the current evaluator's checklist result for a project. The domain validates each score
-        /// against its snapshot bounds and recomputes the passed count / pass flags.
+        /// Upserts the current evaluator's checklist result for a project. Each entry contains a
+        /// Pass/Fail decision and optional comment per criterion.
         /// </summary>
         Task SaveProjectChecklistAsync(
             Guid projectId,
-            IReadOnlyList<ChecklistScoreData> scores,
+            IReadOnlyList<ChecklistEvaluationData> entries,
             string? note,
             CancellationToken cancellationToken = default);
 
@@ -61,8 +61,8 @@ namespace TEDF.Domain.Services
 
     /// <summary>Editable criterion payload passed to the checklist domain service (layer-neutral).</summary>
     public record ChecklistCriterionData(
-        string TitleVi, string TitleEn, string? Description, decimal MaxScore, decimal PassScore);
+        string TitleVi, string TitleEn, string? Description);
 
-    /// <summary>One evaluator score entry passed to the checklist domain service (layer-neutral).</summary>
-    public record ChecklistScoreData(Guid CriterionId, decimal? Score, string? Comment);
+    /// <summary>One evaluator evaluation entry passed to the checklist domain service (layer-neutral).</summary>
+    public record ChecklistEvaluationData(Guid CriterionId, bool IsPassed, string? Comment);
 }

@@ -28,6 +28,13 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public TechnologyStack? Technologies { get; private set; }
         public string? ExpectedResults { get; private set; }
         public int MajorId { get; private set; }
+
+        /// <summary>
+        /// The semester this topic is carried out in — the one its group belongs to, and the one
+        /// every "filter by semester" screen matches on. For a pool topic this is the semester whose
+        /// Registration phase was open when the mentor proposed it, which is the semester *after*
+        /// the one that was running (see <see cref="CreatedInSemesterId"/>).
+        /// </summary>
         public int SemesterId { get; private set; }
         public Guid? GroupId { get; private set; }
         public Guid? TopicPoolId { get; private set; }
@@ -52,6 +59,12 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }
         public PoolTopicStatus? PoolStatus { get; private set; }
+
+        /// <summary>
+        /// The semester that was running when this pool topic was proposed — one earlier than
+        /// <see cref="SemesterId"/>. Null for topics proposed between semesters, and for the
+        /// historical rows written before the two were told apart.
+        /// </summary>
         public int? CreatedInSemesterId { get; private set; }
         public int? ExpirationSemesterId { get; private set; }
 
@@ -79,8 +92,17 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
 
         #region Factory Methods
 
+        /// <param name="semesterId">
+        /// The semester the topic will be carried out in. Topics are proposed during the previous
+        /// semester, so this is <b>not</b> the semester that is running at proposal time.
+        /// </param>
+        /// <param name="createdInSemesterId">
+        /// The semester that was running when the topic was proposed, kept for the pool-expiry
+        /// audit trail. Null when the proposal falls in the gap between two semesters.
+        /// </param>
         public static Project CreateFromPool(ProjectCode code, ProjectName nameVi, ProjectName nameEn, string nameAbbr, string description, string objectives,
-            string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, Guid topicPoolId, int? expirationSemesterId)
+            string? scope, TechnologyStack? technologyStack, string? expectedResults, int majorId, int semesterId, int maxStudents, Guid topicPoolId,
+            int? createdInSemesterId, int? expirationSemesterId)
         {
             var project = new Project
             {
@@ -101,7 +123,7 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
                 TopicPoolId = topicPoolId,
                 GroupId = null,                          // No group yet
                 PoolStatus = PoolTopicStatus.Available,  // Available for registration
-                CreatedInSemesterId = semesterId,
+                CreatedInSemesterId = createdInSemesterId,
                 ExpirationSemesterId = expirationSemesterId,
                 Status = ProjectStatus.PendingEvaluation,
                 Priority = ProjectPriority.Normal,

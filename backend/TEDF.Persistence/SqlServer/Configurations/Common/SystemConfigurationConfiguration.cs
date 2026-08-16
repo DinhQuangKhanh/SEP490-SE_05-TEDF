@@ -56,7 +56,9 @@ namespace TEDF.Persistence.SqlServer.Configurations.Common
                 new { Id = 11, Key = "LogoUrl", Value = "", DataType = Domain.Enums.System.ConfigDataType.String, Description = "System logo URL", Category = "Appearance", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
                 new { Id = 12, Key = "MaintenanceMode", Value = "false", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "When enabled, only Admins can access the system", Category = "System", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
                 new { Id = 13, Key = "EmailOnEvaluationResult", Value = "true", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "Email students when an evaluation result is finalized", Category = "Notifications", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new { Id = 14, Key = "NotifyMentorOnRegistration", Value = "true", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "Notify a mentor when a group registers for their topic", Category = "Notifications", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                new { Id = 14, Key = "NotifyMentorOnRegistration", Value = "true", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "Notify a mentor when a group registers for their topic", Category = "Notifications", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                new { Id = 15, Key = "EmailOnGroupMembership", Value = "true", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "Email students about group invitations and join-request outcomes", Category = "Notifications", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                new { Id = 16, Key = "EmailOnSupportTicket", Value = "true", DataType = Domain.Enums.System.ConfigDataType.Bool, Description = "Email participants about support ticket activity (new, replied, resolved)", Category = "Notifications", UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
             );
         }
     }

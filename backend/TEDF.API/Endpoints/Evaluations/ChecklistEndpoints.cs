@@ -110,7 +110,7 @@ public sealed class EvaluationChecklistEndpoints : IEndpoint
         Guid projectId, [FromBody] SaveProjectChecklistRequest body, ISender sender, CancellationToken ct)
     {
         var items = (body.Items ?? [])
-            .Select(i => new ChecklistScoreInput(i.CriterionId, i.Score, i.Comment))
+            .Select(i => new ChecklistEvaluationInput(i.CriterionId, i.IsPassed, i.Comment))
             .ToList();
         await sender.Send(new SaveProjectChecklistCommand(projectId, items, body.Note), ct);
         return Ok("Đã lưu kết quả checklist.");
@@ -184,7 +184,7 @@ public sealed class EvaluationChecklistEndpoints : IEndpoint
 
     private static List<ChecklistCriterionInput> MapCriteria(IReadOnlyList<ChecklistCriterionRequest>? criteria)
         => (criteria ?? [])
-            .Select(c => new ChecklistCriterionInput(c.TitleVi, c.TitleEn, c.Description, c.MaxScore, c.PassScore))
+            .Select(c => new ChecklistCriterionInput(c.TitleVi, c.TitleEn, c.Description))
             .ToList();
 
     private static async Task<byte[]> ReadAllBytesAsync(IFormFile file, CancellationToken ct)

@@ -70,7 +70,7 @@ src/
 ├── lib/                      # API layer — barrel index.ts + per-feature folders (mirror backend Endpoints/)
 │   ├── common/               #   apiClient.ts, routes.ts (URL registry), fileUploadUtils
 │   └── <feature>/            #   <feature>Service.ts  (groups, evaluations, topicPools, dashboard, …)
-├── hooks/                    # useSignalR, useUnreadSupportCount, useWishlist
+├── hooks/                    # useSignalR, useUnreadSupportCount
 ├── config/                   # firebase.ts (Firebase SDK init)
 ├── types/                    # Shared types — barrel index.ts + per-feature folders
 │   ├── common/               #   api.types.ts, pagination.types.ts

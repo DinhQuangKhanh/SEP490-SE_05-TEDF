@@ -44,7 +44,7 @@ public class ProjectEvaluationChecklist : AggregateRoot<Guid>
 
     private ProjectEvaluationChecklist() { }
 
-    /// <summary>Builds an initial (unscored) result snapshot from the given active config.</summary>
+    /// <summary>Builds an initial (unevaluated) result snapshot from the given active config.</summary>
     public static ProjectEvaluationChecklist CreateFromConfig(
         ChecklistConfig config, Guid projectId, Guid evaluatorId, int submissionNumber)
     {
@@ -65,19 +65,17 @@ public class ProjectEvaluationChecklist : AggregateRoot<Guid>
         foreach (var criterion in config.Criteria.OrderBy(c => c.Order))
         {
             result._items.Add(ChecklistResultItem.Create(
-                result.Id, criterion.Id, criterion.Order, criterion.TitleVi, criterion.MaxScore, criterion.PassScore));
+                result.Id, criterion.Id, criterion.Order, criterion.TitleVi));
         }
 
         return result;
     }
 
     /// <summary>
-    /// Applies the evaluator's scores + per-criterion comments. Entries whose criterion id is not part of
-    /// this snapshot are ignored; each score is validated against its snapshot bounds. Each item's pass
-    /// state and <see cref="PassedCount"/> are then recomputed from the scores so a client can never inflate
-    /// the count or the pass flags.
+    /// Applies the evaluator's pass/fail decisions + per-criterion comments. Entries whose criterion id
+    /// is not part of this snapshot are ignored. <see cref="PassedCount"/> is recomputed from the results.
     /// </summary>
-    public void ApplyScores(IEnumerable<ChecklistScoreEntry> entries, string? note)
+    public void ApplyResults(IEnumerable<ChecklistEvaluationEntry> entries, string? note)
     {
         var byCriterion = entries
             .GroupBy(e => e.CriterionId)
@@ -86,7 +84,7 @@ public class ProjectEvaluationChecklist : AggregateRoot<Guid>
         foreach (var item in _items)
         {
             if (byCriterion.TryGetValue(item.CriterionId, out var entry))
-                item.ApplyScore(entry.Score, entry.Comment);
+                item.ApplyResult(entry.IsPassed, entry.Comment);
         }
 
         PassedCount = _items.Count(i => i.IsPassed);

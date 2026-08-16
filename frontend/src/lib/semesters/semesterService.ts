@@ -20,8 +20,9 @@ export const semesterService = {
   /** Semester list for non-admin filter dropdowns (any authenticated role). */
   getPublicSemesters: (): Promise<SemesterDto[]> => apiClient.get<SemesterDto[]>(routes.admin.semestersPublic),
 
-  /** Lightweight semester options (id/name/dates) for filter dropdowns. */
-  getSemesterOptions: (): Promise<SemesterOption[]> => apiClient.get<SemesterOption[]>(routes.admin.semesters),
+  /** Lightweight semester options (id/name/dates) for filter dropdowns — usable by any authenticated
+   *  role (uses the public endpoint; the admin `/api/semesters` is RequireAdmin and 403s for lecturers). */
+  getSemesterOptions: (): Promise<SemesterOption[]> => apiClient.get<SemesterOption[]>(routes.admin.semestersPublic),
 
   getSemesterById: (id: number): Promise<SemesterDto> => apiClient.get<SemesterDto>(routes.admin.semesterById(id)),
 

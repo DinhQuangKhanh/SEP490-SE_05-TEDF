@@ -136,13 +136,15 @@ services:
       Security__MalwareScan__FailClosed: "${MALWARE_SCAN_FAIL_CLOSED:-true}"
       Security__MalwareScan__ClamAvHost: "clamav"
       Security__MalwareScan__ClamAvPort: "3310"
-      EmailSettings__SmtpServer: "${SMTP_SERVER:-}"
-      EmailSettings__SmtpPort: "${SMTP_PORT:-0}"
-      EmailSettings__SenderName: "${SMTP_SENDER_NAME:-TEDF System}"
-      EmailSettings__SenderEmail: "${SMTP_SENDER_EMAIL:-}"
-      EmailSettings__Username: "${SMTP_USERNAME:-}"
-      EmailSettings__Password: "${SMTP_PASSWORD:-}"
-      EmailSettings__EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      # Transactional email. Nothing secret belongs here: the backend only writes documents to the
+      # Firestore collection below, and the firestore-send-email extension holds the SMTP password.
+      # FrontendBaseUrl is what turns the in-app routes inside an email into clickable absolute
+      # links — leave it unset and every "view details" button in every email points nowhere.
+      FirestoreMail__Enabled: "${FIRESTORE_MAIL_ENABLED:-true}"
+      FirestoreMail__ProjectId: "${FIREBASE_PROJECT_ID}"
+      FirestoreMail__ServiceAccountKeyPath: "/app/secrets/service-account.json"
+      FirestoreMail__MailCollection: "${FIRESTORE_MAIL_COLLECTION:-mail}"
+      FirestoreMail__FrontendBaseUrl: "${FRONTEND_PUBLIC_ORIGIN:-https://tedf.io.vn}"
       UNITHESIS_RESET_LOADTEST_ON_STARTUP: "${UNITHESIS_RESET_LOADTEST_ON_STARTUP:-false}"
       # Arms the production seeding recipe. Off by default: a start with this false does not touch
       # the database at all. Set SEEDING_RUN_ON_STARTUP=true in .env for one restart to seed, then

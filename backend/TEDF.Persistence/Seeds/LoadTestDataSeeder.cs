@@ -916,8 +916,8 @@ public static class LoadTestDataSeeder
                     parameters.Add(nameVi);
                     parameters.Add(nameEn);
                     parameters.Add($"P-{majorCode}-{t + 1:D3}");
-                    parameters.Add($"Mô tả đề tài: {nameVi}");
-                    parameters.Add($"Mục tiêu: Xây dựng và triển khai {nameVi}");
+                    parameters.Add($"Topic description: {nameEn}");
+                    parameters.Add($"Objective: Build and deploy {nameEn}");
                     parameters.Add(majorId);
                     parameters.Add(semesterId);
                     parameters.Add(poolId);
@@ -1438,8 +1438,8 @@ public static class LoadTestDataSeeder
                 parameters.Add(grp.NameVi);
                 parameters.Add(nameEn);
                 parameters.Add(grp.Name);
-                parameters.Add(content?.Description ?? $"Mô tả đề tài: {grp.NameVi}");
-                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add(content?.Description ?? $"Topic description: {nameEn}");
+                parameters.Add(content?.Objective ?? $"Objective: {nameEn}");
                 parameters.Add((object?)content?.Scope ?? DBNull.Value);
                 parameters.Add((object?)content?.Technology ?? DBNull.Value);
                 parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);
@@ -1559,8 +1559,8 @@ public static class LoadTestDataSeeder
                 parameters.Add(topic.NameVi);
                 parameters.Add(topic.NameEn);
                 parameters.Add(topic.Code);
-                parameters.Add($"Mô tả đề tài: {topic.NameVi}");
-                parameters.Add($"Mục tiêu: {topic.NameEn}");
+                parameters.Add($"Topic description: {topic.NameEn}");
+                parameters.Add($"Objective: {topic.NameEn}");
                 parameters.Add(MajorSE);
                 parameters.Add(Fall2025Id);
                 parameters.Add(GroupId(projectIndex));
@@ -1648,8 +1648,8 @@ public static class LoadTestDataSeeder
                 parameters.Add(topic.NameVi);
                 parameters.Add(nameEn);
                 parameters.Add(topic.Code);
-                parameters.Add(content?.Description ?? $"Mô tả đề tài: {topic.NameVi}");
-                parameters.Add(content?.Objective ?? $"Mục tiêu: {nameEn}");
+                parameters.Add(content?.Description ?? $"Topic description: {nameEn}");
+                parameters.Add(content?.Objective ?? $"Objective: {nameEn}");
                 parameters.Add((object?)content?.Scope ?? DBNull.Value);
                 parameters.Add((object?)content?.Technology ?? DBNull.Value);
                 parameters.Add((object?)content?.ExpectedResult ?? DBNull.Value);

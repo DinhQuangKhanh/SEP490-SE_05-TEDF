@@ -180,3 +180,34 @@ jobs:
 
             echo "Đăng xuất Docker Hub..."
             docker logout
+
+      # =====================================================
+      # SMOKE TEST — HỢP ĐỒNG ĐỊNH TUYẾN
+      # SPA build với VITE_API_BASE_URL="" (same-origin), nên mọi path backend
+      # phải được nginx chuyển tới container API. Path thiếu location sẽ rơi
+      # xuống SPA fallback và trả "200 + text/html" — container vẫn healthy,
+      # log vẫn sạch, chỉ có tính năng chết im lặng (đúng cách SignalR realtime
+      # hỏng ở production). Healthcheck của docker compose không bắt được loại
+      # lỗi này vì nó chỉ kiểm tra từng container, không kiểm tra proxy.
+      # =====================================================
+      - name: Smoke test định tuyến qua reverse proxy
+        env:
+          BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://tedf.io.vn' }}
+        run: |
+          set -Eeuo pipefail
+
+          # Backend vừa restart có thể chưa sẵn sàng (start_period 300s khi seed
+          # database lần đầu). Chờ /health tối đa 5 phút trước khi assert.
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$BASE_URL/health" >/dev/null 2>&1; then
+              echo "Backend sẵn sàng sau $i lần thử."
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Backend không phản hồi $BASE_URL/health sau 5 phút."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          bash scripts/smoke-test-routing.sh "$BASE_URL"

@@ -110,6 +110,9 @@ function MyGroupContent() {
   const [successMessage, setSuccessMessage] = useState("");
   const [selectedJoinRequests, setSelectedJoinRequests] = useState<Set<number>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  // "leave" cho thành viên, "disband" cho nhóm trưởng — cùng dùng một modal xác nhận.
+  const [exitAction, setExitAction] = useState<"leave" | "disband" | null>(null);
+  const [exiting, setExiting] = useState(false);
 
   // Invite picker (students not yet in a group)
   const [invitableStudents, setInvitableStudents] = useState<AvailableStudentDto[]>([]);
@@ -295,6 +298,33 @@ function MyGroupContent() {
     }
   };
 
+  const handleExitGroup = async () => {
+    if (!myGroup || !exitAction) return;
+    const disbanding = exitAction === "disband";
+    try {
+      setExiting(true);
+      if (disbanding) {
+        await studentGroupService.disbandGroup(myGroup.groupId);
+      } else {
+        await studentGroupService.leaveGroup(myGroup.groupId);
+      }
+      setExitAction(null);
+      setSuccessMessage(
+        disbanding
+          ? "Đã giải tán nhóm. Bạn có thể tạo nhóm mới hoặc tham gia nhóm khác."
+          : "Bạn đã rời khỏi nhóm. Bạn có thể tạo nhóm mới hoặc tham gia nhóm khác.",
+      );
+      setShowSuccessModal(true);
+      fetchGroupData();
+    } catch (err) {
+      showError(
+        err instanceof Error ? err.message : disbanding ? "Không thể giải tán nhóm" : "Không thể rời nhóm",
+      );
+    } finally {
+      setExiting(false);
+    }
+  };
+
   const availableSlots = myGroup ? myGroup.maxMembers - (myGroup.members?.length || 0) : 0;
 
   if (loading) {
@@ -387,14 +417,37 @@ function MyGroupContent() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowInviteModal(true)}
-            className="w-full px-4 py-3 font-semibold text-blue-700 transition rounded-lg bg-blue-50 hover:bg-blue-100"
-          >
-            <span className="material-symbols-outlined text-[18px] align-text-bottom mr-1">person_add</span>
-            Mời thành viên mới
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setShowInviteModal(true)}
+              className="flex-1 px-4 py-3 font-semibold text-blue-700 transition rounded-lg bg-blue-50 hover:bg-blue-100"
+            >
+              <span className="material-symbols-outlined text-[18px] align-text-bottom mr-1">person_add</span>
+              Mời thành viên mới
+            </button>
+
+            {/* Nhóm trưởng giải tán cả nhóm; thành viên thường tự rời nhóm. */}
+            {myGroup.isLeader ? (
+              <button
+                type="button"
+                onClick={() => setExitAction("disband")}
+                className="flex-1 px-4 py-3 font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100"
+              >
+                <span className="material-symbols-outlined text-[18px] align-text-bottom mr-1">group_remove</span>
+                Giải tán nhóm
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setExitAction("leave")}
+                className="flex-1 px-4 py-3 font-semibold text-red-700 transition rounded-lg bg-red-50 hover:bg-red-100"
+              >
+                <span className="material-symbols-outlined text-[18px] align-text-bottom mr-1">logout</span>
+                Rời nhóm
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Members List */}
@@ -591,13 +644,61 @@ function MyGroupContent() {
         </div>
       )}
 
+      {/* Leave / Disband Confirmation Modal */}
+      {exitAction && myGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-3 text-xl font-bold text-gray-800">
+              {exitAction === "disband" ? "Giải tán nhóm?" : "Rời khỏi nhóm?"}
+            </h3>
+            <p className="mb-6 text-sm text-gray-600">
+              {exitAction === "disband" ? (
+                <>
+                  Toàn bộ thành viên của nhóm{" "}
+                  <span className="font-semibold">{myGroup.displayName || myGroup.groupCode}</span> sẽ bị loại khỏi
+                  nhóm và mọi lời mời, yêu cầu tham gia đang chờ sẽ bị hủy. Hành động này không thể hoàn tác.
+                </>
+              ) : (
+                <>
+                  Bạn sẽ rời khỏi nhóm{" "}
+                  <span className="font-semibold">{myGroup.displayName || myGroup.groupCode}</span>. Muốn quay lại, bạn
+                  phải được nhóm mời hoặc gửi yêu cầu tham gia lại từ đầu.
+                </>
+              )}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setExitAction(null)}
+                disabled={exiting}
+                className="flex-1 px-4 py-2 font-semibold text-gray-700 transition bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleExitGroup}
+                disabled={exiting}
+                className="flex-1 px-4 py-2 font-semibold text-white transition bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {exiting
+                  ? "Đang xử lý..."
+                  : exitAction === "disband"
+                    ? "Giải tán nhóm"
+                    : "Rời nhóm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
-        title="Mời thành viên thành công"
+        title="Thành công"
         message={successMessage}
-        icon="person_add"
+        icon="check_circle"
         autoClose={3000}
       />
 

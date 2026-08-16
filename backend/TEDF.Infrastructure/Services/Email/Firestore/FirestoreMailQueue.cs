@@ -104,6 +104,39 @@ public sealed class FirestoreMailQueue : IFirestoreMailQueue
         return new MailQueueResult(queued, duplicates);
     }
 
+    public async Task<bool> EnqueueDirectAsync(string to, string subject, string htmlBody, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(to) || !to.Contains('@')) return false;
+
+        var db = await GetDatabaseAsync(ct);
+        if (db is null) return false;
+
+        var collectionName = string.IsNullOrWhiteSpace(_options.MailCollection)
+            ? DefaultMailCollection
+            : _options.MailCollection.Trim();
+
+        // `message` is the extension's inline alternative to `template`. No dedupe key: every click
+        // of "send test email" is meant to produce a new email, so the id is random.
+        var document = new Dictionary<string, object>
+        {
+            ["to"] = to,
+            ["message"] = new Dictionary<string, object>
+            {
+                ["subject"] = subject,
+                ["html"] = htmlBody
+            },
+            ["tedf"] = new Dictionary<string, object>
+            {
+                ["dedupeKey"] = string.Empty,
+                ["queuedAt"] = Timestamp.FromDateTime(DateTime.UtcNow)
+            }
+        };
+
+        await db.Collection(collectionName).Document($"system-test-{Guid.NewGuid():N}").CreateAsync(document, ct);
+        _logger.LogInformation("Queued a test email in '{Collection}'.", collectionName);
+        return true;
+    }
+
     public string BuildDetailUrl(string relativePath)
     {
         var path = relativePath.StartsWith('/') ? relativePath : "/" + relativePath;

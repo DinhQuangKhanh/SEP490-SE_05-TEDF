@@ -7,12 +7,6 @@ namespace TEDF.Domain.Aggregates.EvaluationChecklistAggregate;
 /// </summary>
 public static class DefaultChecklistCriteria
 {
-    /// <summary>Default per-criterion maximum score used for the seeded/default checklist (0–10 scale).</summary>
-    public const decimal DefaultMaxScore = 10m;
-
-    /// <summary>Default per-criterion pass score used for the seeded/default checklist.</summary>
-    public const decimal DefaultPassScore = 7m;
-
     /// <summary>Default "minimum criteria to pass" for the seeded 10-criteria checklist.</summary>
     public const int DefaultRequiredPassCount = 7;
 

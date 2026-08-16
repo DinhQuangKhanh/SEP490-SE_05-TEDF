@@ -35,6 +35,16 @@ export const topicService = {
     return apiClient.postForm<{ queuedCount: number }>(routes.topics.documents(topicId), formData);
   },
 
+  /**
+   * Upload (or replace) the topic's capstone register form (PDF/DOC/DOCX). Stored as a scanned
+   * Proposal document; returns the queued count. Does not re-parse the roster.
+   */
+  uploadRegisterForm: (topicId: string, file: File): Promise<{ queuedCount: number }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postForm<{ queuedCount: number }>(routes.topics.registerForm(topicId), formData);
+  },
+
   /** Topics owned by the current mentor. */
   getMentorTopics: (filters: MentorTopicFilters = {}): Promise<MentorTopicsResponse> => {
     const params = new URLSearchParams();

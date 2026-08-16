@@ -42,6 +42,8 @@ export interface StudentGroupDto {
    */
   displayName: string;
   groupStatus: string;
+  /** Sinh viên hiện tại có phải nhóm trưởng không — quyết định hiển thị nút "Giải tán nhóm". */
+  isLeader: boolean;
   maxMembers: number;
   isOpenForRequests: boolean;
   projectId?: string;

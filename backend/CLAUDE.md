@@ -28,7 +28,7 @@ Solution `TEDF.sln`, 5 projects following **Clean Architecture + DDD + CQRS** wi
 | Background jobs | Hangfire 1.8 (7 recurring jobs, SQL Server storage) |
 | Caching | Hybrid L1 `IMemoryCache` + L2 Redis; invalidated via `ICacheInvalidatingCommand` |
 | Logging | Serilog (+ Application Insights) |
-| Email / files | MailKit (SMTP) / Firebase Object Storage |
+| Email / files | Firestore `mail` collection → `firestore-send-email` extension / Firebase Object Storage |
 
 Commands (run inside `backend/`):
 ```powershell
@@ -37,7 +37,10 @@ dotnet run --project TEDF.API
 dotnet ef database update --project TEDF.Persistence --startup-project TEDF.API
 ```
 API: HTTP `:5141`, HTTPS `:7176`. Swagger `/swagger`, Health `/health`, Hangfire `/hangfire`.
-> No test project exists — do not assume `dotnet test` works.
+```powershell
+dotnet test TEDF.Tests/TEDF.Tests.csproj
+```
+> `TEDF.Tests` (xUnit + NSubstitute) is the only test project. It has **no database dependency** — repositories are substituted, and `AppDbContext` is deliberately left out because its computed columns and interceptors do not survive an in-memory provider. Cover new logic by keeping the rule in a pure Domain type (see `RegistrationTargetSemesterPolicy`) and testing that directly.
 
 ## Documentation
 

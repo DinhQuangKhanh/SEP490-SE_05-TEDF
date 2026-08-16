@@ -67,7 +67,7 @@ npm run preview  # preview the production build
 | API route registry (single source of truth) | `src/lib/common/routes.ts` — services build URLs from `routes.*`, never raw strings |
 | File upload helpers | `src/lib/common/fileUploadUtils.ts` |
 | Global state | `src/contexts/` — `AuthContext`, `MaintenanceContext`, `SettingsContext` (server-side branding), `SystemErrorContext` |
-| Hooks | `src/hooks/` — `useSignalR`, `signalREvents`, `useNotificationTargetRefresh`, `useUnreadSupportCount`, `useWishlist` |
+| Hooks | `src/hooks/` — `useSignalR`, `signalREvents`, `useNotificationTargetRefresh`, `useUnreadSupportCount` |
 | Firebase setup | `src/config/firebase.ts` |
 | Shared types | `src/types/<domain>/<domain>.types.ts`; barrel `src/types/index.ts` (`@/types`) |
 | Static assets | `src/assets/` (e.g. `logo/`) |
