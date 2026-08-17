@@ -128,6 +128,7 @@ export const routes = {
     byId: (id: string) => `/api/topic-pools/${id}`,
     statistics: (id: string) => `/api/topic-pools/${id}/statistics`,
     propose: (poolId: string) => `/api/topic-pools/${poolId}/propose`,
+    proposeValidate: (poolId: string) => `/api/topic-pools/${poolId}/propose/validate`,
     projectRegistration: (projectId: string) => `/api/topic-pools/projects/${projectId}/registration`,
     mentorRegistrations: "/api/topic-pools/registrations/mentor",
     confirmRegistration: (id: string) => `/api/topic-pools/registrations/${id}/confirm`,

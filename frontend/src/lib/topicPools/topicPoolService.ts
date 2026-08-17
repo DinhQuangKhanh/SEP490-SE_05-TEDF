@@ -3,6 +3,7 @@ import {
   GroupRegistrationDto,
   MentorRegistrationRequestDto,
   NoteAttachmentUploadResponse,
+  RegisterFormPreview,
   TopicPoolDto,
   TopicPoolStatisticsDto,
   UpdatePoolTopicRequest,
@@ -23,7 +24,18 @@ export const topicPoolService = {
   getTopicPoolStatistics: (id: string): Promise<TopicPoolStatisticsDto> =>
     apiClient.get<TopicPoolStatisticsDto>(routes.topicPools.statistics(id)),
 
-  /** Mentor proposes a new topic into a pool (multipart: fields + attachments). */
+  /**
+   * Step A: scan + parse + validate an uploaded register form WITHOUT creating the topic. Resolves
+   * with the parsed 3.1–3.4 preview when the form is clean & complete; rejects with the specific
+   * error (Kinds-of-person / mentor mismatch / missing section) otherwise.
+   */
+  validateRegisterForm: (poolId: string, file: File): Promise<RegisterFormPreview> => {
+    const formData = new FormData();
+    formData.append("registerForm", file);
+    return apiClient.postForm<RegisterFormPreview>(routes.topicPools.proposeValidate(poolId), formData);
+  },
+
+  /** Step B: mentor proposes the topic (multipart: the register form + the optional note). */
   proposeTopic: (poolId: string, formData: FormData): Promise<{ id: string }> =>
     apiClient.postForm<{ id: string }>(routes.topicPools.propose(poolId), formData),
 

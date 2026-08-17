@@ -4,7 +4,9 @@ using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
 using TEDF.Application.Common.Interfaces;
+using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate;
+using TEDF.Infrastructure.Services.RegisterForm;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
 using TEDF.Domain.Aggregates.UserAggregate;
 using TEDF.Domain.Common.Exceptions;
@@ -30,9 +32,13 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
     private readonly IUserRepository _userRepository;
     private readonly IRegisterFormParser _registerFormParser;
     private readonly ISemestersDomainService _semesterDomainService;
+    private readonly ISemesterRepository _semesterRepository;
     private readonly IProjectsDomainService _projectsDomainService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TopicPoolsDomainService> _logger;
+
+    /// <summary>Default group capacity for a proposed topic (the register form does not carry it).</summary>
+    private const int DefaultMaxStudents = 5;
 
     public TopicPoolsDomainService(
         ITopicPoolRepository topicPoolRepository,
@@ -43,6 +49,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         IUserRepository userRepository,
         IRegisterFormParser registerFormParser,
         ISemestersDomainService semesterDomainService,
+        ISemesterRepository semesterRepository,
         IProjectsDomainService projectsDomainService,
         IUnitOfWork unitOfWork,
         ILogger<TopicPoolsDomainService> logger)
@@ -56,6 +63,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         _userRepository = userRepository;
         _registerFormParser = registerFormParser;
         _semesterDomainService = semesterDomainService;
+        _semesterRepository = semesterRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -150,11 +158,13 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (project.SourceType != ProjectSourceType.FromPool)
             throw new BusinessRuleValidationException("This project is not from the topic pool.");
 
-        if (project.PoolStatus != PoolTopicStatus.Available)
-            throw new BusinessRuleValidationException("This topic is not available for registration.");
-
+        // Only an approved topic may be registered — checked before availability so a not-yet-reviewed
+        // topic returns the accurate reason (a pool topic is Available from proposal time onward).
         if (project.Status != ProjectStatus.Approved)
-            throw new BusinessRuleValidationException("Only approved topics can be registered for.");
+            throw new BusinessRuleValidationException("Chỉ có thể đăng ký đề tài đã được duyệt.");
+
+        if (project.PoolStatus != PoolTopicStatus.Available)
+            throw new BusinessRuleValidationException("Đề tài này hiện không mở đăng ký.");
 
         // Group and topic must run in the same semester. Without this the mismatch stays invisible
         // until much later — it is how topics stamped with the wrong semester went unnoticed.
@@ -495,6 +505,88 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return project.Id;
+    }
+
+    public async Task<RegisterFormProposalResult> ValidateRegisterFormAsync(
+        Guid poolId, byte[] registerForm, Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var (_, result, _) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, cancellationToken);
+        return result;
+    }
+
+    public async Task<(Guid ProjectId, RegisterFormProposalResult Content)> ProposeTopicFromFormAsync(
+        Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var (pool, result, targetSemesterId) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, cancellationToken);
+
+        // Recorded for the pool-expiry audit trail only; null between semesters, which is fine.
+        var createdInSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken);
+        var code = await _projectsDomainService.GenerateProjectCodeAsync(targetSemesterId, pool.MajorId, cancellationToken);
+
+        var expirationOffset = Math.Max(1, pool.ExpirationSemesters);
+        var expirationSemesterId = await _semesterDomainService.GetSemesterAfterAsync(targetSemesterId, expirationOffset - 1, cancellationToken);
+
+        var project = Project.CreateFromPool(
+            code: code,
+            nameVi: ProjectName.Create(result.NameVi),
+            nameEn: ProjectName.Create(result.NameEn),
+            nameAbbr: result.NameAbbr,
+            description: result.Description,
+            objectives: result.Objectives,
+            scope: result.Scope,
+            technologyStack: string.IsNullOrWhiteSpace(result.Technologies) ? null : TechnologyStack.Create(result.Technologies),
+            expectedResults: result.ExpectedResults,
+            majorId: pool.MajorId,
+            semesterId: targetSemesterId,
+            maxStudents: DefaultMaxStudents,
+            topicPoolId: pool.Id,
+            createdInSemesterId: createdInSemesterId,
+            expirationSemesterId: expirationSemesterId);
+
+        // Mentor = the logged-in lecturer, already validated to be the mentor named on the form.
+        foreach (var mentorId in result.MentorIds)
+            project.AddMentor(mentorId, assignedBy: mentorId);
+
+        project.SetMentorNote(mentorNote);
+
+        var roster = await ResolveRosterAsync(registerForm, project.MaxStudents, cancellationToken);
+        if (roster.Count > 0)
+            project.SetProposedRoster(roster);
+
+        await _projectRepository.AddAsync(project, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return (project.Id, result);
+    }
+
+    /// <summary>
+    /// Loads the pool, parses the uploaded form, and runs the b → a → c validation + mapping — shared by
+    /// the "validate before submit" step and the actual proposal so both apply exactly the same rules.
+    /// </summary>
+    private async Task<(TopicPool Pool, RegisterFormProposalResult Result, int TargetSemesterId)> ParseValidatePoolFormAsync(
+        Guid poolId, byte[] registerForm, Guid currentUserId, CancellationToken cancellationToken)
+    {
+        if (registerForm is null || registerForm.Length == 0)
+            throw new BusinessRuleValidationException("Phiếu đăng ký (Capstone Project Register) là bắt buộc khi đề xuất đề tài.");
+
+        var pool = await _topicPoolRepository.GetByIdAsync(poolId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(TopicPool), poolId);
+
+        if (!pool.IsAcceptingProposals())
+            throw new BusinessRuleValidationException("This topic pool is not currently accepting new topic proposals.");
+
+        var targetSemesterId = await _semesterDomainService.GetRegistrationTargetSemesterIdAsync(cancellationToken)
+            ?? throw new BusinessRuleValidationException(
+                "Chưa có học kỳ nào đang mở đăng ký đề tài. Vui lòng liên hệ quản trị viên tạo học kỳ kế tiếp trước khi đề xuất đề tài.");
+
+        RegisterFormContent content;
+        using (var stream = new MemoryStream(registerForm, writable: false))
+            content = _registerFormParser.ExtractContent(stream);
+
+        var eligibleMentors = await _semesterRepository.GetEligibleMentorsByMajorAsync(targetSemesterId, pool.MajorId, cancellationToken);
+
+        var result = RegisterFormProposalValidator.ValidateAndMap(content, eligibleMentors, currentUserId);
+        return (pool, result, targetSemesterId);
     }
 
     /// <summary>

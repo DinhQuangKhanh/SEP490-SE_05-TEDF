@@ -13,9 +13,23 @@ namespace TEDF.Infrastructure.Services.RegisterForm;
 /// </param>
 internal readonly record struct RegisterFormRow(string Text, IReadOnlyList<string> Cells);
 
-/// <summary>The section headings both readers key off; kept in one place so they cannot drift apart.</summary>
+/// <summary>
+/// A register form normalized to plain lines + tables, independent of the source format, so content
+/// extraction runs once on this and PDF/DOCX/DOC all agree. <see cref="Lines"/> holds paragraph text
+/// with in-paragraph line breaks already split out (Word lets labels such as Vietnamese/Abbreviation
+/// share one paragraph, separated only by a soft break). <see cref="Tables"/> is tables → rows → cells;
+/// empty for PDF, which loses table structure (supervisor/student rows are then found in the lines).
+/// </summary>
+internal sealed record RegisterFormDoc(
+    IReadOnlyList<string> Lines,
+    IReadOnlyList<IReadOnlyList<IReadOnlyList<string>>> Tables);
+
+/// <summary>The section headings the readers key off; kept in one place so they cannot drift apart.</summary>
 internal static class RegisterFormHeadings
 {
+    /// <summary>Opens section 1 — printed as "1. Register information for supervisor".</summary>
+    public const string SupervisorSection = "Register information for supervisor";
+
     /// <summary>Opens the student table — printed as "2. Register information for students".</summary>
     public const string StudentSection = "Register information for students";
 

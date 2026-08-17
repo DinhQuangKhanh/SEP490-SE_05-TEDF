@@ -18,7 +18,38 @@ public interface IRegisterFormParser
     /// <param name="stream">The uploaded form content, in either PDF or DOCX format.</param>
     /// <returns>One entry per filled-in row; empty when the table has no students.</returns>
     IReadOnlyList<RegisterRosterRow> ExtractRoster(Stream stream);
+
+    /// <summary>
+    /// Reads the full proposable content off the register form: the supervisor(s), whether the
+    /// "Kinds of person make registers" box is ticked as Lecturer, the section 3.1–3.4 project
+    /// fields, and the student roster. Accepts DOCX / DOC / PDF (detected from the leading bytes).
+    /// <para>
+    /// Best-effort like <see cref="ExtractRoster"/>: fields that cannot be read come back null/empty
+    /// rather than throwing, so the caller's validation layer decides what to reject on. Only a
+    /// completely unreadable file throws (the caller maps that to a "cannot read the form" error).
+    /// </para>
+    /// </summary>
+    RegisterFormContent ExtractContent(Stream stream);
 }
+
+/// <summary>Everything the propose flow reads off one "Capstone Project Register" form.</summary>
+public sealed record RegisterFormContent(
+    /// <summary>Section 1 supervisors that carry a name or e-mail (blank template rows dropped).</summary>
+    IReadOnlyList<RegisterFormSupervisor> Supervisors,
+    /// <summary>True/false = "Kinds of person" ticked Lecturer / not; null = state could not be read.</summary>
+    bool? LecturerRegisterTicked,
+    string? NameEn,        // 3.1 English
+    string? NameVi,        // 3.1 Vietnamese
+    string? NameAbbr,      // 3.1 Abbreviation (parenthetical hint stripped)
+    string? Description,   // 3.2 brief introduction (Objectives & Technology excluded)
+    string? Objectives,    // 3.2 Objectives
+    IReadOnlyList<string> Technologies,  // 3.2 Technology/algorithm — flattened list of tech names
+    string? ExpectedResults, // 3.3 "expected outputs" portion (falls back to the whole 3.3)
+    string? Scope,           // 3.4 Expected features
+    IReadOnlyList<RegisterRosterRow> Roster);  // section 2
+
+/// <summary>A supervisor read off section 1. <see cref="Email"/> is what the mentor check matches on.</summary>
+public sealed record RegisterFormSupervisor(string? FullName, string? Email, string? Title);
 
 /// <summary>
 /// A student row read off the register form. Names are deliberately not captured: the Word-exported

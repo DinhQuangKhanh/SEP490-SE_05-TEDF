@@ -97,3 +97,19 @@ export interface NoteAttachment {
   name: string;
   size: number;
 }
+
+/**
+ * POST /api/topic-pools/{poolId}/propose/validate — the 3.1–3.4 fields parsed off an uploaded register
+ * form when it passes validation, shown as a preview in the propose modal before the mentor submits.
+ */
+export interface RegisterFormPreview {
+  nameEn: string;
+  nameVi: string;
+  nameAbbr: string;
+  description: string;
+  objectives: string;
+  technologies: string | null;
+  expectedResults: string | null;
+  scope: string | null;
+  mentorCount: number;
+}

@@ -159,6 +159,15 @@ namespace TEDF.Persistence.SqlServer.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<TEDF.Domain.Aggregates.SemesterAggregate.Entities.EligibleMentor>> GetEligibleMentorsByMajorAsync(
+            int semesterId, int majorId, CancellationToken cancellationToken = default)
+        {
+            return await _context.EligibleMentors
+                .AsNoTracking()
+                .Where(m => m.SemesterId == semesterId && m.MajorId == majorId && m.IsAssigned)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<IEnumerable<Semester>> GetSemestersWithPhaseStartingInAsync(int days, CancellationToken cancellationToken = default)
         {
             var targetDate = DateTime.UtcNow.Date.AddDays(days);
