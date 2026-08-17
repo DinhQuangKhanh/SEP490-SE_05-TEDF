@@ -3,9 +3,11 @@ using TEDF.Domain.Aggregates.GroupAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.ProjectAggregate.Rules;
 using TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects;
+using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.SemesterAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate;
+using TEDF.Domain.Aggregates.TopicPoolAggregate.Rules;
 using TEDF.Infrastructure.Services.RegisterForm;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
 using TEDF.Domain.Aggregates.UserAggregate;
@@ -34,6 +36,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
     private readonly ISemestersDomainService _semesterDomainService;
     private readonly ISemesterRepository _semesterRepository;
     private readonly IProjectsDomainService _projectsDomainService;
+    private readonly ISystemSettingsService _settings;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TopicPoolsDomainService> _logger;
 
@@ -51,6 +54,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         ISemestersDomainService semesterDomainService,
         ISemesterRepository semesterRepository,
         IProjectsDomainService projectsDomainService,
+        ISystemSettingsService settings,
         IUnitOfWork unitOfWork,
         ILogger<TopicPoolsDomainService> logger)
     {
@@ -64,6 +68,7 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         _registerFormParser = registerFormParser;
         _semesterDomainService = semesterDomainService;
         _semesterRepository = semesterRepository;
+        _settings = settings;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -115,13 +120,35 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
             ?? throw new EntityNotFoundException(nameof(TopicPool), topicPoolId);
 
         if (!pool.IsAcceptingProposals())
-            return (false, "Topic pool is not currently accepting proposals.");
+            return (false, "Kho đề tài hiện không nhận đề xuất.");
 
-        var currentCount = await GetMentorActiveTopicCountAsync(mentorId, topicPoolId, cancellationToken);
-        if (currentCount >= pool.MaxActiveTopicsPerMentor)
-            return (false, $"You have reached the maximum of {pool.MaxActiveTopicsPerMentor} active topics in this pool.");
+        var rule = await BuildMentorTopicLimitRuleAsync(mentorId, pool, cancellationToken);
+        if (rule.IsBroken())
+            return (false, rule.Message);
 
         return (true, null);
+    }
+
+    /// <summary>
+    /// The per-mentor active-topic cap for a pool. The admin "Số lượng đề tài tối đa / GVHD" setting
+    /// (<see cref="SettingKeys.MaxTopicsPerMentor"/>) is authoritative; the pool's own
+    /// <see cref="TopicPool.MaxActiveTopicsPerMentor"/> is the fallback when the setting is unset.
+    /// </summary>
+    private async Task<MentorCannotExceedMaxActiveTopicsRule> BuildMentorTopicLimitRuleAsync(
+        Guid mentorId, TopicPool pool, CancellationToken cancellationToken)
+    {
+        var maxTopics = await _settings.GetIntAsync(
+            SettingKeys.MaxTopicsPerMentor, pool.MaxActiveTopicsPerMentor, cancellationToken);
+        var currentCount = await GetMentorActiveTopicCountAsync(mentorId, pool.Id, cancellationToken);
+        return new MentorCannotExceedMaxActiveTopicsRule(currentCount, maxTopics);
+    }
+
+    /// <summary>Throws when the mentor already holds the max number of active topics for the pool.</summary>
+    private async Task EnsureMentorUnderTopicLimitAsync(Guid mentorId, TopicPool pool, CancellationToken cancellationToken)
+    {
+        var rule = await BuildMentorTopicLimitRuleAsync(mentorId, pool, cancellationToken);
+        if (rule.IsBroken())
+            throw new BusinessRuleValidationException(rule);
     }
 
     public async Task<TopicRegistration> RequestRegistrationAsync(
@@ -460,6 +487,9 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (!pool.IsAcceptingProposals())
             throw new BusinessRuleValidationException("This topic pool is not currently accepting new topic proposals.");
 
+        // Cap the mentor's active topics per the admin "Số lượng đề tài tối đa / GVHD" setting.
+        await EnsureMentorUnderTopicLimitAsync(mentorId, pool, cancellationToken);
+
         // The topic belongs to the semester whose Registration/Evaluation phase is open — the one
         // *after* the semester running right now. Using the running semester stamped Fall topics
         // with the Summer code and pushed them out of every Fall-filtered list.
@@ -518,6 +548,10 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId, CancellationToken cancellationToken = default)
     {
         var (pool, result, targetSemesterId) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, cancellationToken);
+
+        // Cap the mentor's active topics per the admin "Số lượng đề tài tối đa / GVHD" setting. The
+        // proposing lecturer (currentUserId) was already proven to be the mentor named on the form.
+        await EnsureMentorUnderTopicLimitAsync(currentUserId, pool, cancellationToken);
 
         // Recorded for the pool-expiry audit trail only; null between semesters, which is fine.
         var createdInSemesterId = await _semesterDomainService.GetActiveSemesterIdAsync(cancellationToken);
