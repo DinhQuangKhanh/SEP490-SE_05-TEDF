@@ -18,6 +18,7 @@ namespace TEDF.Domain.Aggregates.TopicPoolAggregate.Rules
 
         public bool IsBroken() => _currentActiveTopicCount >= _maxActiveTopicsPerMentor;
 
-        public string Message => $"Mentor has already reached the maximum of {_maxActiveTopicsPerMentor} active topics in this pool.";
+        public string Message =>
+            $"Giảng viên đã đạt tối đa {_maxActiveTopicsPerMentor} đề tài đang hoạt động trong kho này. Hiện tại: {_currentActiveTopicCount}/{_maxActiveTopicsPerMentor}.";
     }
 }
