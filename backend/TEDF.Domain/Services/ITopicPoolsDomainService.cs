@@ -115,6 +115,25 @@ public interface ITopicPoolsDomainService
     /// </param>
     Task<Guid> ProposeTopicAsync(Guid poolId, Guid mentorId, PoolTopicContent content, byte[] registerForm, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads &amp; validates a register form for a proposal WITHOUT creating anything — used by the
+    /// "validate before submit" step so the modal unlocks only on a clean, complete form. Throws a
+    /// <see cref="TEDF.Domain.Common.Exceptions.BusinessRuleValidationException"/> with the specific
+    /// reason (Kinds-of-person / mentor mismatch / missing 3.1–3.4) when the form is not acceptable;
+    /// otherwise returns the mapped preview. <paramref name="currentUserId"/> is the logged-in lecturer,
+    /// who must themselves be the mentor named on the form.
+    /// </summary>
+    Task<RegisterFormProposalResult> ValidateRegisterFormAsync(Guid poolId, byte[] registerForm, Guid currentUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Mentor proposes a new topic by uploading the completed register form. Parses &amp; validates the
+    /// form (same rules as <see cref="ValidateRegisterFormAsync"/>), maps its 3.1–3.4 fields onto the
+    /// project, sets the mentor to the logged-in lecturer (<paramref name="currentUserId"/>, required to
+    /// be the mentor named on the form), records the roster, stores the optional note, and returns the
+    /// new project id.
+    /// </summary>
+    Task<(Guid ProjectId, RegisterFormProposalResult Content)> ProposeTopicFromFormAsync(Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId, CancellationToken cancellationToken = default);
+
     /// <summary>Mentor edits a pool topic (allowed only while Draft/NeedsModification).</summary>
     Task UpdatePoolTopicAsync(Guid projectId, PoolTopicContent content, CancellationToken cancellationToken = default);
 
@@ -136,6 +155,23 @@ public record TopicPoolStatistics(
     int ConfirmedRegistrations,
     int TopMentorTopicCount,
     double AverageTopicsPerMentor
+);
+
+/// <summary>
+/// The 3.1–3.4 content mapped off a register form plus the mentor(s) matched to the published
+/// eligible-mentor list. Feeds both the "validate" preview and the actual proposal. All string fields
+/// are already validated non-blank / clamped to their column limits by the mapping step.
+/// </summary>
+public record RegisterFormProposalResult(
+    string NameEn,
+    string NameVi,
+    string NameAbbr,
+    string Description,
+    string Objectives,
+    string? Technologies,
+    string? ExpectedResults,
+    string? Scope,
+    IReadOnlyList<Guid> MentorIds
 );
 
 /// <summary>Editable content of a pool topic (used by propose &amp; update).</summary>

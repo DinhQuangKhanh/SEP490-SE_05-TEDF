@@ -44,6 +44,40 @@ public class RegisterFormParser : IRegisterFormParser
         return rows;
     }
 
+    public RegisterFormContent ExtractContent(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        try
+        {
+            using var seekable = ToSeekable(stream);
+
+            var format = RegisterFormFormatDetector.Detect(seekable);
+            var doc = format switch
+            {
+                RegisterFormFormat.Docx => DocxRegisterFormReader.ReadDocument(seekable),
+                RegisterFormFormat.Doc => DocRegisterFormReader.ReadDocument(seekable),
+                RegisterFormFormat.Pdf => PdfRegisterFormReader.ReadDocument(seekable),
+                _ => new RegisterFormDoc([], []),
+            };
+
+            return RegisterFormContentExtractor.Extract(doc);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort: an unreadable form yields empty content, and the validation layer then
+            // reports the specific missing sections instead of surfacing a 500.
+            _logger.LogWarning(ex, "Could not read the register form content; returning empty content.");
+            return EmptyContent();
+        }
+    }
+
+    private static RegisterFormContent EmptyContent() =>
+        new(Supervisors: [], LecturerRegisterTicked: null,
+            NameEn: null, NameVi: null, NameAbbr: null,
+            Description: null, Objectives: null, Technologies: [],
+            ExpectedResults: null, Scope: null, Roster: []);
+
     private IReadOnlyList<RegisterFormRow> ReadRows(Stream stream)
     {
         // Both readers need to seek, and the caller may hand us a forward-only stream.

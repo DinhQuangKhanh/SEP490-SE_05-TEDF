@@ -61,5 +61,12 @@ namespace TEDF.Domain.Aggregates.SemesterAggregate
 
         /// <summary>Ids of mentors assigned to supervise the given major on the eligible-mentor roster of the given semester.</summary>
         Task<List<Guid>> GetEligibleMentorIdsByMajorAsync(int semesterId, int majorId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The eligible-mentor rows (each carrying MentorId + Email) assigned to the given major on the
+        /// given semester's roster. Used to match a register form's supervisor e-mail to a published
+        /// mentor, then resolve that mentor's id.
+        /// </summary>
+        Task<List<Entities.EligibleMentor>> GetEligibleMentorsByMajorAsync(int semesterId, int majorId, CancellationToken cancellationToken = default);
     }
 }

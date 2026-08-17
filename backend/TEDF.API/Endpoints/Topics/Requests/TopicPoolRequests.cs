@@ -1,23 +1,10 @@
 namespace TEDF.API.Endpoints.Topics.Requests;
 
-public sealed class ProposeTopicRequest
-{
-    public string NameVi { get; set; } = string.Empty;
-    public string NameEn { get; set; } = string.Empty;
-    public string NameAbbr { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string Objectives { get; set; } = string.Empty;
-    public string? Scope { get; set; }
-    public string? Technologies { get; set; }
-    public string? ExpectedResults { get; set; }
-    public int MaxStudents { get; set; } = 5;
-
-    // The uploaded files are deliberately NOT properties here. Minimal API [FromForm] binding does
-    // not populate a List<IFormFile> on a complex type — it silently leaves it null, which is how
-    // the attachments on this endpoint came to be dropped in the first place. The handler reads them
-    // off HttpContext.Request.Form.Files instead: the register form by the part name "registerForm",
-    // and every other part as a supporting document.
-}
+// The propose endpoint takes no bound request model. Its multipart form carries the register form
+// (and any supporting documents) as files plus an optional "note" text part; Minimal API [FromForm]
+// binding to a complex type does not populate IFormFile lists AND yields a *null* model when the form
+// omits every matched field (e.g. a blank note) — both silent failures. The handler reads everything
+// off HttpContext.Request.Form directly: files via Form.Files, the note via Form["note"].
 
 public sealed record TopicRegistrationRequest(Guid ProjectId, string? Note);
 public sealed record RejectTopicRegistrationRequest(string Reason);

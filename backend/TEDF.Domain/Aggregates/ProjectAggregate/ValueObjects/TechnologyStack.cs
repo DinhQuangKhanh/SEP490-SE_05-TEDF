@@ -5,9 +5,10 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate.ValueObjects
     public sealed class TechnologyStack : ValueObject
     {
         /// <summary>
-        /// Maximum length of the technology stack string.
+        /// Maximum length of the technology stack string. Widened to 4000 so a full parsed tech list
+        /// (Front-end/Back-end/… gathered from the register form) fits.
         /// </summary>
-        public const int MaxLength = 500;
+        public const int MaxLength = 4000;
 
         /// <summary>
         /// Gets the technology stack value.
