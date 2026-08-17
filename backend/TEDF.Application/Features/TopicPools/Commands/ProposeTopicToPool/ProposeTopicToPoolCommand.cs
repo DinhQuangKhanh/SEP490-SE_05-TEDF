@@ -4,27 +4,17 @@ using TEDF.Application.Common.Attributes;
 namespace TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 
 /// <summary>
-/// Command for a mentor to propose a new topic into a topic pool.
+/// Command for a mentor to propose a new topic into a topic pool by uploading the completed
+/// "Capstone Project Register" form. All topic content (3.1–3.4) is read from the form; the only
+/// free-text input is the optional mentor note (sanitized rich-text HTML from the modal).
 /// </summary>
 [ActionLog("Propose Topic to Pool", "TopicPool")]
 public record ProposeTopicToPoolCommand(
     Guid PoolId,
-    string NameVi,
-    string NameEn,
-    string NameAbbr,
-    string Description,
-    string Objectives,
-    string? Scope,
-    string? Technologies,
-    string? ExpectedResults,
-    /// <summary>
-    /// The capstone register form (PDF or DOCX). Attaching it is required; a form listing students
-    /// additionally seeds the topic's proposed roster, which becomes a group once the topic passes
-    /// evaluation. Declared ahead of <paramref name="MaxStudents"/> because a required positional
-    /// parameter cannot follow one with a default value.
-    /// </summary>
+    /// <summary>The capstone register form (PDF / DOCX / DOC). Parsed for the topic content + roster.</summary>
     byte[] RegisterForm,
-    int MaxStudents = 5
+    /// <summary>Optional mentor note (sanitized HTML) — e.g. capability requirements for registrants.</summary>
+    string? Note = null
 ) : ICacheInvalidatingCommand<Guid>
 {
     public IReadOnlyCollection<string> CachePrefixesToInvalidate =>

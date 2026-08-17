@@ -35,22 +35,26 @@ namespace TEDF.Persistence.SqlServer.Configurations.Project
                 .HasMaxLength(50);
 
             builder.Property(p => p.Description)
-                .HasMaxLength(2000)
+                .HasMaxLength(4000)
                 .IsRequired();
 
             builder.Property(p => p.Objectives)
-                .HasMaxLength(2000)
+                .HasMaxLength(4000)
                 .IsRequired();
 
             builder.Property(p => p.Scope)
-                .HasMaxLength(2000);
+                .HasMaxLength(4000);
 
             builder.Property(p => p.Technologies)
                 .HasConversion<TechnologyStackConverter>()
-                .HasMaxLength(500);
+                .HasMaxLength(4000);
 
             builder.Property(p => p.ExpectedResults)
-                .HasMaxLength(2000);
+                .HasMaxLength(4000);
+
+            // Mentor's rich-text note (sanitized HTML) entered when proposing the topic.
+            builder.Property(p => p.MentorNote)
+                .HasMaxLength(4000);
 
             // Enums stored as integers
             builder.Property(p => p.Status)

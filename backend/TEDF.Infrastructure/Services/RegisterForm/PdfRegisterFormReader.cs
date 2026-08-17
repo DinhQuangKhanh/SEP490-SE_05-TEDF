@@ -26,6 +26,14 @@ internal static class PdfRegisterFormReader
         return [.. section.Select(line => new RegisterFormRow(line, Cells: [line]))];
     }
 
+    /// <summary>
+    /// Reads the whole PDF into the normalized <see cref="RegisterFormDoc"/> — visual lines only. The
+    /// export loses table structure, so <see cref="RegisterFormDoc.Tables"/> stays empty and the
+    /// content extractor recovers the supervisor / student rows from the lines instead.
+    /// </summary>
+    public static RegisterFormDoc ReadDocument(Stream stream) =>
+        new(ReadLines(stream), []);
+
     /// <summary>Regroups every page's words into visual lines, top-to-bottom, left-to-right.</summary>
     private static List<string> ReadLines(Stream pdfStream)
     {

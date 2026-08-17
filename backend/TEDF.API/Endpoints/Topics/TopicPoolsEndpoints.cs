@@ -12,6 +12,7 @@ using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolById;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPools;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolsByDepartment;
 using TEDF.Application.Features.TopicPools.Queries.GetTopicPoolStatistics;
+using TEDF.Application.Features.TopicPools.Queries.ValidateRegisterForm;
 using TEDF.API.Endpoints.Topics.Requests;
 using TEDF.Infrastructure.Authorization.Policies;
 using static TEDF.API.Extensions.ApiResponseExtensions;
@@ -38,7 +39,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     private const long PerFileMaxBytes = 10 * 1024 * 1024;
     private const int MaxAttachmentCount = 6;
 
-    private static readonly string[] RegisterFormExtensions = [".pdf", ".docx"];
+    private static readonly string[] RegisterFormExtensions = [".pdf", ".docx", ".doc"];
 
     /// <summary>The multipart part name the client uses for the capstone register form.</summary>
     private const string RegisterFormFieldName = "registerForm";
@@ -96,6 +97,17 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = ProposalUploadMaxBytes })
             .RequireRateLimiting("ProposeTopicUploadPolicy")
             .Produces(201).Produces(400).Produces(401).Produces(403).Produces(404).Produces(429).Produces(503);
+
+        // Step A of the propose flow: scan + parse + validate the uploaded form and return a preview,
+        // so the modal unlocks "Gửi phê duyệt" only on a clean, complete form. Creates nothing.
+        pool.MapPost("/{poolId:guid}/propose/validate", ProposeValidateRegisterForm)
+            .RequireAuthorization(PolicyNames.RequireMentor)
+            .DisableAntiforgery()
+            .WithTags("TopicPools")
+            .WithName("ProposeValidateRegisterForm")
+            .WithMetadata(new RequestSizeLimitAttribute(ProposalUploadMaxBytes))
+            .WithMetadata(new RequestFormLimitsAttribute { MultipartBodyLengthLimit = ProposalUploadMaxBytes })
+            .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
 
         pool.MapPost("/{groupId:guid}/topic-registrations", RequestTopicRegistration)
             .RequireAuthorization(PolicyNames.GroupLeader)
@@ -163,9 +175,48 @@ public sealed class TopicPoolsEndpoints : IEndpoint
     private static async Task<IResult> GetTopicPoolStatistics(ISender sender, Guid id, CancellationToken ct = default)
         => Ok(await sender.Send(new GetTopicPoolStatisticsQuery(id), ct));
 
+    private static async Task<IResult> ProposeValidateRegisterForm(
+        Guid poolId,
+        HttpContext httpContext,
+        [FromServices] IMalwareScanner malwareScanner,
+        ICurrentUserService currentUser,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is null)
+            return Results.Unauthorized();
+
+        if (!httpContext.Request.HasFormContentType)
+            return Results.BadRequest(ApiResponse.Fail("Request phải là multipart/form-data."));
+
+        if (httpContext.Request.Form.Files.GetFile(RegisterFormFieldName) is not { Length: > 0 } registerForm)
+            return Results.BadRequest(ApiResponse.Fail("Vui lòng tải lên phiếu đăng ký (Capstone Project Register)."));
+
+        var extension = Path.GetExtension(registerForm.FileName);
+        if (!RegisterFormExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF, DOC hoặc DOCX."));
+
+        if (!FileUploadValidator.TryValidate([registerForm], PerFileMaxBytes, MaxAttachmentCount, out var uploadError))
+            return Results.BadRequest(ApiResponse.Fail(uploadError));
+
+        // Scan before parsing — the form's bytes must be proven clean before we read them in-process.
+        var scan = await malwareScanner.ScanAsync([registerForm], cancellationToken);
+        if (scan.ScannerUnavailable)
+            return Results.Json(ApiResponse.Fail(scan.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
+        if (!scan.IsClean)
+            return Results.BadRequest(ApiResponse.Fail(scan.Message));
+
+        using var stream = new MemoryStream();
+        await registerForm.CopyToAsync(stream, cancellationToken);
+
+        // The query throws the specific business-rule error (→ 400) when the form is not acceptable;
+        // on success it returns the parsed preview so the modal shows it and unlocks the submit button.
+        var preview = await sender.Send(new ValidateRegisterFormQuery(poolId, stream.ToArray()), cancellationToken);
+        return Ok(preview);
+    }
+
     private static async Task<IResult> ProposeTopicToPool(
         Guid poolId,
-        [FromForm] ProposeTopicRequest body,
         HttpContext httpContext,
         [FromServices] IAttachmentScanWorkflow scanWorkflow,
         [FromServices] IMalwareScanner malwareScanner,
@@ -181,18 +232,9 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         if (!httpContext.Request.HasFormContentType)
             return Results.BadRequest(ApiResponse.Fail("Request phải là multipart/form-data."));
 
-        // ProjectName.Create rejects a blank name with an ArgumentException, which the exception
-        // middleware has no arm for — without these guards an empty name surfaces as a 500.
-        if (string.IsNullOrWhiteSpace(body.NameVi))
-            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Việt."));
-
-        if (string.IsNullOrWhiteSpace(body.NameEn))
-            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên đề tài bằng tiếng Anh."));
-
-        if (string.IsNullOrWhiteSpace(body.NameAbbr))
-            return Results.BadRequest(ApiResponse.Fail("Vui lòng nhập tên viết tắt của đề tài."));
-
-        // Read the files off the request rather than the bound model — see ProposeTopicRequest.
+        // Topic content (3.1–3.4) comes from the uploaded register form, parsed & validated in the
+        // command handler; the form also carries an optional mentor note. Everything is read straight
+        // off the request form — never a [FromForm] model, which binds files/blank notes to null.
         var files = httpContext.Request.Form.Files;
 
         if (files.GetFile(RegisterFormFieldName) is not { Length: > 0 } registerForm)
@@ -209,7 +251,7 @@ public sealed class TopicPoolsEndpoints : IEndpoint
 
         var registerFormExtension = Path.GetExtension(registerForm.FileName);
         if (!RegisterFormExtensions.Contains(registerFormExtension, StringComparer.OrdinalIgnoreCase))
-            return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF hoặc DOCX."));
+            return Results.BadRequest(ApiResponse.Fail("Phiếu đăng ký phải là tệp PDF, DOC hoặc DOCX."));
 
         // Scanned inline rather than through the background queue, because the roster is parsed from
         // this file in-process a few lines below — the content must be proven clean first. The queue
@@ -230,18 +272,18 @@ public sealed class TopicPoolsEndpoints : IEndpoint
             return Results.BadRequest(ApiResponse.Fail(attachmentError));
         }
 
+        // The optional note rides in the same multipart form as the file — read it straight off the
+        // form. Binding a [FromForm] model instead yields null whenever the client omits the "note"
+        // field (it does whenever the note is left blank), which NRE'd here. Stored to nvarchar(4000),
+        // so clamp defensively — an oversized paste must not 500.
+        var noteValue = httpContext.Request.Form["note"].ToString();
+        var note = string.IsNullOrWhiteSpace(noteValue) ? null
+            : noteValue.Length > 4000 ? noteValue[..4000] : noteValue;
+
         var command = new ProposeTopicToPoolCommand(
             PoolId: poolId,
-            NameVi: body.NameVi,
-            NameEn: body.NameEn,
-            NameAbbr: body.NameAbbr,
-            Description: body.Description,
-            Objectives: body.Objectives,
-            Scope: body.Scope,
-            Technologies: body.Technologies,
-            ExpectedResults: body.ExpectedResults,
             RegisterForm: registerFormStream.ToArray(),
-            MaxStudents: body.MaxStudents
+            Note: note
         );
 
         // The project must be committed before the files are queued: the scan job ends by inserting
