@@ -158,11 +158,13 @@ public class TopicPoolsDomainService : ITopicPoolsDomainService
         if (project.SourceType != ProjectSourceType.FromPool)
             throw new BusinessRuleValidationException("This project is not from the topic pool.");
 
-        if (project.PoolStatus != PoolTopicStatus.Available)
-            throw new BusinessRuleValidationException("This topic is not available for registration.");
-
+        // Only an approved topic may be registered — checked before availability so a not-yet-reviewed
+        // topic returns the accurate reason (a pool topic is Available from proposal time onward).
         if (project.Status != ProjectStatus.Approved)
-            throw new BusinessRuleValidationException("Only approved topics can be registered for.");
+            throw new BusinessRuleValidationException("Chỉ có thể đăng ký đề tài đã được duyệt.");
+
+        if (project.PoolStatus != PoolTopicStatus.Available)
+            throw new BusinessRuleValidationException("Đề tài này hiện không mở đăng ký.");
 
         // Group and topic must run in the same semester. Without this the mismatch stays invisible
         // until much later — it is how topics stamped with the wrong semester went unnoticed.
