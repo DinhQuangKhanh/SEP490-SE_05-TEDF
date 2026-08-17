@@ -4,8 +4,7 @@ import { Header } from '@/components/layout'
 import { useMaintenance } from '@/contexts/MaintenanceContext'
 import { useBranding } from '@/contexts/SettingsContext'
 import { useSystemError } from '@/contexts/SystemErrorContext'
-import { archiveService, settingsService } from "@/lib";
-import type { ArchiveGroup } from "@/types";
+import { settingsService } from "@/lib";
 
 const container = {
     hidden: { opacity: 0 },
@@ -18,7 +17,6 @@ const K = {
     MaxGroupMembers: 'MaxGroupMembers',
     MaxTopicsPerMentor: 'MaxTopicsPerMentor',
     AllowDirectRegistration: 'AllowDirectRegistration',
-    RequireOutlineApproval: 'RequireOutlineApproval',
     PrimaryColor: 'PrimaryColor',
     HeaderName: 'HeaderName',
     LogoUrl: 'LogoUrl',
@@ -51,14 +49,6 @@ function applyPreview(color: string) {
     document.documentElement.style.setProperty('--color-primary-dark', adjustColor(color, -20))
     document.documentElement.style.setProperty('--color-primary-light', adjustColor(color, 20))
 }
-function formatBytes(bytes: number) {
-    if (!bytes) return '0 B'
-    const gb = bytes / (1024 * 1024 * 1024)
-    if (gb >= 1) return `${gb.toFixed(1)} GB`
-    const mb = bytes / (1024 * 1024)
-    return `${mb.toFixed(0)} MB`
-}
-
 export function SettingsPage() {
     const { setMaintenanceMode } = useMaintenance()
     const { refresh, version } = useBranding()
@@ -69,7 +59,6 @@ export function SettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [showSaved, setShowSaved] = useState(false)
-    const [archives, setArchives] = useState<ArchiveGroup[]>([])
     const [showColorPicker, setShowColorPicker] = useState(false)
     const [customColor, setCustomColor] = useState('#2c6090')
 
@@ -78,15 +67,11 @@ export function SettingsPage() {
         let active = true
         ;(async () => {
             try {
-                const [settings, arch] = await Promise.all([
-                    settingsService.getAdminSettings(),
-                    archiveService.getArchives().catch(() => [] as ArchiveGroup[]),
-                ])
+                const settings = await settingsService.getAdminSettings()
                 if (!active) return
                 const map = Object.fromEntries(settings.map((s) => [s.key, s.value]))
                 setValues(map)
                 setInitial(map)
-                setArchives(arch)
             } catch {
                 if (active) showError('Không tải được cấu hình hệ thống.')
             } finally {
@@ -154,7 +139,6 @@ export function SettingsPage() {
         }
     }
 
-    const totalBytes = archives.reduce((sum, a) => sum + a.totalSizeBytes, 0)
     const primaryColor = get(K.PrimaryColor, '#2c6090')
 
     return (
@@ -235,11 +219,6 @@ export function SettingsPage() {
                                                 description="Sinh viên được phép tự đề xuất đề tài thay vì chọn từ danh sách có sẵn."
                                                 checked={getBool(K.AllowDirectRegistration)}
                                                 onChange={(b) => setBool(K.AllowDirectRegistration, b)} />
-                                            <ToggleRow
-                                                title="Yêu cầu phê duyệt đề cương"
-                                                description="Bắt buộc giảng viên phải duyệt đề cương trước khi bắt đầu thực hiện."
-                                                checked={getBool(K.RequireOutlineApproval)}
-                                                onChange={(b) => setBool(K.RequireOutlineApproval, b)} />
                                         </div>
                                     </div>
                                 </motion.div>
@@ -289,45 +268,6 @@ export function SettingsPage() {
                                     </div>
                                 </motion.div>
 
-                                {/* Archive management */}
-                                <motion.div variants={item} className="bento-card rounded-md overflow-hidden">
-                                    <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-primary">inventory_2</span>
-                                            <h4 className="font-bold text-slate-800">Quản Lý Kho Lưu Trữ Đề Tài Cũ</h4>
-                                        </div>
-                                        <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full border border-green-200">Hoạt động bình thường</span>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm text-slate-500">
-                                            <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-600 border-b border-slate-200">
-                                                <tr>
-                                                    <th className="px-6 py-3">Năm học</th>
-                                                    <th className="px-6 py-3">Số lượng đề tài</th>
-                                                    <th className="px-6 py-3">Dung lượng</th>
-                                                    <th className="px-6 py-3">Trạng thái</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {archives.length === 0 ? (
-                                                    <tr><td colSpan={4} className="px-6 py-6 text-center text-slate-400">Chưa có dữ liệu lưu trữ</td></tr>
-                                                ) : (
-                                                    archives.map((a) => (
-                                                        <tr key={a.academicYear} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="px-6 py-3 font-medium text-slate-800">{a.academicYear}</td>
-                                                            <td className="px-6 py-3">{a.projectCount}</td>
-                                                            <td className="px-6 py-3">{formatBytes(a.totalSizeBytes)}</td>
-                                                            <td className="px-6 py-3"><span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">Đã lưu trữ</span></td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                        <div className="p-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between">
-                                            <div className="text-xs text-slate-500">Tổng dung lượng: <span className="font-bold text-slate-700">{formatBytes(totalBytes)}</span></div>
-                                        </div>
-                                    </div>
-                                </motion.div>
                             </div>
 
                             {/* Right column */}
