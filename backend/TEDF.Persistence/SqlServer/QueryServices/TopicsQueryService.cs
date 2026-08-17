@@ -27,9 +27,13 @@ public class TopicsQueryService : ITopicsQueryService
         int? majorId, string? search, int? poolStatus, string? sortBy,
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        // Base query: only FromPool topics with major info
+        // Base query: only FromPool topics that have PASSED evaluation. A pool topic gets
+        // PoolStatus = Available at proposal time (before it is reviewed), so filtering on PoolStatus
+        // alone would leak PendingEvaluation/Draft/NeedsModification/Rejected topics into the student
+        // browse — only Approved topics belong in the pool (registration already enforces this too).
         var query = from p in _context.Projects.AsNoTracking()
                     where p.SourceType == ProjectSourceType.FromPool
+                          && p.Status == ProjectStatus.Approved
                     join m in _context.Set<Major>() on p.MajorId equals m.Id
                     select new { Project = p, MajorName = m.Name, MajorCode = m.Code };
 
