@@ -69,8 +69,12 @@ public class StudentGroupsQueryService : IStudentGroupsQueryService
                 SemesterStartDate = s.StartDate,
                 CreatedAt = g.CreatedAt,
                 Members = (
-                    from gm in _context.GroupMembers
-                    where gm.GroupId == g.Id
+                    from gm in _context.GroupMembers.AsNoTracking()
+                    // Current members only. Leaving a group is a soft status change (Status → Left,
+                    // the row is kept), so without this filter the list returned every past membership
+                    // — a student who left and rejoined showed up twice, and "Left" rows inflated the
+                    // count past MaxMembers. Mirrors GetStudentGroupAsync / GetOpenGroupsAsync.
+                    where gm.GroupId == g.Id && gm.Status == GroupMemberStatus.Active
                     join u in _context.Users on gm.StudentId equals u.Id
                     select new GroupMemberDto
                     {
