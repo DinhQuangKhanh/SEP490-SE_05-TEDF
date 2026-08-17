@@ -199,6 +199,81 @@ function ChecklistBadge({
   return <span className="material-symbols-outlined text-[18px] text-amber-500">report</span>;
 }
 
+/**
+ * The three verdicts with STATIC Tailwind classes. The old code built them as `border-${color}-500`,
+ * which Tailwind's scanner never sees as a complete string, so those shades were purged and the
+ * selected/hover borders never rendered — the buttons looked flat and colourless.
+ */
+const VERDICTS = [
+  { value: 1, label: "Duyệt", icon: "check_circle",
+    selected: "border-green-500 bg-green-50", idle: "border-gray-200 hover:border-green-300 hover:bg-green-50/40", text: "text-green-600" },
+  { value: 2, label: "Chỉnh sửa", icon: "edit_note",
+    selected: "border-amber-500 bg-amber-50", idle: "border-gray-200 hover:border-amber-300 hover:bg-amber-50/40", text: "text-amber-600" },
+  { value: 3, label: "Từ chối", icon: "cancel",
+    selected: "border-red-500 bg-red-50", idle: "border-gray-200 hover:border-red-300 hover:bg-red-50/40", text: "text-red-600" },
+] as const;
+
+const QUICK_FEEDBACK = [
+  "Đề tài có tính ứng dụng cao.",
+  "Cần bổ sung phương pháp nghiên cứu.",
+  "Mở rộng phần tổng quan tài liệu.",
+  "Cấu trúc đề tài tốt.",
+  "Mục tiêu chưa rõ ràng, cần cụ thể hơn.",
+  "Phạm vi quá rộng, cần thu hẹp.",
+];
+
+/** Primary section heading inside a content card (the higher of the two label tiers). */
+function SectionLabel({ children }: Readonly<{ children: ReactNode }>) {
+  return <h3 className="mb-2 text-sm font-semibold text-slate-700">{children}</h3>;
+}
+
+/**
+ * Renders a long field ("Phạm vi" / "Mục tiêu" / "Kết quả mong đợi"). When the text follows the
+ * register-form shape — numbered role headings ("1. Admin:") and "-" bullets — it becomes a grouped
+ * bullet list that is easy to scan; a plain paragraph falls back to preserved-whitespace prose.
+ */
+function StructuredText({ text }: Readonly<{ text: string | null | undefined }>) {
+  if (!text || text.trim().length === 0) return <span className="text-slate-400">—</span>;
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const headingRe = /^\d+\.\s*(.+?):?\s*$/;         // "1. Admin:" / "2. Trưởng bộ môn (Department Head):"
+  const bulletRe = /^[-•]\s+/;
+
+  const hasStructure = lines.some((l) => (headingRe.test(l) && !bulletRe.test(l)) || bulletRe.test(l));
+  if (!hasStructure) {
+    return <p className="max-w-[72ch] whitespace-pre-line text-sm leading-relaxed text-slate-700">{text}</p>;
+  }
+
+  const groups: { heading: string | null; items: string[] }[] = [];
+  for (const line of lines) {
+    const h = headingRe.exec(line);
+    if (h && !bulletRe.test(line)) {
+      groups.push({ heading: h[1].trim(), items: [] });
+    } else {
+      if (groups.length === 0) groups.push({ heading: null, items: [] });
+      groups[groups.length - 1].items.push(line.replace(bulletRe, ""));
+    }
+  }
+
+  return (
+    <div className="max-w-[72ch] space-y-3">
+      {groups.map((g, i) => (
+        <div key={g.heading ?? `g${i}`}>
+          {g.heading && <p className="mb-1 text-[13px] font-semibold text-slate-800">{g.heading}</p>}
+          <ul className="space-y-1">
+            {g.items.map((it, j) => (
+              <li key={j} className="flex gap-2 text-sm leading-relaxed text-slate-600">
+                <span className="mt-[7px] size-1 shrink-0 rounded-full bg-slate-300" />
+                <span>{it}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LecturerReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -400,23 +475,11 @@ export function LecturerReviewPage() {
     );
   }
 
-  const verdictOptions = [
-    { value: 1, label: "Duyệt", color: "green", icon: "check_circle" },
-    { value: 2, label: "Chỉnh sửa", color: "amber", icon: "edit_note" },
-    { value: 3, label: "Từ chối", color: "red", icon: "cancel" },
-  ];
-
-  const quickFeedback = [
-    "Đề tài có tính ứng dụng cao.",
-    "Cần bổ sung phương pháp nghiên cứu.",
-    "Mở rộng phần tổng quan tài liệu.",
-    "Cấu trúc đề tài tốt.",
-    "Mục tiêu chưa rõ ràng, cần cụ thể hơn.",
-    "Phạm vi quá rộng, cần thu hẹp.",
-  ];
+  // Top similarity match, if the reviewer has already run the check — feeds the summary panel.
+  const topMatch = matches.length > 0 ? matches[0] : null;
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div className="flex h-full flex-col-reverse lg:flex-row">
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
@@ -455,9 +518,17 @@ export function LecturerReviewPage() {
                     </span>
                   )}
                 </div>
-                <h1 className="text-lg font-bold text-slate-900 mt-1">{project.nameVi}</h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  <span className="font-medium">{project.studentName || "Chưa có sinh viên"}</span>
+                <h1 className="text-xl font-bold text-slate-900 mt-1 leading-snug">{project.nameVi}</h1>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-slate-600">{project.nameEn}</p>
+                  {project.nameAbbr && (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-slate-500">
+                      {project.nameAbbr}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1.5">
+                  <span className="font-medium text-slate-600">{project.studentName || "Chưa có sinh viên"}</span>
                   {" • "}{project.majorName}
                   {" • "}GVHD: {project.mentorName || "Chưa có"}
                 </p>
@@ -483,75 +554,72 @@ export function LecturerReviewPage() {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
           <div className="mx-auto w-full max-w-[1700px] space-y-6">
-            {/* English Title */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl border border-gray-200 p-5"
-            >
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Tên tiếng Anh</h3>
-              <p className="text-sm text-slate-800 font-medium">{project.nameEn}</p>
-              {project.nameAbbr && (
-                <p className="text-xs text-slate-500 mt-1">Viết tắt: {project.nameAbbr}</p>
-              )}
-            </motion.div>
-
             {/* Description + Objectives */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
               className="bg-white rounded-xl border border-gray-200 p-5"
             >
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 gap-x-8 gap-y-6">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Mô tả</h3>
-                  <p className="text-sm text-slate-700 whitespace-pre-line">{project.description}</p>
+                  <SectionLabel>Mô tả</SectionLabel>
+                  <p className="max-w-[72ch] text-sm leading-relaxed text-slate-700 whitespace-pre-line">
+                    {project.description}
+                  </p>
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Mục tiêu</h3>
-                  <p className="text-sm text-slate-700 whitespace-pre-line">{project.objectives}</p>
+                  <SectionLabel>Mục tiêu</SectionLabel>
+                  <StructuredText text={project.objectives} />
                 </div>
               </div>
             </motion.div>
 
-            {/* Scope + Technologies + Expected Results */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-xl border border-gray-200 p-5"
-            >
-              <div className="grid md:grid-cols-3 gap-6">
-                {project.scope && (
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Phạm vi</h3>
-                    <p className="text-sm text-slate-700 whitespace-pre-line">{project.scope}</p>
-                  </div>
-                )}
-                {project.technologies && (
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Công nghệ</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {project.technologies.split(",").map((tech) => (
-                        <span
-                          key={tech.trim()}
-                          className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
-                        >
-                          {tech.trim()}
-                        </span>
-                      ))}
+            {/* Scope — full width; the register-form role list is very long, so it gets its own card */}
+            {project.scope && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-white rounded-xl border border-gray-200 p-5"
+              >
+                <SectionLabel>Phạm vi</SectionLabel>
+                <StructuredText text={project.scope} />
+              </motion.div>
+            )}
+
+            {/* Technologies + Expected Results */}
+            {(project.technologies || project.expectedResults) && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-xl border border-gray-200 p-5"
+              >
+                <div className="grid md:grid-cols-2 gap-x-8 gap-y-6">
+                  {project.technologies && (
+                    <div>
+                      <SectionLabel>Công nghệ</SectionLabel>
+                      <div className="flex flex-wrap gap-1.5">
+                        {project.technologies.split(",").map((tech) => (
+                          <span
+                            key={tech.trim()}
+                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                          >
+                            {tech.trim()}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {project.expectedResults && (
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Kết quả mong đợi</h3>
-                    <p className="text-sm text-slate-700 whitespace-pre-line">{project.expectedResults}</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+                  )}
+                  {project.expectedResults && (
+                    <div>
+                      <SectionLabel>Kết quả mong đợi</SectionLabel>
+                      <StructuredText text={project.expectedResults} />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {/* Attachments (register form + documents) — preview inline, no download */}
             <motion.div
@@ -560,7 +628,7 @@ export function LecturerReviewPage() {
               transition={{ delay: 0.12 }}
               className="bg-white rounded-xl border border-gray-200 p-5"
             >
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Tài liệu đính kèm</h3>
+              <SectionLabel>Tài liệu đính kèm</SectionLabel>
               <TopicAttachmentList documents={documents} title={null} />
             </motion.div>
 
@@ -571,22 +639,22 @@ export function LecturerReviewPage() {
               transition={{ delay: 0.15 }}
               className="bg-white rounded-xl border border-gray-200 p-5"
             >
-              <h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Thông tin chung</h3>
+              <SectionLabel>Thông tin chung</SectionLabel>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <span className="text-slate-400 text-xs">Học kì</span>
+                  <span className="text-slate-500 text-xs">Học kì</span>
                   <p className="font-medium text-slate-800">{project.semesterName}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-xs">Ngành</span>
+                  <span className="text-slate-500 text-xs">Ngành</span>
                   <p className="font-medium text-slate-800">{project.majorName}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-xs">SV tối đa</span>
+                  <span className="text-slate-500 text-xs">SV tối đa</span>
                   <p className="font-medium text-slate-800">{project.maxStudents}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-xs">Lần thẩm định</span>
+                  <span className="text-slate-500 text-xs">Lần thẩm định</span>
                   <p className="font-medium text-slate-800">{project.evaluationCount}</p>
                 </div>
               </div>
@@ -654,11 +722,36 @@ export function LecturerReviewPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+          {/* Summary — a 5-second glance at the three things that drive the verdict */}
+          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-gray-200 bg-gray-200 text-center">
+            <div className="bg-white px-2 py-3">
+              <p className="text-[11px] font-medium text-slate-500">Checklist</p>
+              <p
+                className={`mt-0.5 text-lg font-extrabold tabular-nums ${hasActiveConfig ? (canApprove ? "text-green-600" : "text-amber-600") : "text-slate-400"
+                  }`}
+              >
+                {hasActiveConfig ? `${checklist?.passedCount ?? 0}/${checklistTotal}` : "—"}
+              </p>
+            </div>
+            <div className="bg-white px-2 py-3">
+              <p className="text-[11px] font-medium text-slate-500">Trùng lặp</p>
+              <p className={`mt-0.5 text-lg font-extrabold tabular-nums ${topMatch ? levelStyle(topMatch.level).text : "text-slate-400"}`}>
+                {topMatch ? `${pct(topMatch.overallScore)}%` : "—"}
+              </p>
+            </div>
+            <div className="bg-white px-2 py-3">
+              <p className="text-[11px] font-medium text-slate-500">Số ngày</p>
+              <p className={`mt-0.5 text-lg font-extrabold tabular-nums ${project.daysElapsed > 5 ? "text-red-600" : "text-slate-700"}`}>
+                {project.daysElapsed}
+              </p>
+            </div>
+          </div>
+
           {/* Verdict */}
           <div>
             <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">Quyết định</h3>
             <div className="grid grid-cols-3 gap-2">
-              {verdictOptions.map(({ value, label, color, icon }) => {
+              {VERDICTS.map(({ value, label, icon, selected: selCls, idle: idleCls, text }) => {
                 const selected = verdict === value;
                 // "Duyệt" (value 1) is gated by the checklist threshold.
                 const approveGated = value === 1 && !canApprove;
@@ -673,23 +766,13 @@ export function LecturerReviewPage() {
                         ? approveGateMessage(hasActiveConfig, checklistRequired, checklistTotal)
                         : undefined
                     }
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${selected
-                        ? `border-${color}-500 bg-${color}-50`
-                        : `border-gray-200 hover:border-${color}-300`
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${selected ? selCls : idleCls
                       }`}
                   >
-                    <span
-                      className={`material-symbols-outlined text-2xl mb-1 ${selected ? `text-${color}-600` : "text-gray-400"
-                        }`}
-                    >
+                    <span className={`material-symbols-outlined text-2xl mb-1 ${selected ? text : "text-gray-400"}`}>
                       {icon}
                     </span>
-                    <span
-                      className={`text-xs font-bold ${selected ? `text-${color}-600` : "text-slate-500"
-                        }`}
-                    >
-                      {label}
-                    </span>
+                    <span className={`text-xs font-bold ${selected ? text : "text-slate-500"}`}>{label}</span>
                   </button>
                 );
               })}
@@ -740,10 +823,10 @@ export function LecturerReviewPage() {
             <div>
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">Mẫu nhanh</h3>
               <div className="flex flex-wrap gap-2">
-                {quickFeedback.map((t) => (
+                {QUICK_FEEDBACK.map((t) => (
                   <button type="button"
                     key={t}
-                    onClick={() => setFeedback((f) => (f ? f + " " : "") + t)}
+                    onClick={() => setFeedback((f) => (f.trim() ? f.trimEnd() + "\n" : "") + t)}
                     className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-slate-600 hover:bg-primary/10 hover:text-primary"
                   >
                     {t}
