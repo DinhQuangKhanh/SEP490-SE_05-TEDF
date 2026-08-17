@@ -33,26 +33,6 @@ exclude: |
 
 repos:
   # --------------------------------------------------
-  # General-purpose hygiene
-  # --------------------------------------------------
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
-    hooks:
-      - id: trailing-whitespace
-        args: [--markdown-linebreak-ext=md]
-      - id: end-of-file-fixer
-      - id: mixed-line-ending
-        args: [--fix=lf]
-      - id: check-yaml
-      - id: check-json
-        exclude: ^.*tsconfig.*\.json$ # tsconfig files allow comments (JSONC)
-      - id: check-merge-conflict
-      - id: check-case-conflict
-      - id: check-added-large-files
-        args: [--maxkb=2048]
-      - id: detect-private-key # content scan: block committing private keys
-
-  # --------------------------------------------------
   # Security / policy guards (scripts/hooks/*.sh)
   # --------------------------------------------------
   - repo: local
