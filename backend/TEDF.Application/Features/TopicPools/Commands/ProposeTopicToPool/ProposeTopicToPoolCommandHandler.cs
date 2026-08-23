@@ -6,18 +6,18 @@ using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserServi
 namespace TEDF.Application.Features.TopicPools.Commands.ProposeTopicToPool;
 
 /// <summary>
-/// Handles ProposeTopicToPoolCommand by delegating to <see cref="ITopicPoolsDomainService"/>,
+/// Handles ProposeTopicToPoolCommand by delegating to <see cref="ITopicProposalService"/>,
 /// then registers the new topic in the Python similarity corpus using the project's id as the
 /// thesis id (so later duplicate checks line up).
 /// </summary>
 public class ProposeTopicToPoolCommandHandler : ICommandHandler<ProposeTopicToPoolCommand, Guid>
 {
-    private readonly ITopicPoolsDomainService _topicPools;
+    private readonly ITopicProposalService _topicPools;
     private readonly ICurrentUserService _currentUser;
     private readonly ISimilarityApiClient _similarityApi;
 
     public ProposeTopicToPoolCommandHandler(
-        ITopicPoolsDomainService topicPools,
+        ITopicProposalService topicPools,
         ICurrentUserService currentUser,
         ISimilarityApiClient similarityApi)
     {

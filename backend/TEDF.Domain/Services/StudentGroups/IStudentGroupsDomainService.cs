@@ -6,10 +6,6 @@ namespace TEDF.Domain.Services;
 /// </summary>
 public interface IStudentGroupsDomainService
 {
-    // ── Helper queries ──
-    Task<(bool CanJoin, string? Reason)> CanStudentJoinGroupAsync(Guid studentId, int semesterId, CancellationToken cancellationToken = default);
-    Task<IEnumerable<Guid>> GetGroupsWithoutProjectAsync(int semesterId, CancellationToken cancellationToken = default);
-
     // ── StudentGroups feature write operations ──
     /// <summary>Creates a group; <paramref name="displayName"/> is the optional student nickname —
     /// the code and Name are generated as {SemesterCode}-SE_NN / SE_NN.</summary>
