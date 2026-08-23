@@ -3,6 +3,7 @@ using TEDF.Domain.Aggregates.TopicPoolAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Entities;
 using TEDF.Domain.Enums.Mentor;
 using TEDF.Domain.Enums.TopicPool;
+using TEDF.Domain.Specifications.TopicRegistrations;
 using TEDF.Persistence.Common;
 
 namespace TEDF.Persistence.SqlServer.Repositories;
@@ -23,37 +24,19 @@ public class TopicRegistrationRepository : BaseRepository<TopicRegistration, Gui
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<TopicRegistration>> GetByGroupIdAsync(Guid groupId, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet
-            .Where(tr => tr.GroupId == groupId)
-            .OrderByDescending(tr => tr.RegisteredAt)
-            .ToListAsync(cancellationToken);
-    }
+    // Read predicates live in reusable Domain Specifications (single source of truth, DB-translatable)
+    // and are applied through BaseRepository — no hand-written EF query duplicated here.
+    public Task<IEnumerable<TopicRegistration>> GetByGroupIdAsync(Guid groupId, CancellationToken cancellationToken = default)
+        => ListAsync(new RegistrationsByGroupSpec(groupId), cancellationToken);
 
-    public async Task<IEnumerable<TopicRegistration>> GetPendingByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet
-            .Where(tr => tr.ProjectId == projectId && tr.Status == TopicRegistrationStatus.Pending)
-            .OrderBy(tr => tr.Priority)
-            .ThenBy(tr => tr.RegisteredAt)
-            .ToListAsync(cancellationToken);
-    }
+    public Task<IEnumerable<TopicRegistration>> GetPendingByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default)
+        => ListAsync(new PendingRegistrationsByProjectSpec(projectId), cancellationToken);
 
-    public async Task<bool> HasPendingRegistrationAsync(Guid groupId, Guid projectId, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet.AnyAsync(
-            tr => tr.GroupId == groupId &&
-                  tr.ProjectId == projectId &&
-                  tr.Status == TopicRegistrationStatus.Pending,
-            cancellationToken);
-    }
+    public Task<bool> HasPendingRegistrationAsync(Guid groupId, Guid projectId, CancellationToken cancellationToken = default)
+        => AnyAsync(new GroupPendingRegistrationForProjectSpec(groupId, projectId), cancellationToken);
 
-    public async Task<TopicRegistration?> GetConfirmedByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet
-            .FirstOrDefaultAsync(tr => tr.ProjectId == projectId && tr.Status == TopicRegistrationStatus.Confirmed, cancellationToken);
-    }
+    public Task<TopicRegistration?> GetConfirmedByProjectIdAsync(Guid projectId, CancellationToken cancellationToken = default)
+        => FirstOrDefaultAsync(new ConfirmedRegistrationByProjectSpec(projectId), cancellationToken);
 
     public async Task<IEnumerable<TopicRegistration>> GetConfirmedByGroupIdAsync(Guid groupId, CancellationToken cancellationToken = default)
     {

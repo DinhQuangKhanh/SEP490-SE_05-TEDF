@@ -6,7 +6,7 @@ using ICurrentUserService = TEDF.Application.Common.Interfaces.ICurrentUserServi
 namespace TEDF.Application.Features.TopicPools.Commands.MentorResubmitPoolTopic;
 
 public sealed class MentorResubmitPoolTopicCommandHandler(
-    ITopicPoolsDomainService topicPools,
+    ITopicProposalService topicPools,
     ICurrentUserService currentUser)
     : ICommandHandler<MentorResubmitPoolTopicCommand>
 {

@@ -254,7 +254,9 @@ namespace TEDF.Infrastructure
             services.AddScoped<ChecklistRepositories>();
             services.AddScoped<IChecklistDomainService, ChecklistDomainService>();
             services.AddScoped<IChecklistExcelService, ChecklistExcelService>();
-            services.AddScoped<ITopicPoolsDomainService, TopicPoolsDomainService>();
+            services.AddScoped<ITopicProposalService, TopicProposalService>();
+            services.AddScoped<ITopicRegistrationService, TopicRegistrationService>();
+            services.AddScoped<IPoolLifecycleService, PoolLifecycleService>();
             services.AddScoped<ISemestersDomainService, SemestersDomainService>();
             services.AddScoped<IStudentGroupsDomainService, StudentGroupsDomainService>();
             services.AddScoped<IUsersDomainService, UsersDomainService>();
