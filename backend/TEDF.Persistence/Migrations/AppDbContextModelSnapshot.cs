@@ -684,15 +684,15 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<int>("EvaluationCount")
                         .HasColumnType("int");
 
                     b.Property<string>("ExpectedResults")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<int?>("ExpirationSemesterId")
                         .HasColumnType("int");
@@ -712,6 +712,10 @@ namespace TEDF.Persistence.Migrations
                     b.Property<string>("MentorFeedback")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("MentorNote")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<string>("NameAbbr")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -729,8 +733,8 @@ namespace TEDF.Persistence.Migrations
 
                     b.Property<string>("Objectives")
                         .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("PoolStatus")
                         .HasMaxLength(20)
@@ -743,8 +747,8 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Scope")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<int>("SemesterId")
                         .HasColumnType("int");
@@ -765,8 +769,8 @@ namespace TEDF.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Technologies")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<Guid?>("TopicPoolId")
                         .HasColumnType("uniqueidentifier");

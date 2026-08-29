@@ -41,18 +41,6 @@ public class StudentGroupsDomainService : IStudentGroupsDomainService
         _unitOfWork = unitOfWork;
     }
 
-    // ── Helper queries ──
-    public async Task<(bool CanJoin, string? Reason)> CanStudentJoinGroupAsync(Guid studentId, int semesterId, CancellationToken ct = default)
-    {
-        var isInActiveGroup = await _groupRepository.IsStudentInActiveGroupAsync(studentId, semesterId, ct);
-        if (isInActiveGroup)
-            return (false, "Sinh viên đã tham gia một nhóm khác trong học kỳ này.");
-        return (true, null);
-    }
-
-    public async Task<IEnumerable<Guid>> GetGroupsWithoutProjectAsync(int semesterId, CancellationToken ct = default)
-        => await _groupRepository.GetActiveGroupIdsWithoutProjectAsync(semesterId, ct);
-
     // ── Write operations ──
     // Parameter is spelled out to match IStudentGroupsDomainService; the rest of this file still
     // uses the shorter `ct`, which predates that convention.

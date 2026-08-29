@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using TEDF.Application.Common;
 using TEDF.Application.Common.Interfaces;
 using TEDF.Domain.Aggregates.ProjectAggregate;
 using TEDF.Domain.Aggregates.TopicPoolAggregate.Events;
@@ -18,17 +19,20 @@ namespace TEDF.Infrastructure.EventHandlers.TopicPool
         private readonly INotificationService _notificationService;
         private readonly IRealtimeNotificationService _realtime;
         private readonly IProjectRepository _projectRepository;
+        private readonly ISystemSettingsService _settings;
 
         public TopicRegistrationRequestedEventHandler(
             ILogger<TopicRegistrationRequestedEventHandler> logger,
             INotificationService notificationService,
             IRealtimeNotificationService realtime,
-            IProjectRepository projectRepository)
+            IProjectRepository projectRepository,
+            ISystemSettingsService settings)
         {
             _logger = logger;
             _notificationService = notificationService;
             _realtime = realtime;
             _projectRepository = projectRepository;
+            _settings = settings;
         }
 
         public async Task Handle(TopicRegistrationRequestedEvent notification, CancellationToken cancellationToken)
@@ -42,14 +46,20 @@ namespace TEDF.Infrastructure.EventHandlers.TopicPool
             var mentorIds = project.Mentors.Where(m => m.IsActive).Select(m => m.MentorId).ToList();
             if (mentorIds.Count == 0) return;
 
-            await _notificationService.SendToMultipleAsync(
-                mentorIds,
-                "Yêu cầu đăng ký đề tài mới",
-                $"Một nhóm sinh viên đã đăng ký đề tài \"{project.NameVi}\". Vui lòng xem xét và xác nhận.",
-                NotificationType.Info,
-                NotificationCategory.TopicPool,
-                "/lecturer/registrations",
-                cancellationToken);
+            // Gated by the admin "Thông báo GVHD khi có đăng ký" setting (default on). The real-time
+            // push below is a live-sync of an already-open registrations tab, not a notification, so it
+            // is intentionally not gated.
+            if (await _settings.GetBoolAsync(SettingKeys.NotifyMentorOnRegistration, true, cancellationToken))
+            {
+                await _notificationService.SendToMultipleAsync(
+                    mentorIds,
+                    "Yêu cầu đăng ký đề tài mới",
+                    $"Một nhóm sinh viên đã đăng ký đề tài \"{project.NameVi}\". Vui lòng xem xét và xác nhận.",
+                    NotificationType.Info,
+                    NotificationCategory.TopicPool,
+                    "/lecturer/registrations",
+                    cancellationToken);
+            }
 
             foreach (var mentorId in mentorIds)
             {

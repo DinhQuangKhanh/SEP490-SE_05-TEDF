@@ -5,6 +5,7 @@ internal enum RegisterFormFormat
     Unknown = 0,
     Pdf = 1,
     Docx = 2,
+    Doc = 3,
 }
 
 /// <summary>
@@ -18,6 +19,9 @@ internal static class RegisterFormFormatDetector
     // OOXML files are ZIP containers. This also matches .xlsx/.zip, which is fine: those fail later
     // when word/document.xml turns out to be missing, and the caller treats that as "no roster".
     private static readonly byte[] ZipSignature = [0x50, 0x4B, 0x03, 0x04];
+
+    // Legacy .doc (Word 97-2003) is an OLE2 Compound File; its magic starts with D0 CF 11 E0.
+    private static readonly byte[] Ole2Signature = [0xD0, 0xCF, 0x11, 0xE0];
 
     public static RegisterFormFormat Detect(Stream stream)
     {
@@ -33,6 +37,9 @@ internal static class RegisterFormFormatDetector
 
         if (header.AsSpan().SequenceEqual(ZipSignature))
             return RegisterFormFormat.Docx;
+
+        if (header.AsSpan().SequenceEqual(Ole2Signature))
+            return RegisterFormFormat.Doc;
 
         return RegisterFormFormat.Unknown;
     }

@@ -94,6 +94,16 @@ namespace TEDF.Persistence.Common
         {
             return await ApplySpecification(spec).CountAsync(cancellationToken);
         }
+
+        /// <summary>
+        /// True when any entity matches the specification (short-circuits — cheaper than a count).
+        /// </summary>
+        protected async Task<bool> AnyAsync(
+            ISpecification<TEntity> spec,
+            CancellationToken cancellationToken = default)
+        {
+            return await ApplySpecification(spec).AnyAsync(cancellationToken);
+        }
     }
 
 }

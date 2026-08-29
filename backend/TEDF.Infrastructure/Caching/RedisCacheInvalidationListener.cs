@@ -10,7 +10,7 @@ namespace TEDF.Infrastructure.Caching
     /// When another instance publishes an invalidation, this listener clears the
     /// matching keys from the local L1 (MemoryCacheService) to ensure cross-instance consistency.
     /// </summary>
-    public class RedisCacheInvalidationListener : BackgroundService
+    public sealed class RedisCacheInvalidationListener : BackgroundService
     {
         private readonly IConnectionMultiplexer _redis;
         private readonly MemoryCacheService _l1;
@@ -36,8 +36,13 @@ namespace TEDF.Infrastructure.Caching
                 var subscriber = _redis.GetSubscriber();
                 var channel = RedisChannel.Literal(_settings.InvalidationChannel);
 
-                await subscriber.SubscribeAsync(channel, (_, message) =>
+                // OnMessage with an async handler lets us await the L1 clear instead of blocking a
+                // ThreadPool thread with GetAwaiter().GetResult(); StackExchange.Redis processes these
+                // messages sequentially per queue, so ordering is preserved.
+                var queue = await subscriber.SubscribeAsync(channel);
+                queue.OnMessage(async channelMessage =>
                 {
+                    var message = channelMessage.Message;
                     if (message.IsNullOrEmpty) return;
 
                     var raw = message.ToString();
@@ -55,8 +60,14 @@ namespace TEDF.Infrastructure.Caching
                         "Received cross-instance cache invalidation from {SenderId} for prefix: {Prefix}",
                         senderId, prefix);
 
-                    // Clear matching keys from local L1
-                    _l1.RemoveByPrefixAsync(prefix).GetAwaiter().GetResult();
+                    try
+                    {
+                        await _l1.RemoveByPrefixAsync(prefix, stoppingToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to clear L1 cache for prefix {Prefix}", prefix);
+                    }
                 });
 
                 _logger.LogInformation(

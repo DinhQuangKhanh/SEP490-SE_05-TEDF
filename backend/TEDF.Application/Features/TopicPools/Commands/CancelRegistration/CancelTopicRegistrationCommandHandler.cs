@@ -13,11 +13,11 @@ namespace TEDF.Application.Features.TopicPools.Commands.CancelRegistration;
 public class CancelTopicRegistrationCommandHandler
     : ICommandHandler<CancelTopicRegistrationCommand>
 {
-    private readonly ITopicPoolsDomainService _domainService;
+    private readonly ITopicRegistrationService _domainService;
     private readonly ICurrentUserService _currentUser;
 
     public CancelTopicRegistrationCommandHandler(
-        ITopicPoolsDomainService domainService,
+        ITopicRegistrationService domainService,
         ICurrentUserService currentUser)
     {
         _domainService = domainService;

@@ -56,6 +56,12 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
         /// still surface their note.
         /// </summary>
         public string? MentorFeedback { get; private set; }
+
+        /// <summary>
+        /// Rich-text note (sanitized HTML) the mentor writes when proposing the topic — e.g. capability
+        /// requirements for students who register. Set from the propose modal (React Quill). Optional.
+        /// </summary>
+        public string? MentorNote { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime? UpdatedAt { get; private set; }
         public PoolTopicStatus? PoolStatus { get; private set; }
@@ -133,6 +139,16 @@ namespace TEDF.Domain.Aggregates.ProjectAggregate
             };
             project.RaiseDomainEvent(new ProjectCreatedEvent(project.Id, project.Code.Value, ProjectSourceType.FromPool));
             return project;
+        }
+
+        /// <summary>
+        /// Sets the mentor's rich-text note (sanitized HTML) captured when proposing the topic. Null or
+        /// blank clears it. Kept separate from the factory so the note can be attached after creation.
+        /// </summary>
+        public void SetMentorNote(string? note)
+        {
+            MentorNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>
