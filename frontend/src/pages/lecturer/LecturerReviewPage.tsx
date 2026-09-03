@@ -89,7 +89,7 @@ const CATEGORIES: Record<CategoryKey, CategoryMeta> = {
   structural: {
     label: "Cấu trúc",
     icon: "layers",
-    hint: "Công nghệ, phương pháp và kiểu nhiệm vụ trùng nhau (SEDO).",
+    hint: "Chức năng cốt lõi trùng nhau giữa hai đề tài (vd: đặt lịch, theo dõi thời gian thực) — KHÔNG tính công nghệ.",
     chip: "bg-violet-50 text-violet-700 border-violet-300",
     mark: "bg-violet-200/70 text-violet-900",
     bar: "bg-violet-500",
@@ -1015,8 +1015,13 @@ function MatchComparison({
   };
 
   // Field-aligned overlaps keyed by FieldKey, so each field highlights only its own spans.
+  // `technologies` is never highlighted: the structural dimension no longer scores on the tech
+  // stack, so painting React/.NET as "Cấu trúc" would contradict the score. (Filtered here too so
+  // a stale engine response can't reintroduce it.)
   const alignments = new Map<string, FieldHighlight>(
-    (match.highlights?.fields ?? []).map((f) => [f.field, f]),
+    (match.highlights?.fields ?? [])
+      .filter((f) => f.field !== "technologies")
+      .map((f) => [f.field, f]),
   );
 
   // Per-field "why these overlap" text, fetched on demand. Grounded in the SAME highlight spans
@@ -1119,8 +1124,9 @@ function MatchComparison({
 
       {/* Hint */}
       <div className="px-4 py-2 text-[11px] text-slate-500 bg-white border-b border-gray-100">
-        Mỗi trường có <span className="font-semibold">nhãn góc độ + mức trùng</span> riêng; đoạn/thuật ngữ trùng
-        mạnh nhất được tô ở cả hai cột. Trường không trùng đáng kể để trơn. Bấm hạng mục trên để bật/tắt màu.
+        Mỗi trường gắn <span className="font-semibold">nhãn cho từng chiều mà nó trùng</span>; đoạn/thuật ngữ trùng
+        được tô đúng màu của chiều đó ở cả hai cột. Trường không trùng đáng kể để trơn. Điểm 4 chiều xem ở các ô
+        phía trên. Bấm hạng mục để bật/tắt màu.
       </div>
 
       {/* Explain overlap — per field, grounded in the same highlight spans painted below */}
@@ -1219,11 +1225,18 @@ function ThesisColumn({
         const spans: HighlightSpan[] = align
           ? (side === "a" ? align.a : align.b).filter((sp) => active.has(sp.angle))
           : [];
+        // Every dimension this field actually overlaps on gets its own badge (not just the single
+        // dominant one) — so all four DASSF angles stay visible per field, matching the colours
+        // painted in the text below. The authoritative % lives in the four chips above, so the
+        // per-field badges carry no (contradictory) number.
+        const fieldAngles = CATEGORY_ORDER.filter((c) => spans.some((sp) => sp.angle === c));
         return (
           <div key={f}>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{FIELD_LABEL[f]}</p>
-              {align && active.has(align.angle) && <AngleBadge angle={align.angle} score={align.score} />}
+              {fieldAngles.map((c) => (
+                <AngleBadge key={c} angle={c} score={null} />
+              ))}
             </div>
             <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line leading-relaxed break-words">
               <HighlightedText text={content[f]} spans={spans} />
