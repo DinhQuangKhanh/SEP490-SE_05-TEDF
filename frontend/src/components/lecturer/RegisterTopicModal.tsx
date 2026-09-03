@@ -17,6 +17,24 @@ const REGISTER_FORM_ACCEPT = ".pdf,.doc,.docx";
 const QUILL_TOOLBAR = [["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link"], ["clean"]];
 const QUILL_FORMATS = ["bold", "italic", "underline", "list", "link"];
 
+/** The 3.1–3.4 content the mentor may correct before submitting. Mirrors the parsed preview fields. */
+type DraftContent = {
+  nameEn: string;
+  nameVi: string;
+  nameAbbr: string;
+  description: string;
+  objectives: string;
+  technologies: string;
+  expectedResults: string;
+  scope: string;
+};
+
+const EMPTY_DRAFT: DraftContent = {
+  nameEn: "", nameVi: "", nameAbbr: "", description: "", objectives: "", technologies: "", expectedResults: "", scope: "",
+};
+
+const ABBR_RE = /^[A-Z]{3,5}$/;
+
 /** Quill's empty document is "<p><br></p>"; treat as empty when there is no text and no link. */
 function isQuillEmpty(html: string): boolean {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -40,6 +58,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
   const [fileError, setFileError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [preview, setPreview] = useState<RegisterFormPreview | null>(null);
+  const [draft, setDraft] = useState<DraftContent>(EMPTY_DRAFT);
 
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +84,7 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     setFileError(null);
     setValidating(false);
     setPreview(null);
+    setDraft(EMPTY_DRAFT);
     setNote("");
     setSubmitting(false);
     setShowSuccess(false);
@@ -75,8 +95,21 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     setValidating(true);
     setFileError(null);
     setPreview(null);
+    setDraft(EMPTY_DRAFT);
     try {
-      setPreview(await topicPoolService.validateRegisterForm(targetPoolId, picked));
+      const parsed = await topicPoolService.validateRegisterForm(targetPoolId, picked);
+      setPreview(parsed);
+      // Seed the editable draft from what was parsed — the mentor can then correct any field.
+      setDraft({
+        nameEn: parsed.nameEn ?? "",
+        nameVi: parsed.nameVi ?? "",
+        nameAbbr: parsed.nameAbbr ?? "",
+        description: parsed.description ?? "",
+        objectives: parsed.objectives ?? "",
+        technologies: parsed.technologies ?? "",
+        expectedResults: parsed.expectedResults ?? "",
+        scope: parsed.scope ?? "",
+      });
     } catch (err) {
       setFileError(err instanceof Error ? err.message : "Phiếu đăng ký không hợp lệ.");
     } finally {
@@ -112,7 +145,19 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
     if (file && id) void runValidation(id, file);
   };
 
-  const canSubmit = Boolean(poolId) && Boolean(file) && Boolean(preview) && !validating && !submitting;
+  // Client-side mirror of the server's 3.1–3.4 completeness rules, so "Gửi phê duyệt" only unlocks on
+  // a form the backend will accept. Description may be blank (the backend falls back to another field).
+  const draftComplete =
+    draft.nameEn.trim().length > 0 &&
+    draft.nameVi.trim().length > 0 &&
+    ABBR_RE.test(draft.nameAbbr.trim()) &&
+    draft.objectives.trim().length > 0 &&
+    draft.technologies.trim().length > 0 &&
+    draft.expectedResults.trim().length > 0 &&
+    draft.scope.trim().length > 0;
+
+  const canSubmit =
+    Boolean(poolId) && Boolean(file) && Boolean(preview) && draftComplete && !validating && !submitting;
 
   const handleSubmit = async () => {
     if (!canSubmit || !file) return;
@@ -122,6 +167,16 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
       formData.append("registerForm", file);
       if (!isQuillEmpty(note))
         formData.append("note", DOMPurify.sanitize(note, { ADD_ATTR: ["target", "rel"] }));
+
+      // Send the (possibly edited) 3.1–3.4 content; the backend overlays it onto the parsed form.
+      formData.append("nameEn", draft.nameEn.trim());
+      formData.append("nameVi", draft.nameVi.trim());
+      formData.append("nameAbbr", draft.nameAbbr.trim().toUpperCase());
+      formData.append("description", draft.description.trim());
+      formData.append("objectives", draft.objectives.trim());
+      formData.append("technologies", draft.technologies.trim());
+      formData.append("expectedResults", draft.expectedResults.trim());
+      formData.append("scope", draft.scope.trim());
 
       await topicPoolService.proposeTopic(poolId, formData);
       setShowSuccess(true);
@@ -253,33 +308,40 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
                     {preview && !validating && (
                       <div className="mt-3 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
                         <p className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-                          <span className="material-symbols-outlined text-[15px]">task_alt</span>
-                          Đã đọc từ phiếu đăng ký
+                          <span className="material-symbols-outlined text-[15px]">edit_note</span>
+                          Đã đọc từ phiếu — bạn có thể chỉnh sửa trước khi gửi
                         </p>
 
-                        <PreviewGroup title="3.1 · Tên &amp; mã">
-                          <PreviewInline label="Tên (EN)" value={preview.nameEn} />
-                          <PreviewInline label="Tên (VI)" value={preview.nameVi} />
-                          <PreviewInline label="Viết tắt" value={preview.nameAbbr} />
-                        </PreviewGroup>
+                        <EditableGroup title="3.1 · Tên &amp; mã">
+                          <EditableInput label="Tên (EN)" value={draft.nameEn} onChange={(v) => setDraft((d) => ({ ...d, nameEn: v }))} />
+                          <EditableInput label="Tên (VI)" value={draft.nameVi} onChange={(v) => setDraft((d) => ({ ...d, nameVi: v }))} />
+                          <EditableInput
+                            label="Viết tắt"
+                            value={draft.nameAbbr}
+                            onChange={(v) => setDraft((d) => ({ ...d, nameAbbr: v.toUpperCase() }))}
+                            hint="3–5 chữ IN HOA"
+                            invalid={draft.nameAbbr.trim().length > 0 && !ABBR_RE.test(draft.nameAbbr.trim())}
+                          />
+                        </EditableGroup>
 
-                        <PreviewGroup title="3.2 · Nội dung">
-                          <PreviewBlock label="Mô tả" value={preview.description} />
-                          <PreviewBlock label="Mục tiêu" value={preview.objectives} />
-                          <PreviewChips label="Công nghệ" value={preview.technologies} />
-                        </PreviewGroup>
+                        <EditableGroup title="3.2 · Nội dung">
+                          <EditableArea label="Mô tả" value={draft.description} onChange={(v) => setDraft((d) => ({ ...d, description: v }))} />
+                          <EditableArea label="Mục tiêu" value={draft.objectives} onChange={(v) => setDraft((d) => ({ ...d, objectives: v }))} />
+                          <EditableInput
+                            label="Công nghệ"
+                            value={draft.technologies}
+                            onChange={(v) => setDraft((d) => ({ ...d, technologies: v }))}
+                            hint="phân tách bằng dấu phẩy"
+                          />
+                        </EditableGroup>
 
-                        {hasText(preview.expectedResults) && (
-                          <PreviewGroup title="3.3 · Kết quả kỳ vọng">
-                            <PreviewBlock value={preview.expectedResults} />
-                          </PreviewGroup>
-                        )}
+                        <EditableGroup title="3.3 · Kết quả kỳ vọng">
+                          <EditableArea value={draft.expectedResults} onChange={(v) => setDraft((d) => ({ ...d, expectedResults: v }))} />
+                        </EditableGroup>
 
-                        {hasText(preview.scope) && (
-                          <PreviewGroup title="3.4 · Phạm vi">
-                            <PreviewBlock value={preview.scope} />
-                          </PreviewGroup>
-                        )}
+                        <EditableGroup title="3.4 · Phạm vi">
+                          <EditableArea value={draft.scope} onChange={(v) => setDraft((d) => ({ ...d, scope: v }))} />
+                        </EditableGroup>
 
                         <p className="border-t border-emerald-200/70 pt-2 text-[11px] font-medium text-emerald-700">
                           Khớp {preview.mentorCount} giảng viên hướng dẫn trong danh sách đã công bố.
@@ -344,13 +406,8 @@ export function RegisterTopicModal({ isOpen, onClose }: RegisterTopicModalProps)
   );
 }
 
-/** True (and narrows the type) when the parsed field actually carries text. Empty optional fields are hidden. */
-function hasText(value: string | null | undefined): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-/** A titled section of the parsed-form preview, mirroring the register form's own 3.1–3.4 headings. */
-function PreviewGroup({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+/** A titled section of the editable form content, mirroring the register form's own 3.1–3.4 headings. */
+function EditableGroup({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <div className="space-y-1.5">
       <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600/80">{title}</p>
@@ -359,52 +416,48 @@ function PreviewGroup({ title, children }: Readonly<{ title: string; children: R
   );
 }
 
-/** Short single-value field (title / abbreviation): label + value on one line, shown in full — never clamped. */
-function PreviewInline({ label, value }: Readonly<{ label: string; value: string | null }>) {
-  if (!hasText(value)) return null;
+/** A short single-line editable field (title / abbreviation / technologies) with an optional hint. */
+function EditableInput({
+  label,
+  value,
+  onChange,
+  hint,
+  invalid,
+}: Readonly<{ label: string; value: string; onChange: (v: string) => void; hint?: string; invalid?: boolean }>) {
   return (
-    <div className="flex gap-2 text-[12px]">
-      <span className="w-16 shrink-0 font-semibold text-slate-500">{label}</span>
-      <span className="min-w-0 flex-1 break-words text-slate-700">{value}</span>
+    <div className="text-[12px]">
+      <div className="mb-0.5 flex items-baseline gap-2">
+        <span className="font-semibold text-slate-500">{label}</span>
+        {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+      </div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full rounded-lg border bg-white/80 px-2.5 py-1.5 text-slate-700 outline-none transition-colors focus:ring-2 ${
+          invalid
+            ? "border-red-300 focus:border-red-400 focus:ring-red-100"
+            : "border-emerald-200 focus:border-emerald-400 focus:ring-emerald-100"
+        }`}
+      />
     </div>
   );
 }
 
-/**
- * A long, possibly multi-paragraph field (description / objectives / expected results / scope). Shown in
- * full with its line breaks preserved; a bounded height with its own scrollbar keeps a 4000-char field
- * from blowing up the modal — the content scrolls, it is never cut with an ellipsis.
- */
-function PreviewBlock({ label, value }: Readonly<{ label?: string; value: string | null }>) {
-  if (!hasText(value)) return null;
+/** A long, multi-paragraph editable field (description / objectives / expected results / scope). */
+function EditableArea({
+  label,
+  value,
+  onChange,
+}: Readonly<{ label?: string; value: string; onChange: (v: string) => void }>) {
   return (
     <div className="text-[12px]">
       {label && <span className="mb-0.5 block font-semibold text-slate-500">{label}</span>}
-      <div className="max-h-56 overflow-y-auto whitespace-pre-line break-words rounded-lg border border-emerald-100 bg-white/70 px-2.5 py-2 leading-relaxed text-slate-700">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-/** The comma-joined technology list rendered as chips so every entry is visible at a glance. */
-function PreviewChips({ label, value }: Readonly<{ label: string; value: string | null }>) {
-  if (!hasText(value)) return null;
-  const items = value.split(",").map((t) => t.trim()).filter(Boolean);
-  if (items.length === 0) return null;
-  return (
-    <div className="text-[12px]">
-      <span className="mb-1 block font-semibold text-slate-500">{label}</span>
-      <div className="flex flex-wrap gap-1">
-        {items.map((tech, i) => (
-          <span
-            key={`${tech}-${i}`}
-            className="rounded-md border border-emerald-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-600"
-          >
-            {tech}
-          </span>
-        ))}
-      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={4}
+        className="max-h-56 w-full resize-y whitespace-pre-line break-words rounded-lg border border-emerald-200 bg-white/80 px-2.5 py-2 leading-relaxed text-slate-700 outline-none transition-colors focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+      />
     </div>
   );
 }

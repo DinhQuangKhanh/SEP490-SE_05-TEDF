@@ -35,7 +35,8 @@ public class ProposeTopicToPoolCommandHandler : ICommandHandler<ProposeTopicToPo
         // lecturer must be the mentor named on the form / 3.1–3.4), maps it onto the project and returns
         // the mapped content for the corpus below.
         var (projectId, content) = await _topicPools.ProposeTopicFromFormAsync(
-            request.PoolId, request.RegisterForm, request.Note, _currentUser.UserId.Value, cancellationToken);
+            request.PoolId, request.RegisterForm, request.Note, _currentUser.UserId.Value,
+            request.EditedContent, cancellationToken);
 
         // Register the topic in the similarity corpus under the SAME id, so a later "check duplicates"
         // finds it. Best-effort inside the client — a failure here never fails the proposal.

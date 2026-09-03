@@ -25,6 +25,7 @@ using TEDF.Application.Common.Interfaces;
 using TEDF.Application.Features.TopicPools.Commands.MentorResubmitPoolTopic;
 using TEDF.Application.Features.TopicPools.Commands.MentorUpdatePoolTopic;
 using TEDF.Domain.Enums.Document;
+using TEDF.Domain.Services;
 
 namespace TEDF.API.Endpoints.Topics;
 
@@ -280,10 +281,27 @@ public sealed class TopicPoolsEndpoints : IEndpoint
         var note = string.IsNullOrWhiteSpace(noteValue) ? null
             : noteValue.Length > 4000 ? noteValue[..4000] : noteValue;
 
+        // The mentor may have corrected the parsed 3.1–3.4 content in the modal. A field that is
+        // present (even blank) overrides what the form said; an absent field keeps the parsed value.
+        // The supervisor/checkbox are never read from the client — the mentor-match stays file-based.
+        var form = httpContext.Request.Form;
+        string? EditField(string key) => form.ContainsKey(key) ? form[key].ToString() : null;
+
+        var editedContent = new RegisterFormContentEdit(
+            NameEn: EditField("nameEn"),
+            NameVi: EditField("nameVi"),
+            NameAbbr: EditField("nameAbbr"),
+            Description: EditField("description"),
+            Objectives: EditField("objectives"),
+            Technologies: EditField("technologies"),
+            ExpectedResults: EditField("expectedResults"),
+            Scope: EditField("scope"));
+
         var command = new ProposeTopicToPoolCommand(
             PoolId: poolId,
             RegisterForm: registerFormStream.ToArray(),
-            Note: note
+            Note: note,
+            EditedContent: editedContent
         );
 
         // The project must be committed before the files are queued: the scan job ends by inserting

@@ -182,4 +182,61 @@ public class RegisterFormProposalValidatorTests
         var ex = Assert.Throws<BusinessRuleValidationException>(() => Run(content, Eligible()));
         Assert.Contains("Kinds of person", ex.Message);
     }
+
+    // ── ApplyEdits: the mentor may correct the parsed 3.1–3.4 content before submitting ──────────
+
+    [Fact]
+    public void ApplyEdits_null_keeps_the_parsed_content_unchanged()
+    {
+        var content = Content();
+        Assert.Same(content, RegisterFormProposalValidator.ApplyEdits(content, null));
+    }
+
+    [Fact]
+    public void ApplyEdits_overrides_only_the_edited_fields_then_maps()
+    {
+        var edited = new RegisterFormContentEdit(
+            NameEn: "Edited EN", NameVi: null, NameAbbr: "EDIT",
+            Description: null, Objectives: "Edited objectives",
+            Technologies: "Vue, .NET", ExpectedResults: null, Scope: null);
+
+        var applied = RegisterFormProposalValidator.ApplyEdits(Content(), edited);
+        var result = Run(applied, Eligible());
+
+        Assert.Equal("Edited EN", result.NameEn);
+        Assert.Equal("Tên tiếng Việt", result.NameVi);   // a null edit keeps the parsed value
+        Assert.Equal("EDIT", result.NameAbbr);
+        Assert.Equal("Edited objectives", result.Objectives);
+        Assert.Equal("Vue, .NET", result.Technologies);   // CSV re-joined from the edited list
+    }
+
+    [Fact]
+    public void ApplyEdits_never_touches_the_supervisors_or_the_checkbox()
+    {
+        // The mentor-match must stay file-based: edits carry no supervisor/checkbox field to spoof.
+        var content = Content();
+        var applied = RegisterFormProposalValidator.ApplyEdits(content,
+            new RegisterFormContentEdit("X", "Y", "ABCD", "d", "o", "T1", "e", "s"));
+
+        Assert.Equal(content.Supervisors, applied.Supervisors);
+        Assert.Equal(content.LecturerRegisterTicked, applied.LecturerRegisterTicked);
+    }
+
+    [Fact]
+    public void ApplyEdits_edited_content_is_still_validated_invalid_abbr_rejected()
+    {
+        var applied = RegisterFormProposalValidator.ApplyEdits(Content(),
+            new RegisterFormContentEdit(null, null, "AB1", null, null, null, null, null));  // digit → invalid
+        var ex = Assert.Throws<BusinessRuleValidationException>(() => Run(applied, Eligible()));
+        Assert.Contains("3.1", ex.Message);
+    }
+
+    [Fact]
+    public void ApplyEdits_clearing_a_required_field_is_rejected()
+    {
+        var applied = RegisterFormProposalValidator.ApplyEdits(Content(),
+            new RegisterFormContentEdit(null, null, null, null, null, null, null, "   "));  // blank scope
+        var ex = Assert.Throws<BusinessRuleValidationException>(() => Run(applied, Eligible()));
+        Assert.Contains("3.4", ex.Message);
+    }
 }

@@ -109,14 +109,15 @@ public sealed class TopicProposalService : ITopicProposalService
     public async Task<RegisterFormProposalResult> ValidateRegisterFormAsync(
         Guid poolId, byte[] registerForm, Guid currentUserId, CancellationToken cancellationToken = default)
     {
-        var (_, result, _) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, cancellationToken);
+        var (_, result, _) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, null, cancellationToken);
         return result;
     }
 
     public async Task<(Guid ProjectId, RegisterFormProposalResult Content)> ProposeTopicFromFormAsync(
-        Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId, CancellationToken cancellationToken = default)
+        Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId,
+        RegisterFormContentEdit? editedContent = null, CancellationToken cancellationToken = default)
     {
-        var (pool, result, targetSemesterId) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, cancellationToken);
+        var (pool, result, targetSemesterId) = await ParseValidatePoolFormAsync(poolId, registerForm, currentUserId, editedContent, cancellationToken);
 
         // Cap the mentor's active topics per the admin "Số lượng đề tài tối đa / GVHD" setting. The
         // proposing lecturer (currentUserId) was already proven to be the mentor named on the form.
@@ -167,7 +168,7 @@ public sealed class TopicProposalService : ITopicProposalService
     /// the "validate before submit" step and the actual proposal so both apply exactly the same rules.
     /// </summary>
     private async Task<(TopicPool Pool, RegisterFormProposalResult Result, int TargetSemesterId)> ParseValidatePoolFormAsync(
-        Guid poolId, byte[] registerForm, Guid currentUserId, CancellationToken cancellationToken)
+        Guid poolId, byte[] registerForm, Guid currentUserId, RegisterFormContentEdit? editedContent, CancellationToken cancellationToken)
     {
         if (registerForm is null || registerForm.Length == 0)
             throw new BusinessRuleValidationException("Phiếu đăng ký (Capstone Project Register) là bắt buộc khi đề xuất đề tài.");
@@ -185,6 +186,10 @@ public sealed class TopicProposalService : ITopicProposalService
         RegisterFormContent content;
         using (var stream = new MemoryStream(registerForm, writable: false))
             content = _registerFormParser.ExtractContent(stream);
+
+        // Overlay the mentor's edits (3.1–3.4) on top of the parsed content — but NOT the supervisors /
+        // checkbox, so the mentor-match below still runs against the actual uploaded file.
+        content = RegisterFormProposalValidator.ApplyEdits(content, editedContent);
 
         var eligibleMentors = await _semesterRepository.GetEligibleMentorsByMajorAsync(targetSemesterId, pool.MajorId, cancellationToken);
 
