@@ -28,9 +28,16 @@ public interface ITopicProposalService
     /// form (same rules as <see cref="ValidateRegisterFormAsync"/>), maps its 3.1–3.4 fields onto the
     /// project, sets the mentor to the logged-in lecturer, records the roster, stores the optional
     /// note, and returns the new project id.
+    /// <para>
+    /// <paramref name="editedContent"/> lets the mentor correct the parsed 3.1–3.4 content in the modal
+    /// before submitting (a null field keeps what was read from the form). The supervisor block and the
+    /// "kinds of person" checkbox are NEVER taken from the client — the mentor-match still runs against
+    /// the uploaded file, so a mentor cannot propose a topic they are not named on.
+    /// </para>
     /// </summary>
     Task<(Guid ProjectId, RegisterFormProposalResult Content)> ProposeTopicFromFormAsync(
-        Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId, CancellationToken cancellationToken = default);
+        Guid poolId, byte[] registerForm, string? mentorNote, Guid currentUserId,
+        RegisterFormContentEdit? editedContent = null, CancellationToken cancellationToken = default);
 
     /// <summary>Mentor edits a pool topic (allowed only while Draft/NeedsModification).</summary>
     Task UpdatePoolTopicAsync(Guid projectId, PoolTopicContent content, CancellationToken cancellationToken = default);
@@ -54,6 +61,23 @@ public record RegisterFormProposalResult(
     string? ExpectedResults,
     string? Scope,
     IReadOnlyList<Guid> MentorIds
+);
+
+/// <summary>
+/// Mentor-supplied corrections to the parsed 3.1–3.4 content, applied on top of what was read off the
+/// uploaded register form before validation. A <c>null</c> field keeps the parsed value. The supervisor
+/// block and the "kinds of person" checkbox are intentionally NOT here: they gate the mentor-match and
+/// must come from the file only.
+/// </summary>
+public record RegisterFormContentEdit(
+    string? NameEn,
+    string? NameVi,
+    string? NameAbbr,
+    string? Description,
+    string? Objectives,
+    string? Technologies,   // comma-separated list, as shown in the modal
+    string? ExpectedResults,
+    string? Scope
 );
 
 /// <summary>Editable content of a pool topic (used by propose &amp; update).</summary>

@@ -16,6 +16,32 @@ internal static partial class RegisterFormProposalValidator
 {
     private const int ContentMaxLength = 4000;   // matches the widened Project content columns
 
+    /// <summary>
+    /// Overlays the mentor's edited 3.1–3.4 content onto what was parsed from the form (a null field
+    /// keeps the parsed value). The supervisor list and the "kinds of person" checkbox are left
+    /// untouched — they still gate the mentor-match against the actual uploaded file.
+    /// </summary>
+    public static RegisterFormContent ApplyEdits(RegisterFormContent content, RegisterFormContentEdit? edited)
+    {
+        if (edited is null)
+            return content;
+
+        return content with
+        {
+            NameEn = edited.NameEn ?? content.NameEn,
+            NameVi = edited.NameVi ?? content.NameVi,
+            NameAbbr = edited.NameAbbr ?? content.NameAbbr,
+            Description = edited.Description ?? content.Description,
+            Objectives = edited.Objectives ?? content.Objectives,
+            Technologies = edited.Technologies is not null ? SplitTechnologies(edited.Technologies) : content.Technologies,
+            ExpectedResults = edited.ExpectedResults ?? content.ExpectedResults,
+            Scope = edited.Scope ?? content.Scope
+        };
+    }
+
+    private static IReadOnlyList<string> SplitTechnologies(string csv) =>
+        csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public static RegisterFormProposalResult ValidateAndMap(
         RegisterFormContent content,
         IReadOnlyList<EligibleMentor> eligibleMentors,
